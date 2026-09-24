@@ -554,8 +554,7 @@ func click(c: Vector2i) -> void:
 		select(u)
 		return
 	if u and u.side == "foe":
-		toggle_inspect(u)
-		return
+		return  # la fiche suit le survol, rien à épingler
 	var pk: String = board.props.get(c, "")
 	if pk in ["coffre", "levier"] and selected:
 		if selected.moved:

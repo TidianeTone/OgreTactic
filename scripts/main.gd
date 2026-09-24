@@ -1353,7 +1353,8 @@ func _uitest() -> void:
 	_snap_cam()
 	await _frames(90)
 	var foe: Unit = battle.foes[0]
-	battle.click(foe.cell)
+	hover = foe.cell
+	refresh_hover()
 	await _frames(20)
 	_shot(dir, "fiche")
 	print("fiche visible : ", ui.sheet_plate.visible, " · zone : ", battle.reach(foe).cells.size())

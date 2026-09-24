@@ -237,7 +237,7 @@ func _build_hud() -> void:
 	keys.offset_top = -200
 	keys.offset_bottom = -140
 	keys.add_child(_label("Clic droit maintenu : caméra libre + ZQSD · Q/E pivoter · P : paquet
-Clic sur un ennemi : sa fiche · Alt : objets interactifs · Échap : menu", 12, DIM))
+Survol d'un ennemi : sa fiche · Alt : objets interactifs · Échap : menu", 12, DIM))
 
 	# fiche d'unité, à droite
 	sheet_plate = _plate(hud)
