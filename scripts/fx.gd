@@ -17,6 +17,7 @@ static func _face(path: String, wght: int) -> FontVariation:
 	var fv := FontVariation.new()
 	fv.base_font = base
 	fv.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): wght}
+	fv.fallbacks = base.fallbacks  # sinon une variation de variation perd les symboles
 	return fv
 
 

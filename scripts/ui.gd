@@ -66,6 +66,7 @@ func _ready() -> void:
 	wide_f = FontVariation.new()
 	wide_f.base_font = title_f
 	wide_f.spacing_glyph = 14
+	wide_f.fallbacks = title_f.fallbacks
 	body_f = Fx.body_font()
 	root = Control.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1018,7 +1019,7 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 	else:
 		var hb := HBoxContainer.new()
 		hb.alignment = BoxContainer.ALIGNMENT_CENTER
-		hb.add_theme_constant_override("separation", 26)
+		hb.add_theme_constant_override("separation", 26 if options.size() <= 6 else 12)
 		box.add_child(hb)
 		row = hb
 	for i in options.size():
@@ -1036,7 +1037,7 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 			_passthrough(w)
 			w = holder
 		else:
-			w = _option(o, 250 if options.size() <= 4 else (205 if options.size() <= 6 else 186))
+			w = _option(o, 250 if options.size() <= 4 else (205 if options.size() <= 6 else (186 if options.size() <= 7 else 170)))
 		w.mouse_filter = Control.MOUSE_FILTER_STOP
 		var idx := i
 		w.focus_mode = Control.FOCUS_ALL
