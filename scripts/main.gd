@@ -266,10 +266,30 @@ func _process(dt: float) -> void:
 		_adv_process(dt)
 	if ui and ui.hud.visible and not args.has("capture") and not pad and not ui.menu_open():
 		var mp := get_viewport().get_mouse_position()
-		var h = board.pick(cam.project_ray_origin(mp), cam.project_ray_normal(mp))
+		var h = _pick(cam.project_ray_origin(mp), cam.project_ray_normal(mp))
 		if h != hover:
 			hover = h
 			refresh_hover()
+
+
+func _pick(from: Vector3, dir: Vector3) -> Variant:
+	## La case visée : la dalle touchée, ou le volume d'un objet ou d'une unité posé devant
+	## (survoler le coffre lui-même, pas la dalle derrière lui).
+	var best = board.pick(from, dir)
+	var bt := INF
+	if best != null:
+		bt = from.distance_to(board.world(best))
+	var solids: Array = battle.prop_nodes.keys() + battle.loot.keys() + battle.oaks.keys()
+	for u in battle.heroes + battle.foes:
+		if u.alive:
+			solids.append(u.cell)
+	for c in solids:
+		var base := board.world(c)
+		var hit = AABB(base + Vector3(-0.42, 0.0, -0.42), Vector3(0.84, 1.5, 0.84)).intersects_ray(from, dir)
+		if hit != null and from.distance_to(hit) < bt:
+			bt = from.distance_to(hit)
+			best = c
+	return best
 
 
 func _place_cam() -> void:
@@ -488,6 +508,9 @@ func _unhandled_input(e: InputEvent) -> void:
 				battle.end_turn()
 			KEY_P:
 				view_deck()
+			KEY_H:
+				ui.show_keys = not ui.show_keys
+				ui.refresh()
 			KEY_M:
 				_mute = not _mute
 				(_music[1] as AudioStreamPlayer).volume_db = _music_vol()
@@ -1095,12 +1118,21 @@ func _forge(title: String, subtitle: String) -> bool:
 	if idx.is_empty():
 		ui.toast("Tout le paquet est déjà au niveau 5.")
 		return false
-	var j := await ui.choose(title, subtitle, idx.map(func(k): return {"card": {"id": deck[k].id, "lvl": Data.level(deck[k]) + 1}}), true)
+	var j := await ui.choose(title, subtitle, idx.map(func(k): return {"card": deck[k]}), true)
 	if j < 0:
 		return false
+	if not await _confirm_upgrade(deck[idx[j]], {"id": deck[idx[j]].id, "lvl": Data.level(deck[idx[j]]) + 1}):
+		return await _forge(title, subtitle)
 	_level_up(idx[j])
 	ui.toast("%s passe au niveau %d." % [Data.CARDS[deck[idx[j]].id].name, deck[idx[j]].lvl])
 	return true
+
+
+func _confirm_upgrade(before: Dictionary, after: Dictionary) -> bool:
+	## Aperçu avant / après : on voit ce que la carte gagne avant de valider.
+	var i := await ui.choose("AMÉLIORER ?", "Niveau %d → %d · cliquez la version de droite pour valider" % [Data.level(before), Data.level(after)],
+		[{"card": before, "tag": "Avant"}, {"card": after, "tag": "Après"}], true, "Choisir une autre carte")
+	return i == 1
 
 
 func _level_up(k: int) -> void:
@@ -1131,6 +1163,8 @@ func _fuse() -> bool:
 		return false
 	var pr: Array = pairs[j]
 	var fused := {"id": deck[pr[0]].id, "lvl": Data.level(deck[pr[0]]) + 1}
+	if not await _confirm_upgrade(deck[pr[0]], fused):
+		return await _fuse()
 	deck.remove_at(pr[1])
 	deck[pr[0]] = fused
 	ui.toast("Fusion : %s niveau %d." % [Data.CARDS[fused.id].name, fused.lvl])
@@ -1423,6 +1457,31 @@ func _uitest() -> void:
 	rw.call()
 	await _frames(30)
 	_shot(dir, "butin2")
+	ui.picked.emit(-1)
+	await _frames(10)
+	var ap := func(): await _confirm_upgrade({"id": "charge", "lvl": 2}, {"id": "charge", "lvl": 3})
+	ap.call()
+	await _frames(30)
+	_shot(dir, "apercu")
+	ui.picked.emit(-1)
+	await _frames(10)
+	# survol d'un objet du décor : l'infobulle de la case
+	ui.show_hud(true)
+	if board.props.size() > 0:
+		var pc: Vector2i = board.props.keys()[0]
+		target = board.world(pc)
+		_snap_cam()
+		await _frames(5)
+		var sp := cam.unproject_position(board.world(pc) + Vector3(0, 0.6, 0))
+		pad = true  # la souris réelle ne doit pas écraser le survol simulé
+		hover = _pick(cam.project_ray_origin(sp), cam.project_ray_normal(sp))
+		refresh_hover()
+		await _frames(10)
+		print("survol objet : ", hover == pc, " · ", ui.tip.text, " · plaque ", ui.tip_plate.get_global_rect())
+		ui.toast("Test : message éphémère")
+		await _frames(8)
+		print("toast : ", ui.toast_plate.get_global_rect())
+		_shot(dir, "survol")
 	get_tree().quit()
 
 
@@ -1917,7 +1976,7 @@ func _test_driver() -> void:
 		if ui.overlay != null:
 			await _frames(15)
 			if ui.overlay != null:
-				ui.picked.emit(0)
+				ui.picked.emit(maxi(0, ui.last_n - 1))  # la dernière option : « Après » pour les aperçus
 			continue
 		if ui.hud.visible and battle.player_turn and not battle.busy and not battle.over:
 			if battle.turn > 25:

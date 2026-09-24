@@ -1,4 +1,4 @@
-# OgreTactic
+# TonerTactic
 
 Roguelike tactique à cartes, en voxels : l'esprit de *Final Fantasy Tactics* et *Disgaea* sur le terrain,
 la structure de *Slay the Spire* dans le paquet. Fait avec Godot 4.7 ; tous les modèles sont générés
@@ -10,7 +10,7 @@ dans Blender par script (`blender/`).
 
 - Clic : choisir un héros, une carte, une case · Espace : fin du tour
 - Clic droit maintenu : caméra libre (ZQSD) · Q/E : pivoter · molette : zoom
-- P : voir le paquet · M : couper la musique · Alt : objets interactifs · Échap : menu
+- P : voir le paquet · M : couper la musique · H : aide · Alt : objets interactifs · Échap : menu
 - Manette Xbox prise en charge
 
 ## Contenu

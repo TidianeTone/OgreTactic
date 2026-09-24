@@ -53,6 +53,7 @@ var sheet_body: Label
 var menu: Control
 var powers_lbl: Label
 var keys_plate: PanelContainer
+var show_keys := false      # H : garder l'aide affichée
 var explore_box: VBoxContainer
 var explore_title: Label
 var explore_sub: Label
@@ -74,7 +75,16 @@ func _ready() -> void:
 	var th := Theme.new()
 	th.default_font = body_f
 	th.default_font_size = 15
-	th.set_constant("line_spacing", "Label", -4)  # Inter a de grands interlignes
+	th.set_constant("line_spacing", "Label", -4)
+	# infobulles lisibles : plaque sombre, texte clair et plus grand
+	var tst := sb(Color(0.07, 0.065, 0.07, 0.96), GOLD.darkened(0.25), 8, 1, 8)
+	tst.content_margin_left = 12
+	tst.content_margin_right = 12
+	tst.content_margin_top = 8
+	tst.content_margin_bottom = 8
+	th.set_stylebox("panel", "TooltipPanel", tst)
+	th.set_font_size("font_size", "TooltipLabel", 16)
+	th.set_color("font_color", "TooltipLabel", INK)
 	root.theme = th
 	add_child(root)
 	tag_layer = _full(root)
@@ -230,15 +240,36 @@ func _build_hud() -> void:
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hud.add_child(hint)
 
+	# aide des commandes : une touche, une action, lisible d'un coup d'œil
 	var keys := _plate(hud)
 	keys_plate = keys
 	keys.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	keys.offset_left = -440
+	keys.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	keys.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	keys.offset_left = -40
+	keys.offset_top = -140
 	keys.offset_right = -40
-	keys.offset_top = -200
 	keys.offset_bottom = -140
-	keys.add_child(_label("Clic droit maintenu : caméra libre + ZQSD · Q/E pivoter · P : paquet
-Survol d'un ennemi : sa fiche · Alt : objets interactifs · Échap : menu", 12, DIM))
+	var kv := VBoxContainer.new()
+	kv.add_theme_constant_override("separation", 6)
+	kv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	keys.add_child(kv)
+	kv.add_child(_shadowed(_label("Commandes", 16, GOLD, title_f), 4))
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 3)
+	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	kv.add_child(grid)
+	for row in [["Clic", "héros, carte, case, objet de besace"], ["Clic ennemi", "épingler / retirer sa fiche"],
+			["Survol", "infos de la case ou de l'objet"], ["Clic droit", "annuler · maintenu : caméra"],
+			["ZQSD", "déplacer la caméra (clic droit tenu)"], ["Q / E · molette", "pivoter · zoomer"],
+			["Espace", "fin du tour"], ["Tab · 1 à 9", "héros suivant · jouer une carte"],
+			["Alt", "montrer les objets interactifs"], ["P · M", "paquet · musique"], ["H · Échap", "cette aide · menu"]]:
+		var k := _label(row[0], 14, Color("#ffe3a3"), title_f)
+		k.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		grid.add_child(k)
+		grid.add_child(_label(row[1], 14, INK))
 
 	# fiche d'unité, à droite
 	sheet_plate = _plate(hud)
@@ -288,8 +319,9 @@ Survol d'un ennemi : sa fiche · Alt : objets interactifs · Échap : menu", 12,
 
 	tip_plate = _plate(hud)
 	tip_plate.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	tip_plate.position = Vector2(-450, -262)
-	tip = _label("", 16, INK)
+	_pin_bottom(tip_plate, -256)
+	tip_plate.z_index = 70  # au-dessus d'une carte survolée
+	tip = _label("", 17, INK)
 	tip_plate.add_child(tip)
 
 
@@ -341,7 +373,7 @@ func _build_banner() -> void:
 	banner_box.add_child(banner_sub)
 	toast_plate = _plate(root)
 	toast_plate.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	toast_plate.position = Vector2(-400, -318)
+	_pin_bottom(toast_plate, -318)
 	toast_plate.modulate.a = 0
 	toast_lbl = _label("", 17, Color("#ffe2bf"))
 	toast_plate.add_child(toast_lbl)
@@ -487,6 +519,15 @@ func _plate(parent: Control) -> PanelContainer:
 	return p
 
 
+func _pin_bottom(p: Control, y: float) -> void:
+	## Ancré en bas au centre, grandit vers le haut : ne sort jamais de l'écran.
+	p.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	p.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	p.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	p.offset_top = y
+	p.offset_bottom = y
+
+
 func _fit(p: PanelContainer) -> void:
 	p.reset_size()
 	var w := p.get_combined_minimum_size().x
@@ -616,7 +657,7 @@ func refresh() -> void:
 			pw.append(Data.CARDS[id].name)
 	powers_lbl.text = ("Pouvoirs : " + " · ".join(pw)) if pw.size() > 0 else ""
 	end_btn.disabled = not battle.player_turn or battle.busy
-	keys_plate.visible = battle.turn <= 2
+	keys_plate.visible = battle.turn <= 1 or show_keys
 	var bsig := "%s|%d|%d|%d" % [JSON.stringify(battle.besace), battle.tool_sel, battle.besace_cap(), battle.bricole]
 	if bsig != _besace_sig:
 		_besace_sig = bsig
@@ -974,8 +1015,10 @@ func _place_tags() -> void:
 
 # ------------------------------------------------------------------ écrans de choix
 
+var last_n := 0            # nombre d'options du dernier choix (pilote de test)
 func choose(title: String, subtitle: String, options: Array, allow_skip := false, skip_text := "Passer") -> int:
 	_close_overlay()
+	last_n = options.size()
 	overlay = Control.new()
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.z_index = 100  # au-dessus des cartes de la main
@@ -1034,6 +1077,14 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 			w.scale = Vector2.ONE * sc_k
 			w.pivot_offset = Vector2.ZERO
 			holder.add_child(w)
+			if o.has("tag"):
+				w.position.y = 38
+				holder.custom_minimum_size.y += 38
+				var tg := _shadowed(_label(o.tag, 22, GOLD if o.tag == "Après" else DIM, title_f), 6)
+				tg.position = Vector2(0, 0)
+				tg.size = Vector2(CARD.x * sc_k, 30)
+				tg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				holder.add_child(tg)
 			_passthrough(w)
 			w = holder
 		else:
@@ -1271,7 +1322,7 @@ func title_screen() -> void:
 	box.size = Vector2(800, 280)
 	box.add_theme_constant_override("separation", 6)
 	overlay.add_child(box)
-	var t := _shadowed(_label("OGRETACTIC", 104, INK, wide_f), 16)
+	var t := _shadowed(_label("TONERTACTIC", 104, INK, wide_f), 16)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(t)
 	var s := _shadowed(_label("Roguelike tactique à cartes · les ruines de l'Écluse", 18, GOLD), 6)
