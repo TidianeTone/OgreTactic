@@ -35,6 +35,38 @@ var turns := 0
 var speed := 5              # initiative : les plus rapides jouent d'abord
 var tool := ""             # objet de besace porté (ennemis) : utilisé parfois, volable, lâché en tombant
 var alive := true
+# vocation (classe secondaire à la FFT) : points de job, paliers de maîtrise
+var voc := ""
+var voc2 := ""               # Blason écartelé : une deuxième vocation
+var pj := 0
+var legend_seen := {}        # guilde -> légendaire déjà proposée
+# états de combat des cartes de guilde, remis à zéro à chaque combat
+var aegis := false         # Égide : le prochain coup ne fait rien
+var bait := false          # Appât : qui le frappe s'expose
+var exposed := false       # le prochain coup reçu compte de dos
+var parry := false
+var dodge_next := false    # Iframe
+var boomguard := 0         # Pavois piégé
+var bph := 0               # armure par coup ce tour
+var keep_block := false
+var inner := 0             # Braise intérieure
+var tele := false          # s'est téléporté ce tour
+var hits := 0              # coups portés ce tour, toutes classes
+var triple := false        # Just frame
+var lvl_next := false      # Geste technique
+var fuse := 0              # Burn-out
+var stick := 0             # charge collée (ennemi)
+var bounty := false        # Avis de recherche (ennemi)
+var struck_hero := false   # a frappé un héros depuis... (Whiff punish)
+var pushed := false        # repoussé ce tour
+var q40 := false           # Règle des 40 % déjà servie
+
+
+func reset_fight() -> void:
+	for k in ["aegis", "bait", "exposed", "parry", "dodge_next", "keep_block", "tele", "triple", "lvl_next", "bounty", "struck_hero", "pushed", "q40"]:
+		set(k, false)
+	for k in ["boomguard", "bph", "inner", "hits", "fuse", "stick"]:
+		set(k, 0)
 
 var model: Node3D
 var weapon: Node3D

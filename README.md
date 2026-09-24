@@ -11,6 +11,11 @@ dans Blender par script (`blender/`).
 - Initiative à la FFT : héros et ennemis jouent chacun leur tour, du plus rapide au plus lent.
 - Chaque héros a son propre paquet, sa main (3 cartes) et son mana (3) à son tour.
 - Cartes de niveau 1 à 3 : chaque niveau change la carte (aperçu avant / après à la forge).
+- Vocation à la FFT : chaque héros gagne des points de job (1 par combat, 2 par élite). À la maîtrise II il choisit
+  une deuxième classe ; la paire forme une **guilde** (28 guildes, 168 cartes : commune et peu commune dès la
+  vocation, 3 rares à la maîtrise III, une légendaire à la maîtrise IV). La carte de vocation arrive dans une case
+  bonus du butin, en plus des trois cartes de classe.
+- Bibliothèque (écran titre) : toutes les cartes déjà croisées, gardées d'une partie à l'autre.
 
 ## Commandes
 
@@ -33,6 +38,8 @@ dans Blender par script (`blender/`).
 
 - Tests : `godot --headless --script res://tests/check.gd`
 - Partie automatique : `godot --path . -- --autoplay=6`
+- Chaque carte de guilde jouée en combat : `godot --headless --path . -- --cardtest --party=garde,lame,tidiane`
+- Captures des écrans de vocation : `godot --path . -- --voctest=DOSSIER`
 - Régénérer les modèles : `blender -b --factory-startup -P blender/gen_chars.py`
 
 Polices libres (SIL OFL / licence Bitstream Vera) : Fraunces, Lato, DejaVu Sans Mono, Noto Sans Math, Noto Emoji.

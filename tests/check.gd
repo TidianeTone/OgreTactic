@@ -13,13 +13,31 @@ func _init() -> void:
 		assert(Data.HEROES.has(k), k)
 		for id in Data.STARTER[k]:
 			assert(Data.CARDS.has(id), id)
-	for id in Data.CARDS:
-		var c := Data.card({"id": id, "lvl": 5})
-		if Data.card_text(c).contains("{"):
-			print("texte non résolu : ", id)
+	for id in Data.all_ids():
+		for lv in [1, 2, 3]:
+			var c := Data.card({"id": id, "lvl": lv})
+			if Data.card_text(c).contains("{"):
+				print("texte non résolu : ", id, " niveau ", lv)
+				fails += 1
+			if not Data.HEROES.has(c.owner):
+				fails += 1
+			if c.has("trig") and not Data.TRIGGERS.has(c.trig.on):
+				print("déclencheur inconnu : ", id)
+				fails += 1
+		if Data.upgrade_diff({"id": id, "lvl": 1}, {"id": id, "lvl": 2}) == "" or Data.upgrade_diff({"id": id, "lvl": 2}, {"id": id, "lvl": 3}) == "":
+			print("palier vide : ", id)
 			fails += 1
-		if not Data.HEROES.has(c.owner):
+	# multiclasse : 28 guildes, chacune 1 commune, 1 peu commune, 3 rares, 1 légendaire
+	for g in Guildes.LIST.size():
+		var n := [0, 0, 0, 0, 0]
+		for id in Guildes.cards_of(g):
+			n[Guildes.CARDS[id].rar] += 1
+		if n != [0, 1, 1, 3, 1]:
+			print("guilde incomplète : ", Guildes.LIST[g][2], " ", n)
 			fails += 1
+	if Guildes.index("lame", "garde") != 0 or Guildes.index("receleur", "tidiane") != 27:
+		print("index de guilde faux")
+		fails += 1
 	var b := Board.new()
 	for s in 200:
 		for bi in 3:

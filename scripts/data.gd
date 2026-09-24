@@ -168,6 +168,12 @@ const TRIGGERS := {
 	"precision": {"name": "Précision", "text": "si la cible est à la portée maximale exacte"},
 	"premier": {"name": "Premier jet", "text": "si c'est la première carte du tour"},
 	"grixis": {"name": "Grixis", "text": "si Tidiane a joué ce tour l'Analyse, l'Émotion et l'Ambition (bleu, rouge, noir)"},
+	"tenaille": {"name": "Tenaille", "text": "si la cible est prise entre ce héros et un allié, sur des cases opposées"},
+	"proie": {"name": "Proie", "text": "si la cible est marquée ou entravée"},
+	"poudre": {"name": "Poudre", "text": "si un baril a sauté ce tour"},
+	"blesse": {"name": "Blessure", "text": "si un héros a perdu des PV ce tour"},
+	"attaque": {"name": "Punition", "text": "si la cible a frappé un héros à son dernier tour"},
+	"chasse": {"name": "Chasse", "text": "si la cible a été repoussée ce tour"},
 }
 # Mots-clés expliqués en infobulle sur les cartes.
 const KEYWORDS := {
@@ -187,6 +193,13 @@ const KEYWORDS := {
 	"Bricole": "Réserve du Receleur (3 au plus) : chaque Bricole améliore le prochain objet fabriqué, puis se vide.",
 	"besace": "Objets à usage unique de l'escouade : clic sur l'objet, puis sur la cible. Sans énergie.",
 	"Fabrique": "Ajoute un objet tiré au sort à la besace ; plus de Bricole, plus rare.",
+	"Conservé": "Reste en main à la fin du tour au lieu d'aller en défausse.",
+	"Éphémère": "Épuisée si elle est encore en main à la fin du tour.",
+	"Égide": "Le prochain coup reçu ne fait aucun dégât.",
+	"Découvre": "Choisis une carte parmi trois ; elle arrive en main et coûte 0 ce tour.",
+	"Braquage": "Regarde 3 cartes d'une classe absente de l'escouade, gardes-en une.",
+	"Surcharge": "Si l'énergie restante suffit, la carte la dépense et touche chaque ennemi.",
+	"Provocation": "Les ennemis visent ce héros en priorité.",
 }
 # Objets de besace : à usage unique, sans énergie, utilisés par le héros sélectionné.
 # target : self | ally | foe | free (case libre) | tile. foe_ai : ce que fait un ennemi qui le porte.
@@ -220,11 +233,11 @@ const ANCIENTS := {
 	"anatheme": {"name": "L'Anathème", "title": "Ancien de l'ambition", "glyph": "♆", "col": Color("#9b6dd6"),
 		"line": "Tout pouvoir se paie. Je fais crédit.", "boons": ["relique_sang", "rare", "epure", "or", "relique"]},
 	"sourcier": {"name": "Le Sourcier premier", "title": "Ancien des eaux", "glyph": "≋", "col": Color("#4ad0c0"),
-		"line": "Bois, et souviens-toi de ce que tu étais.", "boons": ["soin", "pvmax", "forge2", "racines", "besace"]},
+		"line": "Bois, et souviens-toi de ce que tu étais.", "boons": ["soin", "pvmax", "memoire", "racines", "besace"]},
 	"chineuse": {"name": "La Chineuse", "title": "Ancienne des marchés engloutis", "glyph": "⚖", "col": Color("#e3b45c"),
 		"line": "Tout se revend. Même toi.", "boons": ["besace", "place", "arme", "or", "reflet"]},
 	"dojo": {"name": "Le Vieux du Dojo", "title": "Ancien des frames", "glyph": "⚔", "col": Color("#e0483f"),
-		"line": "Une frame de trop et tu es mort. Recommence.", "boons": ["forge2", "racines", "rare", "relique", "reflet"]},
+		"line": "Une frame de trop et tu es mort. Recommence.", "boons": ["forge2", "racines", "rare", "vocation", "reflet"]},
 }
 const BOONS := {
 	"relique": {"name": "Relique ancienne", "glyph": "◆", "text": "Une relique au hasard."},
@@ -240,6 +253,8 @@ const BOONS := {
 	"place": {"name": "Poches cousues", "glyph": "▣", "text": "Besace +1 place pour la run, et un objet rare."},
 	"arme": {"name": "Arme d'antan", "glyph": "⚔", "text": "Un équipement rare."},
 	"reflet": {"name": "Reflet", "glyph": "⧉", "text": "Copie une carte du paquet (la copie n'est pas une carte de départ)."},
+	"vocation": {"name": "Vocation", "glyph": "⚔", "text": "Un héros au choix prend ou change sa vocation."},
+	"memoire": {"name": "Mémoire du fleuve", "glyph": "≋", "text": "Chaque héros gagne 3 points de job."},
 }
 # Idéogramme de chaque mot-clé (assets/ui/kw_*.png) ; les déclencheurs ont le leur.
 const KW_ICON := {"Épuise": "epuise", "Pouvoir": "pouvoir", "Marqué": "marque", "Entravé": "entrave", "enchaînement": "enchainement",
@@ -268,7 +283,8 @@ const PACTS := {
 	"brume": {"name": "Brume éternelle", "text": "Portée des attaques à distance -1 dans tous les combats."},
 	"champion": {"name": "Champions", "text": "Un champion de plus dans chaque combat."},
 }
-const RARITY_COL := {1: Color("#a79d8b"), 2: Color("#6fb0e0"), 3: Color("#ffcf5a")}
+const RARITY_COL := {1: Color("#a79d8b"), 2: Color("#6fb0e0"), 3: Color("#ffcf5a"), 4: Color("#ff8a3d")}
+const RARITY_NAME := {1: "Commune", 2: "Peu commune", 3: "Rare", 4: "Légendaire"}
 
 
 static func starter(party: Array) -> Array:
@@ -293,7 +309,17 @@ const RELICS := {
 	"oeil": {"name": "Œil de Surveil", "glyph": "◉", "text": "Choix de 4 cartes au lieu de 3."},
 	"sacoche": {"name": "Sacoche de cuir", "glyph": "▣", "text": "Besace +1 place."},
 	"alambic": {"name": "Alambic de poche", "glyph": "☄", "text": "Un objet fabriqué au début de chaque combat."},
+	"livret": {"name": "Livret d'apprenti", "glyph": "◇", "text": "Un héros au choix prend sa vocation tout de suite."},
+	"blason": {"name": "Blason écartelé", "glyph": "⚜", "text": "Un héros gagne une deuxième vocation, et donc une deuxième guilde."},
+	"touriste": {"name": "Carnet du touriste", "glyph": "✈", "text": "Chaque butin propose en plus une carte d'une classe absente de l'escouade."},
+	"sceau": {"name": "Sceau de guilde", "glyph": "⬡", "text": "Les rares de guilde s'ouvrent dès la maîtrise II."},
+	"medaille": {"name": "Médaille du duo", "glyph": "⚭", "text": "Les cartes de guilde coûtent 1 de moins quand les deux classes de la guilde sont dans l'escouade."},
+	"noblesse": {"name": "Lettre de noblesse", "glyph": "✉", "text": "La case bonus du butin propose trois cartes au lieu d'une."},
+	"plume": {"name": "Plume d'emprunt", "glyph": "✒", "text": "La première carte hors classe jouée à chaque tour pioche 1."},
 }
+# Maîtrise : points de job (1 par combat, 2 par élite) ; seuils des paliers II, III, IV.
+const MASTERY := [0, 0, 3, 7, 11]
+const MASTERY_NAME := {1: "I", 2: "II", 3: "III", 4: "IV"}
 
 const TRAITS := {
 	"gaucher": {"name": "Gaucher", "text": "+2 aux attaques de dos."},
@@ -560,16 +586,43 @@ const MAX_LVL := 3
 
 ## Une carte en main = {"id", "lvl"} (niveau 1 à 3). Renvoie la définition au niveau voulu.
 static func level(ci: Dictionary) -> int:
-	return clampi(int(ci.get("lvl", 1 + int(ci.get("up", 0)))), 1, MAX_LVL)
+	return clampi(int(ci.get("lvl", 1 + int(ci.get("up", 0)))) + int(ci.get("bump", 0)), 1, MAX_LVL)
+
+
+static func def(id: String) -> Dictionary:
+	## Définition d'une carte, de classe ou de guilde.
+	return CARDS[id] if CARDS.has(id) else Guildes.CARDS[id]
+
+
+static func all_ids() -> Array:
+	return CARDS.keys() + Guildes.CARDS.keys()
+
+
+static func classes_of(id: String) -> Array:
+	## Classes d'une carte : une seule, ou les deux de sa guilde.
+	var d := def(id)
+	return Guildes.pair(d.g) if d.has("g") else [d.owner]
+
+
+static func holder(ci: Dictionary) -> String:
+	## Héros qui a la carte dans son paquet (une carte hors classe porte « h »).
+	return ci.get("h", classes_of(ci.id)[0])
 
 
 static func card(ci: Dictionary) -> Dictionary:
-	var c: Dictionary = CARDS[ci.id].duplicate(true)
+	var c: Dictionary = def(ci.id).duplicate(true)
 	c["id"] = ci.id
+	c["cls"] = classes_of(ci.id)
+	c["owner"] = holder(ci)
+	if c.has("g"):
+		c["guild"] = Guildes.LIST[c.g][2]
 	var lv := level(ci)
 	c["lvl"] = lv
 	c["st"] = ci.get("st", false)
-	var ups: Array = UPGRADES.get(ci.id, [])
+	for k in ["free", "cut", "eph"]:
+		if ci.has(k):
+			c[k] = ci[k]
+	var ups: Array = UPGRADES.get(ci.id, c.get("up", []))
 	for i in mini(lv - 1, ups.size()):
 		var d: Dictionary = ups[i]
 		for key in d:
@@ -586,7 +639,10 @@ static func card(ci: Dictionary) -> Dictionary:
 const DIFF_NAME := {"cost": "Coût", "dmg": "Dégâts", "block": "Armure", "heal": "Soin", "heal_all": "Soin de groupe", "draw": "Pioche",
 	"push": "Repousse", "energy": "Énergie", "hits": "Coups", "poison": "Poison", "mark": "Marque", "root": "Entrave", "turns": "Tours",
 	"tdmg": "Dégâts posés", "combo": "Enchaînement", "junk": "Par objet", "flow": "Par carte jouée", "leech": "Vol de vie", "selfdmg": "Coût en PV",
-	"val": "Puissance", "val2": "Cibles", "craft": "Objets fabriqués", "bricole": "Bricole", "chain": "Rebonds", "backstab": "De dos ×"}
+	"val": "Puissance", "val2": "Cibles", "craft": "Objets fabriqués", "bricole": "Bricole", "chain": "Rebonds", "backstab": "De dos ×",
+	"boom": "Explosion", "iblock": "Armure par objet", "mark_all": "Marque", "mark_near": "Marque", "recall": "Cartes reprises", "delay": "Recul d'initiative",
+	"stick": "Charge", "rpoison": "Poison", "inner": "Braise", "bph": "Armure par coup", "c_block": "Armure", "c_energy": "Énergie", "lure": "Attirance",
+	"craft_n": "Objets", "heal_ally": "Soin", "per_boom": "Par baril", "fuse": "Explosion", "overload": "Surcharge", "item_poison": "Poison des objets", "idraw": "Pioche max"}
 const DIFF_FLAG := {"exhaust": ["Ne s'épuise plus", "S'épuise"], "pierce": ["Ignore l'armure", ""], "bounce": ["Rebondit", "Ne rebondit plus"], "twin": ["Deux pièges", ""]}
 
 
@@ -630,6 +686,12 @@ static func trig_text(c: Dictionary) -> String:
 		fx.append("+%d énergie" % t.energy)
 	if t.has("poison"):
 		fx.append("+%d poison" % t.poison)
+	if t.has("mark"):
+		fx.append("Marqué %d tours" % t.mark)
+	if t.has("boom"):
+		fx.append("explosion de %d autour de la cible" % t.boom)
+	if t.get("keep", false):
+		fx.append("l'armure reste au prochain tour")
 	if t.get("refund", false):
 		fx.append("revient en main")
 	return "%s : %s." % [TRIGGERS[t.on].name, ", ".join(fx)]
@@ -690,7 +752,12 @@ static func keyword_tip(c: Dictionary) -> String:
 	for kw in KEYWORDS:
 		if txt.to_lower().contains(kw.to_lower()):
 			out.append("%s : %s" % [kw, KEYWORDS[kw]])
-	out.append("Niveau %d / %d : %s" % [c.lvl, MAX_LVL, KEYWORDS["Niveau"]])
+	if c.has("guild"):
+		var gl: Array = Guildes.LIST[c.g]
+		out.append("%s (%s + %s) : %s" % [gl[2], HEROES[gl[0]].name, HEROES[gl[1]].name, gl[3]])
+	elif c.cls[0] != c.owner:
+		out.append("Carte de %s, jouée par %s grâce à sa vocation." % [HEROES[c.cls[0]].name, HEROES[c.owner].name])
+	out.append("%s · niveau %d / %d : %s" % [RARITY_NAME[int(c.get("rar", 1))], c.lvl, MAX_LVL, KEYWORDS["Niveau"]])
 	if c.get("st", false):
 		out.append("Carte de départ : ne fusionne pas (la forge reste possible).")
 	return "\n".join(out)
