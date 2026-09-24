@@ -223,7 +223,7 @@ const ANCIENTS := {
 		"line": "Bois, et souviens-toi de ce que tu étais.", "boons": ["soin", "pvmax", "forge2", "racines", "besace"]},
 	"chineuse": {"name": "La Chineuse", "title": "Ancienne des marchés engloutis", "glyph": "⚖", "col": Color("#e3b45c"),
 		"line": "Tout se revend. Même toi.", "boons": ["besace", "place", "arme", "or", "reflet"]},
-	"dojo": {"name": "Le Vieux du Dojo", "title": "Ancien des frames", "glyph": "✊", "col": Color("#e0483f"),
+	"dojo": {"name": "Le Vieux du Dojo", "title": "Ancien des frames", "glyph": "⚔", "col": Color("#e0483f"),
 		"line": "Une frame de trop et tu es mort. Recommence.", "boons": ["forge2", "racines", "rare", "relique", "reflet"]},
 }
 const BOONS := {

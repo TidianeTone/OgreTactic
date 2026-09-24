@@ -73,6 +73,7 @@ var rng := RandomNumberGenerator.new()
 var _music: Array = []      # deux lecteurs pour le fondu enchaîné
 var _music_kind := ""
 var _mute := false
+var music_vol := 0.6        # 0 à 1, réglé dans le menu Échap et gardé dans user://reglages.cfg
 
 
 func _ready() -> void:
@@ -123,6 +124,9 @@ func _ready() -> void:
 # ------------------------------------------------------------------ monde
 
 func _setup_world() -> void:
+	var cf := ConfigFile.new()
+	if cf.load("user://reglages.cfg") == OK:
+		music_vol = float(cf.get_value("son", "musique", music_vol))
 	for i in 2:
 		var mp := AudioStreamPlayer.new()
 		mp.volume_db = -80.0
@@ -351,18 +355,28 @@ func _pan(rel: Vector2) -> void:
 	target = target.clamp(Vector3(-3, 0, -3), Vector3(board.dim + 2, 4, board.dim + 2))
 
 
+var _pad_rest := {}
+func _axis(a: JoyAxis) -> float:
+	## Valeur d'un axe par rapport à son repos : dans le navigateur, les gâchettes au repos
+	## ne valent pas toujours 0, ce qui faisait zoomer et tourner la caméra toute seule.
+	var v := Input.get_joy_axis(0, a)
+	if not _pad_rest.has(a):
+		_pad_rest[a] = v
+	return v - float(_pad_rest[a])
+
+
 func _pad_process(dt: float) -> void:
 	## Manette Xbox : stick gauche / croix = curseur de case, stick droit = caméra, gâchettes = zoom.
 	if Input.get_connected_joypads().is_empty() or ui.menu_open() or not ui.hud.visible or ui.overlay != null:
 		return
-	var r := Vector2(Input.get_joy_axis(0, JOY_AXIS_RIGHT_X), Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y))
+	var r := Vector2(_axis(JOY_AXIS_RIGHT_X), _axis(JOY_AXIS_RIGHT_Y))
 	if r.length() > 0.2:
 		yaw -= r.x * dt * 140.0
 		pitch = clampf(pitch + r.y * dt * 70.0, 12.0, 82.0)
-	var z := Input.get_joy_axis(0, JOY_AXIS_TRIGGER_RIGHT) - Input.get_joy_axis(0, JOY_AXIS_TRIGGER_LEFT)
+	var z := _axis(JOY_AXIS_TRIGGER_RIGHT) - _axis(JOY_AXIS_TRIGGER_LEFT)
 	if absf(z) > 0.2:
 		dist = clampf(dist - z * dt * 30.0, 7.0, 60.0)
-	var v := Vector2(Input.get_joy_axis(0, JOY_AXIS_LEFT_X), Input.get_joy_axis(0, JOY_AXIS_LEFT_Y))
+	var v := Vector2(_axis(JOY_AXIS_LEFT_X), _axis(JOY_AXIS_LEFT_Y))
 	if v.length() < 0.5:
 		v = Vector2.ZERO
 	if Input.is_joy_button_pressed(0, JOY_BUTTON_DPAD_LEFT):
@@ -2149,7 +2163,17 @@ func _mystery(r: Dictionary) -> void:
 # ------------------------------------------------------------------ musique
 
 func _music_vol() -> float:
-	return -80.0 if _mute else -9.0
+	return -80.0 if _mute or music_vol < 0.01 else linear_to_db(music_vol) - 5.0
+
+
+func set_music_volume(v: float) -> void:
+	music_vol = clampf(v, 0.0, 1.0)
+	_mute = false
+	if _music.size() > 1:
+		(_music[1] as AudioStreamPlayer).volume_db = _music_vol()
+	var cf := ConfigFile.new()
+	cf.set_value("son", "musique", music_vol)
+	cf.save("user://reglages.cfg")
 
 
 func play_music(kind: String) -> void:

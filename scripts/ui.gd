@@ -437,6 +437,32 @@ func toggle_menu() -> void:
 		box.add_child(c)
 		if first == null:
 			first = b
+	# volume de la musique
+	var vr := HBoxContainer.new()
+	vr.alignment = BoxContainer.ALIGNMENT_CENTER
+	vr.add_theme_constant_override("separation", 14)
+	var vl := _shadowed(_label("Musique", 20, INK, title_f), 6)
+	vr.add_child(vl)
+	var sl := HSlider.new()
+	sl.min_value = 0
+	sl.max_value = 100
+	sl.step = 1
+	sl.value = main.music_vol * 100.0
+	sl.custom_minimum_size = Vector2(240, 28)
+	sl.add_theme_stylebox_override("slider", sb(Color(0, 0, 0, 0.6), GOLD.darkened(0.3), 6, 1))
+	sl.add_theme_stylebox_override("grabber_area", sb(GOLD.darkened(0.1), Color(0, 0, 0, 0), 6))
+	sl.add_theme_stylebox_override("grabber_area_highlight", sb(GOLD, Color(0, 0, 0, 0), 6))
+	var pct := _shadowed(_label("%d %%" % int(sl.value), 16, DIM), 5)
+	pct.custom_minimum_size = Vector2(52, 0)
+	sl.value_changed.connect(func(v: float):
+		pct.text = "%d %%" % int(v)
+		main.set_music_volume(v / 100.0))
+	vr.add_child(sl)
+	vr.add_child(pct)
+	box.add_child(vr)
+	var hint := _label("M : couper / remettre la musique", 13, DIM)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(hint)
 	first.grab_focus()
 
 
@@ -953,6 +979,8 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.z_index = 100  # au-dessus des cartes de la main
 	root.add_child(overlay)
+	var opened := Time.get_ticks_msec()
+	var fresh := func() -> bool: return Time.get_ticks_msec() - opened < 300  # le clic de l'écran précédent ne valide pas celui-ci
 	var dim := ColorRect.new()
 	dim.color = Color(0.03, 0.03, 0.04, 0.62)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1015,7 +1043,8 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 		w.gui_input.connect(func(e):
 			if (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT) or e.is_action_pressed("ui_accept"):
 				w.accept_event()
-				picked.emit(idx))
+				if not fresh.call():
+					picked.emit(idx))
 		w.mouse_entered.connect(func(): w.modulate = Color(1.15, 1.1, 1.0))
 		w.mouse_exited.connect(func(): w.modulate = Color.WHITE)
 		w.focus_entered.connect(func(): w.modulate = Color(1.2, 1.12, 0.95))
@@ -1029,7 +1058,9 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 		sk.flat = true
 		sk.add_theme_color_override("font_color", DIM)
 		sk.add_theme_font_size_override("font_size", 16)
-		sk.pressed.connect(func(): picked.emit(-1))
+		sk.pressed.connect(func():
+			if not fresh.call():
+				picked.emit(-1))
 		var c := CenterContainer.new()
 		c.add_child(sk)
 		box.add_child(c)
