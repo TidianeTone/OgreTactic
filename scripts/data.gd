@@ -518,10 +518,41 @@ static func card_text(c: Dictionary) -> String:
 	return t + ("\n" + tt if tt != "" else "")
 
 
+static var _strip: Array = []
+static func card_brief(c: Dictionary) -> String:
+	## Texte de la carte sans ce que disent déjà les idéogrammes (dégâts, armure, soin, portée).
+	if _strip.is_empty():
+		for pat in ["(, puis )?[Ii]nflige \\{dmg\\}( (deux|trois|cinq) fois)?( à distance)?", "\\{dmg\\}( et|,)? ?",
+				"(Gagne )?\\+?\\{block\\}( d'armure| armure)", "(Se soigne de|Soigne) \\{heal(_all)?\\}( un allié)?"]:
+			var rx := RegEx.new()
+			rx.compile(pat)
+			_strip.append(rx)
+	var t: String = c.text
+	for rx: RegEx in _strip:
+		t = rx.sub(t, "", true)
+	for pair in [[" ,", ","], [" .", "."], [",.", "."], [", .", "."], ["..", "."], [": ,", ":"], ["  ", " "]]:
+		t = t.replace(pair[0], pair[1])
+	t = t.strip_edges()
+	while t.begins_with(",") or t.begins_with(".") or t.begins_with("et ") or t.begins_with("+ "):
+		t = t.substr(1 if not t.begins_with("et ") else 3).strip_edges()
+	if t.begins_with("au Garde et aux alliés voisins"):
+		t = "Aussi aux alliés voisins."
+	t = t.replace("{poison} de poison", "+{poison} poison")
+	for k in ["poison"]:
+		t = t.replace("{%s}" % k, str(c.get(k, 0)))
+	# majuscule en tête de chaque phrase
+	var parts := t.split(". ")
+	for i in parts.size():
+		if parts[i].length() > 0:
+			parts[i] = parts[i][0].to_upper() + parts[i].substr(1)
+	t = ". ".join(parts)
+	return "" if t == "." else t
+
+
 static func keyword_tip(c: Dictionary) -> String:
 	## Définitions des mots-clés présents sur la carte.
 	var txt: String = card_text(c) + " " + KIND_WORD.get(c.kind, "")
-	var out: Array = []
+	var out: Array = [card_text(c)]
 	if c.has("trig"):
 		out.append("%s : bonus %s." % [TRIGGERS[c.trig.on].name, TRIGGERS[c.trig.on].text])
 	for kw in KEYWORDS:

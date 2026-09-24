@@ -49,7 +49,7 @@ var _cards: Array = []
 var _hover_card := -1
 var sheet_plate: PanelContainer
 var sheet_title: Label
-var sheet_body: Label
+var sheet_body: RichTextLabel
 var menu: Control
 var powers_lbl: Label
 var keys_plate: PanelContainer
@@ -283,9 +283,15 @@ func _build_hud() -> void:
 	sheet_plate.add_child(sv)
 	sheet_title = _shadowed(_label("", 21, INK, title_f), 4)
 	sv.add_child(sheet_title)
-	sheet_body = _label("", 14, INK)
+	sheet_body = RichTextLabel.new()
+	sheet_body.bbcode_enabled = true
+	sheet_body.fit_content = true
+	sheet_body.scroll_active = false
 	sheet_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	sheet_body.custom_minimum_size = Vector2(296, 0)
+	sheet_body.add_theme_font_size_override("normal_font_size", 14)
+	sheet_body.add_theme_color_override("default_color", INK)
+	sheet_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sv.add_child(sheet_body)
 	sheet_plate.visible = false
 
@@ -419,7 +425,14 @@ func set_sheet(u: Unit) -> void:
 	var col: Color = Data.CLASS_COLOR.get(u.key, Color("#ff8a1e")) if u.side == "hero" else Color("#ff9a3c")
 	sheet_title.text = u.nm + ("   · épinglé" if u == battle.inspect else "")
 	sheet_title.add_theme_color_override("font_color", col.lightened(0.25))
-	sheet_body.text = battle.sheet(u)
+	# idéogrammes devant PV, déplacement et armure
+	var ic := func(n: String) -> String: return "[img=20x20]res://assets/ui/icon_%s.png[/img] " % n
+	var txt: String = battle.sheet(u).replace("[", "[lb]")
+	var rx := RegEx.create_from_string("(?m)^PV ")
+	txt = rx.sub(txt, ic.call("pv"), true)
+	rx = RegEx.create_from_string("(?m)^Déplacement ")
+	txt = rx.sub(txt, ic.call("deplacement"), true).replace("🛡 ", ic.call("armure"))
+	sheet_body.text = txt
 	sheet_plate.reset_size()
 
 
@@ -587,23 +600,39 @@ func _rebuild_heroes() -> void:
 			tr.text += "  ·  " + ", ".join(h.passives().map(func(q): return Data.PASSIVES[q].name))
 		tr.mouse_filter = Control.MOUSE_FILTER_PASS
 		p.add_child(tr)
+		var hico := TextureRect.new()
+		hico.texture = icon("pv")
+		hico.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		hico.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		hico.position = Vector2(74, 47)
+		hico.size = Vector2(22, 22)
+		hico.modulate = Color(1.0, 0.62, 0.58)
+		hico.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		p.add_child(hico)
 		var bar := ProgressBar.new()
 		bar.show_percentage = false
-		bar.position = Vector2(76, 52)
-		bar.size = Vector2(180, 12)
+		bar.position = Vector2(98, 52)
+		bar.size = Vector2(158, 12)
 		bar.add_theme_stylebox_override("background", sb(Color(0, 0, 0, 0.55), Color(0, 0, 0, 0), 5))
 		bar.add_theme_stylebox_override("fill", sb(col, Color(0, 0, 0, 0), 5))
 		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		p.add_child(bar)
 		var hp := _shadowed(_label("", 12, INK), 4)
-		hp.position = Vector2(76, 50)
-		hp.size = Vector2(180, 16)
+		hp.position = Vector2(98, 50)
+		hp.size = Vector2(158, 16)
 		hp.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		p.add_child(hp)
-		var st := _label("", 12, DIM)
-		st.position = Vector2(150, 12)
-		st.size = Vector2(108, 16)
-		st.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		var st := HBoxContainer.new()
+		st.alignment = BoxContainer.ALIGNMENT_END
+		st.add_theme_constant_override("separation", 6)
+		st.position = Vector2(150, 6)
+		st.size = Vector2(108, 24)
+		st.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var arm := _chip("armure", "", Color(0.8, 0.9, 1.0), 20)
+		var boot := _chip("deplacement", "", Color.WHITE, 22)
+		boot.tooltip_text = "Peut encore bouger"
+		st.add_child(arm)
+		st.add_child(boot)
 		p.add_child(st)
 		hero_panels[h] = {"panel": p, "bar": bar, "hp": hp, "st": st, "col": col}
 
@@ -614,11 +643,14 @@ func _refresh_heroes() -> void:
 		d.bar.max_value = h.max_hp
 		d.bar.value = h.hp
 		d.hp.text = "%d / %d" % [h.hp, h.max_hp] if h.alive else "tombé"
-		var s := ""
-		if h.block > 0:
-			s += "🛡 %d  " % h.block
-		s += "a bougé" if h.moved else "peut bouger"
-		d.st.text = s if h.alive else ""
+		var arm: HBoxContainer = d.st.get_child(0)
+		arm.visible = h.alive and h.block > 0
+		if arm.get_child_count() < 2:
+			arm.add_child(_shadowed(_label("", 17, INK, Fx.number_font()), 4))
+		(arm.get_child(1) as Label).text = str(h.block)
+		var boot: Control = d.st.get_child(1)
+		boot.visible = h.alive
+		boot.modulate = Color(1, 1, 1, 0.25) if h.moved else Color.WHITE
 		var sel: bool = battle.selected == h
 		d.panel.add_theme_stylebox_override("panel", sb(Color(0.1, 0.09, 0.08, 0.88) if sel else Color(0.07, 0.065, 0.07, 0.78), GOLD if sel else d.col.darkened(0.2), 10, 2 if sel else 1, 6))
 		d.panel.modulate = Color(1, 1, 1, 1) if h.alive else Color(0.5, 0.5, 0.5, 0.8)
@@ -779,17 +811,20 @@ func make_card(ci: Dictionary) -> Control:
 	orb.add_child(cl)
 	card.set_meta("cost", cl)
 	var lv: int = c.get("lvl", 1)
-	var lvl_l := _shadowed(_label("niv %d" % lv, 11, Color("#ffe3a3") if lv >= 3 else DIM, title_f), 4)
-	lvl_l.position = Vector2(-6, 30)
-	lvl_l.visible = false
-	var pips := _shadowed(_label("●".repeat(lv) + "○".repeat(5 - lv), 12, Color("#ffcf5a") if lv >= 5 else (Color("#e8eef4") if lv >= 3 else DIM)), 4)
-	pips.position = Vector2(0, 118)
-	pips.size = Vector2(CARD.x, 16)
-	pips.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	card.add_child(pips)
-	lvl_l.size = Vector2(36, 14)
-	lvl_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	card.add_child(lvl_l)
+	if lv >= 2:
+		# niveau : pastilles sur une pilule sombre, dans le coin de l'illustration
+		var pill := _panel(card, sb(Color(0.04, 0.03, 0.04, 0.8), Color(0, 0, 0, 0), 7))
+		pill.position = Vector2(CARD.x - 12 - 8 - lv * 11, art.position.y + art.size.y - 20)
+		pill.size = Vector2(lv * 11 + 8, 16)
+		var pips := _label("●".repeat(lv), 10, Color("#ffcf5a") if lv >= 5 else (Color("#e8eef4") if lv >= 3 else INK))
+		pips.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		pips.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		pips.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		pill.add_child(pips)
+	if c.has("voix"):
+		var vd := _panel(card, sb(Data.VOIX[c.voix][1], Color(0.05, 0.04, 0.04, 0.9), 7, 2))
+		vd.position = art.position + Vector2(5, 5)
+		vd.size = Vector2(14, 14)
 	var live := _panel(card, sb(Color(0, 0, 0, 0), Color(1.0, 0.82, 0.35), 13, 3, 16))
 	live.position = Vector2(-3, -3)
 	live.size = CARD + Vector2(6, 6)
@@ -803,19 +838,72 @@ func make_card(ci: Dictionary) -> Control:
 	if rar > 1:
 		nm.add_theme_color_override("font_color", Data.RARITY_COL[rar].lightened(0.25))
 		gem.add_theme_font_size_override("font_size", 19 if rar == 3 else 15)
-	var kl := _label("%s · %s" % [KIND_NAME[c.kind], Data.VOIX[c.voix][0] if c.has("voix") else Data.HEROES[c.owner].name], 11, Data.VOIX[c.voix][1].lightened(0.3) if c.has("voix") else col.lightened(0.45))
-	kl.position = Vector2(8, 136)
-	kl.size = Vector2(CARD.x - 16, 16)
-	kl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	card.add_child(kl)
-	var txt := Data.card_text(c)
-	var tx := _label(txt, 14 if txt.length() <= 46 else (13 if txt.length() <= 64 else 12), INK)
-	tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tx.position = Vector2(12, 156)
-	tx.size = Vector2(CARD.x - 24, 70)
-	tx.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	card.add_child(tx)
+	# idéogrammes : ce que fait la carte, en chiffres
+	var stats := HBoxContainer.new()
+	stats.alignment = BoxContainer.ALIGNMENT_CENTER
+	stats.add_theme_constant_override("separation", 8)
+	stats.position = Vector2(6, 134)
+	stats.size = Vector2(CARD.x - 12, 26)
+	stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(stats)
+	if c.get("dmg", 0) > 0:
+		stats.add_child(_chip("attaque", str(c.dmg) + ("×%d" % c.hits if c.get("hits", 1) > 1 else ""), Color(1, 0.8, 0.72)))
+	if c.get("block", 0) > 0:
+		stats.add_child(_chip("armure", str(c.block), Color(0.8, 0.9, 1.0)))
+	if c.get("heal", 0) > 0 or c.get("heal_all", 0) > 0:
+		stats.add_child(_chip("pv", str(c.get("heal", c.get("heal_all", 0))), Color(0.6, 1.0, 0.6)))
+	var rg: Array = c.get("range", [0, 0])
+	if rg[1] > 1 and c.get("target", "foe") != "self":
+		stats.add_child(_chip("portee", "%d-%d" % [maxi(rg[0], 1), rg[1]] if rg[0] > 1 else str(rg[1])))
+	var txt := Data.card_brief(c)
+	var tt := Data.trig_text(c)
+	var body := VBoxContainer.new()
+	body.position = Vector2(10, 162 if stats.get_child_count() > 0 else 140)
+	body.size = Vector2(CARD.x - 20, CARD.y - body.position.y - 8)
+	body.alignment = BoxContainer.ALIGNMENT_CENTER
+	body.add_theme_constant_override("separation", 2)
+	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(body)
+	if txt != "":
+		var tx := _label(txt, 14 if txt.length() <= 40 else (13 if txt.length() <= 60 else 12), INK)
+		tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tx.custom_minimum_size = Vector2(CARD.x - 20, 0)
+		tx.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		body.add_child(tx)
+	if tt != "":
+		var tl := _label(tt, 12, Color("#ffd98a"))
+		tl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tl.custom_minimum_size = Vector2(CARD.x - 20, 0)
+		tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		body.add_child(tl)
 	return card
+
+
+static var _icons := {}
+static func icon(n: String) -> Texture2D:
+	## Idéogrammes générés (KIE) : pv, deplacement, armure, attaque, portee.
+	if not _icons.has(n):
+		_icons[n] = load("res://assets/ui/icon_%s.png" % n)
+	return _icons[n]
+
+
+func _chip(n: String, txt: String, tint := Color.WHITE, sz := 26) -> HBoxContainer:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 1)
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var t := TextureRect.new()
+	t.texture = icon(n)
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	t.custom_minimum_size = Vector2(sz, sz)
+	t.modulate = tint
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	h.add_child(t)
+	if txt != "":
+		var l := _shadowed(_label(txt, sz - 3, INK, Fx.number_font()), 4)
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		h.add_child(l)
+	return h
 
 
 static var _arts := {}
