@@ -14,25 +14,25 @@ const CLASS_COLOR := {
 const CLASS_GLYPH := {"garde": "🛡", "lame": "🗡", "oracle": "✺"}
 
 const HEROES := {
-	"garde": {"name": "Garde", "title": "Rempart de l'Écluse", "hp": 40, "move": 3, "jump": 2, "role": "Encaisse : armure, charges, provocation."},
-	"lame": {"name": "Lame", "title": "Ombre des Arches", "hp": 30, "move": 4, "jump": 4, "role": "Coups de dos, poison, téléportation."},
-	"oracle": {"name": "Oracle", "title": "Voix de la Braise", "hp": 28, "move": 3, "jump": 2, "role": "Braise à distance, soins, pioche."},
-	"artificier": {"name": "Artificier", "title": "Poudre des Écluses", "hp": 32, "move": 3, "jump": 2, "role": "Barils explosifs, grenades, tourelles."},
-	"moine": {"name": "Moine", "title": "Paume du Ressac", "hp": 32, "move": 4, "jump": 3, "role": "Enchaîne au contact, bondit, tourbillonne."},
-	"trappeur": {"name": "Trappeur", "title": "Chasseur des Hauts-Fonds", "hp": 28, "move": 4, "jump": 3, "role": "Pièges, marques, filets, harpons."},
-	"tidiane": {"name": "Tidiane", "title": "Le Paradoxe du Potentiel", "hp": 30, "move": 4, "jump": 3, "role": "Artisan Grixis : Analyse, Émotion, Ambition. Paie en PV pour frapper fort."},
-	"receleur": {"name": "Receleur", "title": "Main leste des Hauts-Quais", "hp": 30, "move": 4, "jump": 3, "role": "Vole les objets des ennemis, bricole et recycle la besace."},
+	"garde": {"name": "Garde", "title": "Rempart de l'Écluse", "hp": 40, "speed": 4, "move": 3, "jump": 2, "role": "Encaisse : armure, charges, provocation."},
+	"lame": {"name": "Lame", "title": "Ombre des Arches", "hp": 30, "speed": 8, "move": 4, "jump": 4, "role": "Coups de dos, poison, téléportation."},
+	"oracle": {"name": "Oracle", "title": "Voix de la Braise", "hp": 28, "speed": 5, "move": 3, "jump": 2, "role": "Braise à distance, soins, pioche."},
+	"artificier": {"name": "Artificier", "title": "Poudre des Écluses", "hp": 32, "speed": 5, "move": 3, "jump": 2, "role": "Barils explosifs, grenades, tourelles."},
+	"moine": {"name": "Moine", "title": "Paume du Ressac", "hp": 32, "speed": 7, "move": 4, "jump": 3, "role": "Enchaîne au contact, bondit, tourbillonne."},
+	"trappeur": {"name": "Trappeur", "title": "Chasseur des Hauts-Fonds", "hp": 28, "speed": 7, "move": 4, "jump": 3, "role": "Pièges, marques, filets, harpons."},
+	"tidiane": {"name": "Tidiane", "title": "Le Paradoxe du Potentiel", "hp": 30, "speed": 6, "move": 4, "jump": 3, "role": "Artisan Grixis : Analyse, Émotion, Ambition. Paie en PV pour frapper fort."},
+	"receleur": {"name": "Receleur", "title": "Main leste des Hauts-Quais", "hp": 30, "speed": 8, "move": 4, "jump": 3, "role": "Vole les objets des ennemis, bricole et recycle la besace."},
 }
 
 const FOES := {
-	"husk": {"name": "Moussu", "hp": 14, "move": 3, "jump": 2, "dmg": 6, "range": [1, 1], "ai": "melee"},
-	"guetteur": {"name": "Guetteur", "hp": 11, "move": 3, "jump": 2, "dmg": 5, "range": [2, 5], "ai": "ranged"},
-	"sentinelle": {"name": "Sentinelle", "hp": 28, "move": 2, "jump": 2, "dmg": 10, "range": [1, 1], "ai": "melee", "armor": 4, "passives": ["contre"]},
-	"wisp": {"name": "Feu follet", "hp": 6, "move": 5, "jump": 9, "dmg": 9, "range": [1, 1], "ai": "bomb", "fly": true},
-	"gardien": {"name": "Le Gardien des ruines", "hp": 120, "move": 2, "jump": 3, "dmg": 13, "range": [1, 1], "ai": "boss", "armor": 3, "passives": ["contre"]},
-	"chaman": {"name": "Chaman de braise", "hp": 12, "move": 3, "jump": 2, "dmg": 3, "range": [2, 4], "ai": "healer", "heal": 6},
-	"carapace": {"name": "Carapace", "hp": 20, "move": 2, "jump": 1, "dmg": 7, "range": [1, 1], "ai": "melee", "armor": 8, "heavy": true},
-	"rodeur": {"name": "Rôdeur", "hp": 13, "move": 5, "jump": 4, "dmg": 7, "range": [1, 1], "ai": "assassin", "passives": ["reflexe"]},
+	"husk": {"name": "Moussu", "hp": 14, "speed": 4, "move": 3, "jump": 2, "dmg": 6, "range": [1, 1], "ai": "melee"},
+	"guetteur": {"name": "Guetteur", "hp": 11, "speed": 6, "move": 3, "jump": 2, "dmg": 5, "range": [2, 5], "ai": "ranged"},
+	"sentinelle": {"name": "Sentinelle", "hp": 28, "speed": 3, "move": 2, "jump": 2, "dmg": 10, "range": [1, 1], "ai": "melee", "armor": 4, "passives": ["contre"]},
+	"wisp": {"name": "Feu follet", "hp": 6, "speed": 9, "move": 5, "jump": 9, "dmg": 9, "range": [1, 1], "ai": "bomb", "fly": true},
+	"gardien": {"name": "Le Gardien des ruines", "hp": 120, "speed": 3, "move": 2, "jump": 3, "dmg": 13, "range": [1, 1], "ai": "boss", "armor": 3, "passives": ["contre"]},
+	"chaman": {"name": "Chaman de braise", "hp": 12, "speed": 5, "move": 3, "jump": 2, "dmg": 3, "range": [2, 4], "ai": "healer", "heal": 6},
+	"carapace": {"name": "Carapace", "hp": 20, "speed": 2, "move": 2, "jump": 1, "dmg": 7, "range": [1, 1], "ai": "melee", "armor": 8, "heavy": true},
+	"rodeur": {"name": "Rôdeur", "hp": 13, "speed": 8, "move": 5, "jump": 4, "dmg": 7, "range": [1, 1], "ai": "assassin", "passives": ["reflexe"]},
 }
 
 # Ce que chaque ennemi demande au joueur (affiché au survol).
@@ -51,13 +51,13 @@ const FOE_TIPS := {
 const CARDS := {
 	"frappe": {"name": "Frappe", "owner": "garde", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 6, "trig": {"on": "grace", "draw": 1}, "text": "Inflige {dmg}."},
 	"pavois": {"name": "Pavois", "owner": "garde", "rar": 1, "cost": 1, "kind": "skill", "target": "self", "block": 6, "text": "Gagne {block} d'armure."},
-	"charge": {"name": "Charge", "owner": "garde", "rar": 1, "cost": 2, "kind": "atk", "target": "line", "range": [1, 3], "dmg": 8, "push": 1, "trig": {"on": "enchaine", "block": 4}, "text": "Fonce 3 cases en ligne. {dmg} et repousse 1."},
+	"charge": {"name": "Charge", "owner": "garde", "rar": 1, "cost": 2, "kind": "atk", "target": "line", "range": [1, 3], "dmg": 8, "push": 1, "trig": {"on": "enchaine", "block": 4}, "text": "Fonce 3 cases en ligne. {dmg} et repousse {push}."},
 	"defi": {"name": "Défi", "owner": "garde", "rar": 2, "cost": 1, "kind": "skill", "target": "self", "block": 4, "taunt": true, "text": "+{block} armure. Les ennemis le ciblent."},
 	"rempart": {"name": "Rempart", "owner": "garde", "rar": 2, "cost": 2, "kind": "skill", "target": "self", "block": 6, "adj": true, "text": "+{block} armure au Garde et aux alliés voisins."},
-	"marteau": {"name": "Marteau d'écluse", "owner": "garde", "rar": 2, "cost": 2, "kind": "atk", "range": [1, 1], "dmg": 11, "push": 2, "trig": {"on": "grace", "block": 6}, "text": "Inflige {dmg} et repousse de 2."},
+	"marteau": {"name": "Marteau d'écluse", "owner": "garde", "rar": 2, "cost": 2, "kind": "atk", "range": [1, 1], "dmg": 11, "push": 2, "trig": {"on": "grace", "block": 6}, "text": "Inflige {dmg} et repousse de {push}."},
 	"bastion": {"name": "Bastion", "owner": "garde", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "block": 3, "draw": 1, "text": "Gagne {block} d'armure. Pioche 1."},
 	"estoc": {"name": "Estoc", "owner": "lame", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 6, "backstab": 2.0, "trig": {"on": "grace", "energy": 1}, "text": "Inflige {dmg}. De dos : ×2."},
-	"ombre": {"name": "Pas de l'ombre", "owner": "lame", "rar": 1, "cost": 0, "kind": "move", "target": "tile", "range": [1, 3], "text": "Téléportation à 3 cases, relief ignoré."},
+	"ombre": {"name": "Pas de l'ombre", "owner": "lame", "rar": 1, "cost": 0, "kind": "move", "target": "tile", "range": [1, 3], "text": "Téléportation à {rmax} cases, relief ignoré."},
 	"double": {"name": "Double lame", "owner": "lame", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 4, "hits": 2, "trig": {"on": "enchaine", "dmg": 2}, "text": "Inflige {dmg} deux fois."},
 	"venin": {"name": "Venin", "owner": "lame", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 2, "poison": 4, "trig": {"on": "enchaine", "poison": 2}, "text": "Inflige {dmg} et {poison} de poison."},
 	"couperet": {"name": "Couperet", "owner": "lame", "rar": 2, "cost": 2, "kind": "atk", "range": [1, 1], "dmg": 9, "execute": true, "trig": {"on": "mur", "dmg": 6}, "text": "Inflige {dmg}. Doublé sous la moitié des PV."},
@@ -66,7 +66,7 @@ const CARDS := {
 	"seve": {"name": "Sève", "owner": "oracle", "rar": 1, "cost": 1, "kind": "skill", "target": "ally", "range": [0, 3], "heal": 7, "trig": {"on": "mur", "heal": 4}, "text": "Soigne {heal} un allié."},
 	"colonne": {"name": "Colonne de cendre", "owner": "oracle", "rar": 2, "cost": 2, "kind": "atk", "target": "tile", "range": [2, 5], "dmg": 7, "aoe": true, "trig": {"on": "surplomb", "dmg": 3}, "text": "Inflige {dmg} en croix autour d'une case."},
 	"maree": {"name": "Marée", "owner": "oracle", "rar": 2, "cost": 2, "kind": "atk", "range": [1, 4], "dmg": 3, "push": 3, "text": "{dmg} et repousse 3. Dans l'eau : noyade."},
-	"surveil": {"name": "Surveil", "owner": "oracle", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "draw": 2, "exhaust": true, "text": "Pioche 2. Épuise."},
+	"surveil": {"name": "Surveil", "owner": "oracle", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "draw": 2, "exhaust": true, "text": "Pioche {draw}. Épuise."},
 	"delve": {"name": "Delve", "owner": "oracle", "rar": 3, "cost": 1, "kind": "atk", "range": [1, 4], "dmg": 0, "delve": true, "exhaust": true, "text": "2 par carte en défausse, puis l'exile. Épuise."},
 	"bouclier": {"name": "Pavois volant", "owner": "garde", "rar": 1, "cost": 1, "kind": "atk", "range": [2, 3], "dmg": 5, "push": 1, "block": 3, "trig": {"on": "mur", "block": 5}, "text": "Lance le pavois : {dmg}, repousse 1, +{block} armure."},
 	"crochet": {"name": "Gaffe d'écluse", "owner": "garde", "rar": 2, "cost": 1, "kind": "atk", "range": [2, 3], "dmg": 3, "pull": 2, "text": "Inflige {dmg} et attire l'ennemi de 2 cases."},
@@ -78,23 +78,23 @@ const CARDS := {
 	"echo": {"name": "Écho", "owner": "oracle", "rar": 3, "cost": 1, "kind": "skill", "target": "self", "echo": true, "exhaust": true, "text": "La prochaine carte jouée ce tour agit deux fois. Épuise."},
 	"cendres": {"name": "Pluie de cendres", "owner": "oracle", "rar": 3, "cost": 2, "kind": "power", "target": "self", "power": "cendres", "text": "Pouvoir : chaque tour, 4 dégâts à l'ennemi le plus proche de l'Oracle."},
 	"grenade": {"name": "Grenade", "owner": "artificier", "rar": 1, "cost": 1, "kind": "atk", "target": "tile", "range": [2, 4], "dmg": 5, "aoe": true, "trig": {"on": "surplomb", "dmg": 3}, "text": "Inflige {dmg} en croix autour d'une case."},
-	"baril": {"name": "Baril de poudre", "owner": "artificier", "rar": 1, "cost": 1, "kind": "skill", "target": "tile", "range": [1, 3], "place": "baril", "draw": 1, "text": "Pose un baril : frappé, il explose (7 autour). Pioche 1."},
-	"etincelle": {"name": "Étincelle", "owner": "artificier", "rar": 1, "cost": 0, "kind": "atk", "range": [1, 5], "dmg": 0, "detonate": true, "text": "Fait sauter un baril ou un brasero à portée."},
+	"baril": {"name": "Baril de poudre", "owner": "artificier", "rar": 1, "cost": 1, "kind": "skill", "target": "tile", "range": [1, 3], "place": "baril", "draw": 1, "text": "Pose un baril : frappé, il explose (7 autour). Pioche {draw}."},
+	"etincelle": {"name": "Étincelle", "owner": "artificier", "rar": 1, "cost": 0, "kind": "atk", "range": [1, 5], "dmg": 0, "detonate": true, "text": "Fait sauter un baril ou un brasero à {rmax} cases."},
 	"rivet": {"name": "Rivet", "owner": "artificier", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 5, "block": 4, "trig": {"on": "mur", "block": 6}, "text": "Inflige {dmg}. +{block} armure."},
-	"tourelle": {"name": "Tourelle", "owner": "artificier", "rar": 2, "cost": 2, "kind": "skill", "target": "tile", "range": [1, 2], "place": "tourelle", "text": "Pose une tourelle : 4 au plus proche à chaque fin de tour, 3 tours."},
+	"tourelle": {"name": "Tourelle", "owner": "artificier", "rar": 2, "cost": 2, "kind": "skill", "target": "tile", "range": [1, 2], "place": "tourelle", "tdmg": 4, "turns": 3, "text": "Pose une tourelle : {tdmg} au plus proche à chaque tour, {turns} tours."},
 	"surcharge": {"name": "Surcharge", "owner": "artificier", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "energy": 1, "draw": 1, "exhaust": true, "text": "+1 énergie, pioche 1. Épuise."},
 	"mortier": {"name": "Mortier", "owner": "artificier", "rar": 3, "cost": 2, "kind": "atk", "target": "tile", "range": [3, 6], "dmg": 9, "aoe": true, "trig": {"on": "premier", "dmg": 4}, "text": "Obus : {dmg} en croix, de très loin."},
 	"atelier": {"name": "Atelier", "owner": "artificier", "rar": 3, "cost": 2, "kind": "power", "target": "self", "power": "atelier", "text": "Pouvoir : chaque tour, un baril apparaît près d'un ennemi."},
 	"paume": {"name": "Paume", "owner": "moine", "rar": 1, "cost": 0, "kind": "atk", "range": [1, 1], "dmg": 3, "trig": {"on": "enchaine", "dmg": 2}, "text": "Inflige {dmg}. Nourrit l'enchaînement."},
-	"poing": {"name": "Poing-marteau", "owner": "moine", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 5, "combo": 3, "trig": {"on": "grace", "energy": 1}, "text": "Inflige {dmg}, +3 par coup déjà porté ce tour."},
+	"poing": {"name": "Poing-marteau", "owner": "moine", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 5, "combo": 3, "trig": {"on": "grace", "energy": 1}, "text": "Inflige {dmg}, +{combo} par coup déjà porté ce tour."},
 	"tourbillon": {"name": "Tourbillon", "owner": "moine", "rar": 1, "cost": 1, "kind": "atk", "target": "self", "dmg": 5, "around": true, "text": "Inflige {dmg} à chaque ennemi voisin."},
-	"bond": {"name": "Bond de grue", "owner": "moine", "rar": 1, "cost": 0, "kind": "move", "target": "tile", "range": [1, 2], "blink": true, "text": "Bondit de 2 cases, relief ignoré."},
+	"bond": {"name": "Bond de grue", "owner": "moine", "rar": 1, "cost": 0, "kind": "move", "target": "tile", "range": [1, 2], "blink": true, "text": "Bondit de {rmax} cases, relief ignoré."},
 	"souffle": {"name": "Souffle calme", "owner": "moine", "rar": 2, "cost": 1, "kind": "skill", "target": "self", "heal": 5, "draw": 1, "text": "Se soigne de {heal}. Pioche 1."},
 	"ressac": {"name": "Paume du ressac", "owner": "moine", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 4, "push": 2, "trig": {"on": "surplomb", "dmg": 3}, "text": "Inflige {dmg} et repousse de 2."},
 	"cent": {"name": "Cent poings", "owner": "moine", "rar": 3, "cost": 2, "kind": "atk", "range": [1, 1], "dmg": 2, "hits": 5, "trig": {"on": "mur", "dmg": 1}, "text": "Inflige {dmg} cinq fois."},
 	"voie": {"name": "Voie du poing", "owner": "moine", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "voie", "text": "Pouvoir : chaque 3e coup du Moine dans un tour rend 1 énergie et pioche 1."},
 	"fleche": {"name": "Flèche lestée", "owner": "trappeur", "rar": 1, "cost": 1, "kind": "atk", "range": [2, 5], "dmg": 6, "trig": {"on": "precision", "dmg": 4}, "text": "Inflige {dmg} à distance."},
-	"piege": {"name": "Piège à mâchoires", "owner": "trappeur", "rar": 1, "cost": 1, "kind": "skill", "target": "tile", "range": [1, 3], "place": "piege", "text": "Pose un piège : l'ennemi qui y marche s'arrête, subit 8 et reste entravé."},
+	"piege": {"name": "Piège à mâchoires", "owner": "trappeur", "rar": 1, "cost": 1, "kind": "skill", "target": "tile", "range": [1, 3], "place": "piege", "tdmg": 8, "text": "Pose un piège : l'ennemi qui y marche s'arrête, subit {tdmg} et reste entravé."},
 	"marque": {"name": "Marque du chasseur", "owner": "trappeur", "rar": 1, "cost": 1, "kind": "atk", "range": [2, 5], "dmg": 3, "mark": 2, "trig": {"on": "premier", "draw": 1}, "text": "Inflige {dmg}. Marqué 2 tours : +50 % de dégâts reçus."},
 	"filet": {"name": "Filet lesté", "owner": "trappeur", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 3], "dmg": 2, "root": 2, "text": "Inflige {dmg}. Entravé 2 tours : ne bouge plus."},
 	"pluie": {"name": "Pluie de flèches", "owner": "trappeur", "rar": 2, "cost": 2, "kind": "atk", "target": "tile", "range": [2, 5], "dmg": 5, "aoe": true, "text": "Inflige {dmg} en croix autour d'une case."},
@@ -103,14 +103,14 @@ const CARDS := {
 	"instinct": {"name": "Instinct du chasseur", "owner": "trappeur", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "instinct", "text": "Pouvoir : les pièges infligent +6 et marquent leur proie."},
 	"esquisse": {"name": "Esquisse", "owner": "tidiane", "voix": "R", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 2], "dmg": 5, "trig": {"on": "enchaine", "dmg": 2}, "text": "Inflige {dmg}."},
 	"recul": {"name": "Recul analytique", "owner": "tidiane", "voix": "B", "rar": 1, "cost": 1, "kind": "skill", "target": "self", "block": 5, "trig": {"on": "premier", "draw": 1}, "text": "+{block} armure."},
-	"journal": {"name": "Journal intime", "owner": "tidiane", "voix": "B", "rar": 1, "cost": 1, "kind": "skill", "target": "self", "draw": 2, "text": "Pioche 2."},
+	"journal": {"name": "Journal intime", "owner": "tidiane", "voix": "B", "rar": 1, "cost": 1, "kind": "skill", "target": "self", "draw": 2, "text": "Pioche {draw}."},
 	"pacte": {"name": "Pacte Grixis", "owner": "tidiane", "voix": "N", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 11, "selfdmg": 3, "trig": {"on": "grixis", "heal": 4}, "text": "Inflige {dmg}, perd 3 PV."},
-	"arbo": {"name": "Pensée arborescente", "owner": "tidiane", "voix": "B", "rar": 1, "cost": 0, "kind": "skill", "target": "self", "draw": 1, "text": "Pioche 1."},
+	"arbo": {"name": "Pensée arborescente", "owner": "tidiane", "voix": "B", "rar": 1, "cost": 0, "kind": "skill", "target": "self", "draw": 1, "text": "Pioche {draw}."},
 	"wavedash": {"name": "Wavedash", "owner": "tidiane", "voix": "R", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 5, "block": 4, "text": "Inflige {dmg}, +{block} armure."},
 	"punchline": {"name": "Punchline", "owner": "tidiane", "voix": "R", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 9, "trig": {"on": "grace", "energy": 1}, "text": "Inflige {dmg}."},
 	"truecombo": {"name": "True combo", "owner": "tidiane", "voix": "R", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 3, "hits": 3, "text": "Inflige {dmg} trois fois."},
-	"monster": {"name": "Monster Energy", "owner": "tidiane", "voix": "R", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "energy": 1, "selfdmg": 2, "text": "+1 énergie, perd 2 PV."},
-	"nuit": {"name": "Nuit blanche", "owner": "tidiane", "voix": "N", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "draw": 3, "selfdmg": 4, "exhaust": true, "text": "Pioche 3, perd 4 PV. Épuise."},
+	"monster": {"name": "Monster Energy", "owner": "tidiane", "voix": "R", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "energy": 1, "selfdmg": 2, "text": "+{energy} énergie, perd {selfdmg} PV."},
+	"nuit": {"name": "Nuit blanche", "owner": "tidiane", "voix": "N", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "draw": 3, "selfdmg": 4, "exhaust": true, "text": "Pioche {draw}, perd {selfdmg} PV. Épuise."},
 	"transmutation": {"name": "Transmutation", "owner": "tidiane", "voix": "N", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 3], "dmg": 7, "leech": 3, "text": "Inflige {dmg}, soigne 3."},
 	"dette": {"name": "La Dette", "owner": "tidiane", "voix": "N", "rar": 2, "cost": 0, "kind": "atk", "range": [1, 1], "dmg": 11, "selfdmg": 4, "text": "Inflige {dmg}, perd 4 PV."},
 	"dsm": {"name": "Analyse DSM", "owner": "tidiane", "voix": "B", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 4], "dmg": 0, "mark": 2, "draw": 1, "text": "Marqué 2 tours, pioche 1."},
@@ -139,14 +139,14 @@ const CARDS := {
 }
 
 const STARTER := {
-	"garde": ["frappe", "frappe", "pavois", "charge"],
-	"lame": ["estoc", "estoc", "ombre", "double"],
-	"oracle": ["braise", "braise", "seve", "surveil"],
-	"artificier": ["grenade", "baril", "etincelle", "rivet"],
-	"moine": ["paume", "paume", "poing", "tourbillon"],
-	"trappeur": ["fleche", "fleche", "piege", "marque"],
-	"tidiane": ["esquisse", "recul", "journal", "pacte"],
-	"receleur": ["larcin", "cle", "bricolage", "camelote"],
+	"garde": ["frappe", "frappe", "pavois", "pavois", "charge", "bouclier"],
+	"lame": ["estoc", "estoc", "double", "double", "ombre", "fente"],
+	"oracle": ["braise", "braise", "braise", "seve", "seve", "surveil"],
+	"artificier": ["grenade", "baril", "baril", "etincelle", "rivet", "rivet"],
+	"moine": ["paume", "paume", "poing", "poing", "tourbillon", "bond"],
+	"trappeur": ["fleche", "fleche", "fleche", "piege", "piege", "marque"],
+	"tidiane": ["esquisse", "esquisse", "recul", "wavedash", "journal", "pacte"],
+	"receleur": ["larcin", "cle", "cle", "bricolage", "camelote", "camelote"],
 }
 const VOIX := {"B": ["Analyse", Color("#4aa3d8")], "R": ["Émotion", Color("#e0483f")], "N": ["Ambition", Color("#9b6dd6")]}
 # Difficulté 1 à 5. Le niveau 2 est l'équilibrage courant, le 4 celui d'origine.
@@ -181,7 +181,7 @@ const KEYWORDS := {
 	"De dos": "Frapper une unité de dos : dégâts ×1,5 (ou plus selon la carte).",
 	"baril": "Explose quand on le frappe : 7 dégâts autour.",
 	"piège": "L'ennemi qui y marche s'arrête, subit 8 et reste entravé.",
-	"Niveau": "Forge ou fusion de deux doubles : +1 niveau (5 au maximum).",
+	"Niveau": "Forge ou fusion de deux doubles : +1 niveau (3 au maximum). Chaque niveau change la carte.",
 	"perd": "Coût en PV : ne peut pas tuer le héros (il reste à 1).",
 	"Vole": "Prend l'objet que porte l'ennemi et le range dans la besace.",
 	"Bricole": "Réserve du Receleur (3 au plus) : chaque Bricole améliore le prochain objet fabriqué, puis se vide.",
@@ -241,6 +241,13 @@ const BOONS := {
 	"arme": {"name": "Arme d'antan", "glyph": "⚔", "text": "Un équipement rare."},
 	"reflet": {"name": "Reflet", "glyph": "⧉", "text": "Copie une carte du paquet (la copie n'est pas une carte de départ)."},
 }
+# Idéogramme de chaque mot-clé (assets/ui/kw_*.png) ; les déclencheurs ont le leur.
+const KW_ICON := {"Épuise": "epuise", "Pouvoir": "pouvoir", "Marqué": "marque", "Entravé": "entrave", "enchaînement": "enchainement",
+	"repousse": "repousse", "attire": "attire", "tire": "attire", "De dos": "dos", "de dos": "dos", "baril": "baril", "piège": "piege",
+	"perd": "perd", "Vole": "vole", "Bricole": "bricole", "besace": "besace", "Fabrique": "fabrique", "poison": "poison",
+	"Pioche": "pioche", "pioche": "pioche", "énergie": "energie",
+	"Coup de grâce": "grace", "Dos au mur": "mur", "Enchaîné": "enchaine", "Surplomb": "surplomb", "Précision": "precision",
+	"Premier jet": "premier", "Grixis": "grixis"}
 # Modificateurs de combat : affichés sur les salles marquées (plus de risque, plus de butin).
 const MODIFIERS := {
 	"brume": {"name": "Brume", "glyph": "≈", "text": "Portée des attaques à distance -1, pour tout le monde."},
@@ -377,6 +384,13 @@ const ITEMS := {
 	"bourse": {"name": "Bourse trouée", "slot": "talisman", "owner": "any", "passive": "chasseur", "rarity": 1},
 	"coeur_pierre": {"name": "Cœur de pierre", "slot": "talisman", "owner": "any", "hp": 8, "passive": "", "rarity": 1},
 }
+const ITEM_ICON := {"epee_ecluse": "epee", "masse_os": "masse", "hallebarde": "hallebarde", "dague_ombre": "dague", "kriss": "dagues",
+	"lame_soif": "dague", "baton_braise": "baton", "sceptre_maree": "sceptre", "baton_lotus": "baton", "cle_meca": "cle", "canon_main": "canon",
+	"bandes_jade": "bandes", "chapelet": "bandes", "arc_frene": "arc", "arc_os": "arc", "marteau_forge": "marteau", "gantelets_ressac": "gantelet",
+	"arbalete_silure": "arbalete", "pinceau": "pinceau", "palette": "palette", "stylet": "stylet", "pied_biche": "piedbiche", "crochets": "crochets",
+	"gants_velours": "gants", "anneau_bouclier": "anneau", "bottes_heron": "bottes", "sandales_saut": "sandales", "amulette_regen": "amulette",
+	"plume_elan": "plume", "ecaille_eau": "ecaille", "oeil_vigilant": "oeil", "bracelet_fleches": "bracelet", "gantelet": "gantelet",
+	"miroir": "miroir", "bourse": "bourse", "coeur_pierre": "coeur"}
 const PRICE := {1: 45, 2: 75, 3: 110}
 
 const PROPS := {
@@ -450,9 +464,103 @@ const AFFIXES := {
 }
 
 
-## Une carte en main = {"id", "lvl"} (niveau 1 à 5). Renvoie la définition au niveau voulu.
+# Améliorations : [niveau 2, niveau 3]. Un nombre s'ajoute (cost, selfdmg peuvent baisser),
+# « reach » allonge la portée, le reste remplace (text, trig, exhaust...). Chaque niveau change la carte.
+const UPGRADES := {
+	"frappe": [{"dmg": 3}, {"dmg": 2, "push": 1, "text": "Inflige {dmg} et repousse 1."}],
+	"pavois": [{"block": 3}, {"draw": 1, "text": "Gagne {block} d'armure. Pioche 1."}],
+	"charge": [{"dmg": 3}, {"cost": -1, "push": 1}],
+	"defi": [{"block": 4}, {"cost": -1}],
+	"rempart": [{"block": 3}, {"cost": -1}],
+	"marteau": [{"dmg": 4}, {"cost": -1}],
+	"bastion": [{"block": 2, "draw": 1, "text": "Gagne {block} d'armure. Pioche {draw}."}, {"energy": 1, "text": "Gagne {block} d'armure. Pioche {draw}. +1 énergie."}],
+	"bouclier": [{"dmg": 2, "block": 2}, {"reach": 1, "bounce": true, "text": "Lance le pavois : {dmg}, repousse 1, rebondit sur un voisin. +{block} armure."}],
+	"crochet": [{"dmg": 3, "reach": 1}, {"cost": -1}],
+	"forteresse": [{"cost": -1}, {"block": 6, "text": "Pouvoir : l'armure des héros ne s'efface plus. +{block} armure à chaque héros."}],
+	"estoc": [{"dmg": 3}, {"backstab": 1.0, "text": "Inflige {dmg}. De dos : ×3."}],
+	"ombre": [{"reach": 1}, {"draw": 1, "text": "Téléportation à {rmax} cases, relief ignoré. Pioche 1."}],
+	"double": [{"dmg": 2}, {"hits": 1, "text": "Inflige {dmg} trois fois."}],
+	"venin": [{"poison": 3}, {"cost": -1}],
+	"couperet": [{"dmg": 4}, {"cost": -1}],
+	"ricochet": [{"dmg": 3}, {"chain": 3, "bounce": false, "text": "Dague : {dmg}, puis saute sur 2 ennemis proches."}],
+	"fente": [{"dmg": 3}, {"reach": 2, "cost": -1}],
+	"embuscade": [{"cost": -1}, {"draw": 1, "energy": 1, "text": "Le prochain coup de la Lame compte comme de dos. Pioche {draw}, +1 énergie."}],
+	"coupures": [{"cost": -1}, {"val": 1, "text": "Pouvoir : chaque carte jouée inflige 2 à un ennemi au hasard."}],
+	"braise": [{"dmg": 3}, {"chain": 2, "text": "Inflige {dmg} à distance, puis saute sur un ennemi proche."}],
+	"seve": [{"heal": 4}, {"block": 5, "text": "Soigne {heal} un allié et lui donne {block} armure."}],
+	"colonne": [{"dmg": 3}, {"cost": -1}],
+	"maree": [{"dmg": 2, "push": 1, "text": "{dmg} et repousse {push}. Dans l'eau : noyade."}, {"cost": -1}],
+	"surveil": [{"draw": 1}, {"exhaust": false, "text": "Pioche {draw}."}],
+	"delve": [{"val": 1, "text": "3 par carte en défausse, puis l'exile. Épuise."}, {"exhaust": false, "text": "3 par carte en défausse, puis l'exile."}],
+	"arc": [{"dmg": 2}, {"chain": 2, "text": "Inflige {dmg}, puis saute sur 4 ennemis proches."}],
+	"echo": [{"cost": -1}, {"exhaust": false, "text": "La prochaine carte jouée ce tour agit deux fois."}],
+	"cendres": [{"val": 2, "text": "Pouvoir : chaque tour de l'Oracle, 6 dégâts à l'ennemi le plus proche."}, {"val2": 1, "text": "Pouvoir : chaque tour de l'Oracle, 6 dégâts aux deux ennemis les plus proches."}],
+	"lotus": [{"heal_all": 3}, {"cost": -1}],
+	"grenade": [{"dmg": 3}, {"cost": -1}],
+	"baril": [{"draw": 1}, {"cost": -1}],
+	"etincelle": [{"reach": 2}, {"draw": 1, "text": "Fait sauter un baril ou un brasero à {rmax} cases. Pioche 1."}],
+	"rivet": [{"dmg": 2, "block": 2}, {"push": 1, "block": 3, "text": "Inflige {dmg}, repousse 1. +{block} armure."}],
+	"tourelle": [{"turns": 2}, {"tdmg": 3}],
+	"surcharge": [{"draw": 1, "text": "+1 énergie, pioche {draw}. Épuise."}, {"exhaust": false, "text": "+1 énergie, pioche {draw}."}],
+	"mortier": [{"dmg": 4}, {"cost": -1}],
+	"atelier": [{"cost": -1}, {"val": 1, "text": "Pouvoir : chaque tour de l'Artificier, deux barils apparaissent près des ennemis."}],
+	"paume": [{"dmg": 2}, {"draw": 1, "text": "Inflige {dmg}. Pioche 1."}],
+	"poing": [{"combo": 2}, {"cost": -1}],
+	"tourbillon": [{"dmg": 3}, {"push": 1, "text": "Inflige {dmg} à chaque ennemi voisin et le repousse."}],
+	"bond": [{"reach": 1}, {"dmg": 5, "text": "Bondit de {rmax} cases ; à l'atterrissage, {dmg} aux ennemis voisins."}],
+	"souffle": [{"heal": 3}, {"cost": -1}],
+	"ressac": [{"dmg": 3}, {"push": 2}],
+	"cent": [{"dmg": 1}, {"hits": 2, "text": "Inflige {dmg} sept fois."}],
+	"voie": [{"cost": -1}, {"val": 1, "text": "Pouvoir : chaque 2e coup du Moine dans un tour rend 1 énergie et pioche 1."}],
+	"fleche": [{"dmg": 3}, {"reach": 1, "pierce": true, "text": "Inflige {dmg} à distance, ignore l'armure."}],
+	"piege": [{"tdmg": 4}, {"twin": true, "text": "Pose deux pièges (la case et une voisine) : l'ennemi qui y marche s'arrête, subit {tdmg} et reste entravé."}],
+	"marque": [{"dmg": 2, "mark": 1, "text": "Inflige {dmg}. Marqué {mark} tours : +50 % de dégâts reçus."}, {"cost": -1}],
+	"filet": [{"root": 1, "text": "Inflige {dmg}. Entravé {root} tours : ne bouge plus."}, {"reach": 2, "cost": -1}],
+	"pluie": [{"dmg": 3}, {"cost": -1}],
+	"harpon": [{"dmg": 3}, {"mark": 2, "text": "Inflige {dmg}, tire l'ennemi de 3 cases et le marque 2 tours."}],
+	"perforant": [{"dmg": 4}, {"cost": -1}],
+	"instinct": [{"cost": -1}, {"val": 4, "text": "Pouvoir : les pièges infligent +10 et marquent leur proie."}],
+	"esquisse": [{"dmg": 3}, {"reach": 1, "draw": 1, "text": "Inflige {dmg}. Pioche 1."}],
+	"recul": [{"block": 3}, {"draw": 1, "text": "+{block} armure. Pioche 1."}],
+	"journal": [{"draw": 1}, {"cost": -1}],
+	"pacte": [{"dmg": 4}, {"selfdmg": -2, "text": "Inflige {dmg}, perd {selfdmg} PV."}],
+	"arbo": [{"draw": 1}, {"energy": 1, "text": "Pioche {draw}. +1 énergie."}],
+	"wavedash": [{"dmg": 2, "block": 2}, {"cost": -1}],
+	"punchline": [{"dmg": 4}, {"push": 2, "text": "Inflige {dmg} et repousse 2."}],
+	"truecombo": [{"dmg": 1}, {"hits": 1, "text": "Inflige {dmg} quatre fois."}],
+	"monster": [{"energy": 1}, {"selfdmg": -2, "draw": 1, "text": "+{energy} énergie, pioche 1."}],
+	"nuit": [{"draw": 1}, {"exhaust": false, "text": "Pioche {draw}, perd {selfdmg} PV."}],
+	"transmutation": [{"dmg": 3, "leech": 2, "text": "Inflige {dmg}, soigne {leech}."}, {"cost": -1}],
+	"dette": [{"dmg": 5}, {"selfdmg": -2, "text": "Inflige {dmg}, perd {selfdmg} PV."}],
+	"dsm": [{"mark": 1, "text": "Marqué {mark} tours, pioche 1."}, {"cost": -1}],
+	"contreanalyse": [{"block": 3}, {"root": 1, "text": "Entravé {root} tours, +{block} armure."}],
+	"troisvoix": [{"flow": 1, "text": "Inflige {dmg}, +{flow} par carte déjà jouée ce tour."}, {"dmg": 4}],
+	"break174": [{"dmg": 5}, {"cost": -1}],
+	"purerage": [{"dmg": 3}, {"cost": -1}],
+	"potentiel": [{"dmg": 8}, {"cost": -1}],
+	"revelation": [{"heal": 4}, {"exhaust": false, "text": "Soigne {heal}, pioche 2."}],
+	"hyperfocus": [{"val": 2, "text": "Pouvoir : les attaques de Tidiane infligent +5."}, {"cost": -1}],
+	"dnb": [{"cost": -1}, {"val": 1, "text": "Pouvoir : Tidiane pioche 2 cartes de plus à chaque tour."}],
+	"obsession": [{"cost": -1}, {"cost": -1}],
+	"larcin": [{"dmg": 3}, {"reach": 2, "text": "Vole l'objet d'une cible jusqu'à 3 cases, puis inflige {dmg}."}],
+	"cle": [{"dmg": 3}, {"bricole": 1, "text": "Inflige {dmg}. +2 Bricole."}],
+	"bricolage": [{"block": 3}, {"craft": 1, "text": "Fabrique deux objets dans la besace. +{block} armure."}],
+	"camelote": [{"junk": 1, "text": "Inflige {dmg}, +{junk} par objet en besace."}, {"cost": -1}],
+	"crochetage": [{"draw": 1, "text": "Vole l'objet d'un ennemi à {rmax} cases. Pioche {draw}."}, {"reach": 2}],
+	"recyclage": [{"val": 1, "text": "Détruit le premier objet de la besace : +2 énergie, +1 Bricole."}, {"draw": 2, "text": "Détruit le premier objet de la besace : +2 énergie, +1 Bricole, pioche 2."}],
+	"contrefacon": [{"cost": -1}, {"exhaust": false, "text": "Copie le dernier objet de la besace."}],
+	"coupdesac": [{"dmg": 3}, {"push": 1, "text": "Inflige {dmg} et repousse 2."}],
+	"etal": [{"craft": 1, "text": "Fabrique trois objets. Épuise."}, {"exhaust": false, "text": "Fabrique trois objets."}],
+	"lecasse": [{"dmg": 4}, {"cost": -1}],
+	"marchenoir": [{"val": 2, "text": "Pouvoir : chaque objet utilisé inflige 6 à l'ennemi le plus proche."}, {"cost": -1}],
+	"poches": [{"cost": -1}, {"val": 1, "text": "Pouvoir : besace +3 places, deux objets fabriqués à chaque tour du Receleur."}],
+}
+const MAX_LVL := 3
+
+
+## Une carte en main = {"id", "lvl"} (niveau 1 à 3). Renvoie la définition au niveau voulu.
 static func level(ci: Dictionary) -> int:
-	return clampi(int(ci.get("lvl", 1 + int(ci.get("up", 0)))), 1, 5)
+	return clampi(int(ci.get("lvl", 1 + int(ci.get("up", 0)))), 1, MAX_LVL)
 
 
 static func card(ci: Dictionary) -> Dictionary:
@@ -461,31 +569,48 @@ static func card(ci: Dictionary) -> Dictionary:
 	var lv := level(ci)
 	c["lvl"] = lv
 	c["st"] = ci.get("st", false)
-	var k := lv - 1
-	if k > 0:
-		for key in ["dmg", "block", "heal", "heal_all"]:
-			if c.get(key, 0) > 0:
-				c[key] += k * maxi(1, int(round(c[key] * 0.25)))
-		if c.has("poison"):
-			c.poison += k
-		if lv >= 3 and c.cost >= 2:
-			c.cost -= 1
-		if lv >= 4:
-			if c.get("draw", 0) > 0:
-				c.draw += 1
-			if c.has("range") and c.range[1] > 1:
-				c.range = [c.range[0], c.range[1] + 1]
-			for key in ["mark", "root"]:
-				if c.has(key):
-					c[key] += 1
-		if lv >= 5:
-			if c.has("hits"):
-				c.hits += 1
-			if c.has("trig"):
-				for key in ["dmg", "block", "heal", "draw", "energy", "poison"]:
-					if c.trig.has(key):
-						c.trig[key] += 1 if key in ["draw", "energy"] else maxi(1, int(round(c.trig[key] * 0.5)))
+	var ups: Array = UPGRADES.get(ci.id, [])
+	for i in mini(lv - 1, ups.size()):
+		var d: Dictionary = ups[i]
+		for key in d:
+			var v = d[key]
+			if key == "reach":
+				c.range = [c.range[0], c.range[1] + v]
+			elif (v is int or v is float) and not (v is bool):
+				c[key] = maxi(0, c.get(key, 0) + v) if v is int else c.get(key, 0.0) + v
+			else:
+				c[key] = v
 	return c
+
+
+const DIFF_NAME := {"cost": "Coût", "dmg": "Dégâts", "block": "Armure", "heal": "Soin", "heal_all": "Soin de groupe", "draw": "Pioche",
+	"push": "Repousse", "energy": "Énergie", "hits": "Coups", "poison": "Poison", "mark": "Marque", "root": "Entrave", "turns": "Tours",
+	"tdmg": "Dégâts posés", "combo": "Enchaînement", "junk": "Par objet", "flow": "Par carte jouée", "leech": "Vol de vie", "selfdmg": "Coût en PV",
+	"val": "Puissance", "val2": "Cibles", "craft": "Objets fabriqués", "bricole": "Bricole", "chain": "Rebonds", "backstab": "De dos ×"}
+const DIFF_FLAG := {"exhaust": ["Ne s'épuise plus", "S'épuise"], "pierce": ["Ignore l'armure", ""], "bounce": ["Rebondit", "Ne rebondit plus"], "twin": ["Deux pièges", ""]}
+
+
+static func upgrade_diff(before: Dictionary, after: Dictionary) -> String:
+	## Ce que gagne la carte d'un niveau à l'autre, en clair : « Coût −1 · Repousse +1 ».
+	var a := card(before)
+	var b := card(after)
+	var out: Array = []
+	if a.has("range") and b.range[1] != a.range[1]:
+		out.append("Portée %+d" % (b.range[1] - a.range[1]))
+	for k in DIFF_NAME:
+		var va: float = float(a.get(k, 0))
+		var vb: float = float(b.get(k, 0))
+		if va != vb:
+			var d := vb - va
+			out.append(("%s %s%s" % [DIFF_NAME[k], "+" if d > 0 else "−", str(absf(d)) if k == "backstab" else str(int(absf(d)))]))
+	for k in DIFF_FLAG:
+		if bool(a.get(k, false)) != bool(b.get(k, false)):
+			var t: String = DIFF_FLAG[k][0 if (k == "exhaust") != bool(b.get(k, false)) else 1]
+			if t != "":
+				out.append(t)
+	if out.is_empty() and a.text != b.text:
+		out.append("Nouvel effet")
+	return " · ".join(out)
 
 
 static func trig_text(c: Dictionary) -> String:
@@ -510,10 +635,18 @@ static func trig_text(c: Dictionary) -> String:
 	return "%s : %s." % [TRIGGERS[t.on].name, ", ".join(fx)]
 
 
+static func fill(t: String, c: Dictionary) -> String:
+	## Remplace {clé} par la valeur de la carte, {rmax} par sa portée maximale.
+	if c.has("range"):
+		t = t.replace("{rmax}", str(c.range[1]))
+	for k in c:
+		if (c[k] is int or c[k] is float) and not (c[k] is bool) and t.contains("{%s}" % k):
+			t = t.replace("{%s}" % k, str(int(c[k])))
+	return t
+
+
 static func card_text(c: Dictionary) -> String:
-	var t: String = c.text
-	for k in ["dmg", "block", "heal", "heal_all", "poison"]:
-		t = t.replace("{%s}" % k, str(c.get(k, 0)))
+	var t: String = fill(c.text, c)
 	var tt := trig_text(c)
 	return t + ("\n" + tt if tt != "" else "")
 
@@ -538,8 +671,7 @@ static func card_brief(c: Dictionary) -> String:
 	if t.begins_with("au Garde et aux alliés voisins"):
 		t = "Aussi aux alliés voisins."
 	t = t.replace("{poison} de poison", "+{poison} poison")
-	for k in ["poison"]:
-		t = t.replace("{%s}" % k, str(c.get(k, 0)))
+	t = fill(t, c)
 	# majuscule en tête de chaque phrase
 	var parts := t.split(". ")
 	for i in parts.size():
@@ -558,7 +690,7 @@ static func keyword_tip(c: Dictionary) -> String:
 	for kw in KEYWORDS:
 		if txt.to_lower().contains(kw.to_lower()):
 			out.append("%s : %s" % [kw, KEYWORDS[kw]])
-	out.append("Niveau %d / 5 : %s" % [c.lvl, KEYWORDS["Niveau"]])
+	out.append("Niveau %d / %d : %s" % [c.lvl, MAX_LVL, KEYWORDS["Niveau"]])
 	if c.get("st", false):
 		out.append("Carte de départ : ne fusionne pas (la forge reste possible).")
 	return "\n".join(out)

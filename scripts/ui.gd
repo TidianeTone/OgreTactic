@@ -255,6 +255,7 @@ func _build_hud() -> void:
 	kv.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	keys.add_child(kv)
 	kv.add_child(_shadowed(_label("Commandes", 16, GOLD, title_f), 4))
+	kv.add_child(_label("Chacun joue à son tour, par vitesse, avec son paquet et son mana.", 13, Color("#ffd98a")))
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 12)
@@ -264,7 +265,7 @@ func _build_hud() -> void:
 	for row in [["Clic", "héros, carte, case, objet de besace"], ["Clic ennemi", "épingler / retirer sa fiche"],
 			["Survol", "infos de la case ou de l'objet"], ["Clic droit", "annuler · maintenu : caméra"],
 			["ZQSD", "déplacer la caméra (clic droit tenu)"], ["Q / E · molette", "pivoter · zoomer"],
-			["Espace", "fin du tour"], ["Tab · 1 à 9", "héros suivant · jouer une carte"],
+			["Espace", "fin du tour"], ["Tab · 1 à 9", "recentrer · jouer une carte"],
 			["Alt", "montrer les objets interactifs"], ["P · M", "paquet · musique"], ["H · Échap", "cette aide · menu"]]:
 		var k := _label(row[0], 14, Color("#ffe3a3"), title_f)
 		k.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -570,7 +571,7 @@ func _rebuild_heroes() -> void:
 		p.mouse_filter = Control.MOUSE_FILTER_STOP
 		p.gui_input.connect(func(e):
 			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and h.alive:
-				battle.select(h))
+				battle.pick_hero(h))
 		hero_box.add_child(p)
 		var badge := _panel(p, sb(col, col.lightened(0.4), 8, 2))
 		badge.position = Vector2(12, 13)
@@ -651,7 +652,7 @@ func _refresh_heroes() -> void:
 		var boot: Control = d.st.get_child(1)
 		boot.visible = h.alive
 		boot.modulate = Color(1, 1, 1, 0.25) if h.moved else Color.WHITE
-		var sel: bool = battle.selected == h
+		var sel: bool = battle.active == h
 		d.panel.add_theme_stylebox_override("panel", sb(Color(0.1, 0.09, 0.08, 0.88) if sel else Color(0.07, 0.065, 0.07, 0.78), GOLD if sel else d.col.darkened(0.2), 10, 2 if sel else 1, 6))
 		d.panel.modulate = Color(1, 1, 1, 1) if h.alive else Color(0.5, 0.5, 0.5, 0.8)
 
@@ -664,10 +665,16 @@ func refresh_relics(relics: Array) -> void:
 		p.custom_minimum_size = Vector2(40, 40)
 		p.add_theme_stylebox_override("panel", sb(Color(0.08, 0.07, 0.07, 0.85), GOLD.darkened(0.2), 20, 2, 4))
 		p.tooltip_text = "%s\n%s" % [Data.RELICS[r].name, Data.RELICS[r].text]
-		var g := _label(Data.RELICS[r].glyph, 20, GOLD)
+		var g := TextureRect.new()
+		g.texture = load("res://assets/ui/relic_%s.png" % r)
+		g.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		g.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		g.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		g.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		g.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		g.offset_left = 5
+		g.offset_top = 5
+		g.offset_right = -5
+		g.offset_bottom = -5
+		g.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		p.add_child(g)
 		relic_row.add_child(p)
 
@@ -682,13 +689,14 @@ func refresh() -> void:
 	_refresh_heroes()
 	_refresh_frieze()
 	energy_lbl.text = str(battle.energy)
-	pile_lbl.text = "Pioche %d · Défausse %d" % [battle.draw_pile.size(), battle.discard.size()]
+	pile_lbl.text = ("%s · pioche %d · défausse %d" % [battle.active.nm, battle.draw_pile.size(), battle.discard.size()]) if battle.active else "Tour ennemi"
 	var pw: Array = []
 	for id in Data.CARDS:
 		if Data.CARDS[id].get("power", "") in battle.powers:
 			pw.append(Data.CARDS[id].name)
 	powers_lbl.text = ("Pouvoirs : " + " · ".join(pw)) if pw.size() > 0 else ""
 	end_btn.disabled = not battle.player_turn or battle.busy
+	end_btn.text = "Fin du tour" if battle.active == null else "Fin · %s" % battle.active.nm
 	keys_plate.visible = battle.turn <= 1 or show_keys
 	var bsig := "%s|%d|%d|%d" % [JSON.stringify(battle.besace), battle.tool_sel, battle.besace_cap(), battle.bricole]
 	if bsig != _besace_sig:
@@ -732,8 +740,10 @@ func _rebuild_besace() -> void:
 		b.add_theme_color_override("font_hover_color", Color.WHITE)
 		if full:
 			var td: Dictionary = Data.TOOLS[battle.besace[i]]
-			b.text = td.glyph
-			b.tooltip_text = "%s\n%s\n(clic, puis la cible · sans énergie · héros sélectionné)" % [td.name, td.text]
+			b.icon = load("res://assets/ui/tool_%s.png" % battle.besace[i])
+			b.expand_icon = true
+			b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			b.tooltip_text = "%s\n%s\n(clic, puis la cible · sans énergie · héros actif)" % [td.name, td.text]
 			var idx := i
 			b.pressed.connect(func(): battle.select_tool(idx))
 		else:
@@ -791,8 +801,8 @@ func make_card(ci: Dictionary) -> Control:
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(art)
 	var lvc: int = c.get("lvl", 1)
-	var fcol: Color = Color("#ffcf5a") if lvc >= 5 else (Color("#d8e0e8") if lvc >= 3 else col.lightened(0.25))
-	var frame := _panel(card, sb(Color(0, 0, 0, 0), fcol, 4, 3 if lvc >= 3 else 1))
+	var fcol: Color = Color("#ffcf5a") if lvc >= 3 else (Color("#d8e0e8") if lvc >= 2 else col.lightened(0.25))
+	var frame := _panel(card, sb(Color(0, 0, 0, 0), fcol, 4, 3 if lvc >= 2 else 1))
 	frame.position = art.position
 	frame.size = art.size
 	var nm := _label(c.name, 16 if c.name.length() <= 12 else (14 if c.name.length() <= 15 else 13), INK, title_f)
@@ -816,7 +826,7 @@ func make_card(ci: Dictionary) -> Control:
 		var pill := _panel(card, sb(Color(0.04, 0.03, 0.04, 0.8), Color(0, 0, 0, 0), 7))
 		pill.position = Vector2(CARD.x - 12 - 8 - lv * 11, art.position.y + art.size.y - 20)
 		pill.size = Vector2(lv * 11 + 8, 16)
-		var pips := _label("●".repeat(lv), 10, Color("#ffcf5a") if lv >= 5 else (Color("#e8eef4") if lv >= 3 else INK))
+		var pips := _label("●".repeat(lv), 10, Color("#ffcf5a") if lv >= 3 else Color("#e8eef4"))
 		pips.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		pips.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		pips.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -865,18 +875,41 @@ func make_card(ci: Dictionary) -> Control:
 	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(body)
 	if txt != "":
-		var tx := _label(txt, 14 if txt.length() <= 40 else (13 if txt.length() <= 60 else 12), INK)
-		tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		tx.custom_minimum_size = Vector2(CARD.x - 20, 0)
-		tx.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		body.add_child(tx)
+		body.add_child(_rich(kw_bbcode(txt), 14 if txt.length() <= 40 else (13 if txt.length() <= 60 else 12), INK))
 	if tt != "":
-		var tl := _label(tt, 12, Color("#ffd98a"))
-		tl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		tl.custom_minimum_size = Vector2(CARD.x - 20, 0)
-		tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		body.add_child(tl)
+		body.add_child(_rich(kw_bbcode(tt), 12, Color("#ffd98a")))
 	return card
+
+
+func _rich(bb: String, size: int, col: Color) -> RichTextLabel:
+	var r := RichTextLabel.new()
+	r.bbcode_enabled = true
+	r.fit_content = true
+	r.scroll_active = false
+	r.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	r.custom_minimum_size = Vector2(CARD.x - 20, 0)
+	r.add_theme_font_size_override("normal_font_size", size)
+	r.add_theme_color_override("default_color", col)
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	r.text = "[center]" + bb + "[/center]"
+	return r
+
+
+static var _kw_keys: Array = []
+static func kw_bbcode(t: String) -> String:
+	## Chaque mot-clé précédé de son idéogramme (game-icons.net repassées en pixel art).
+	if _kw_keys.is_empty():
+		_kw_keys = Data.KW_ICON.keys()
+		_kw_keys.sort_custom(func(a, b): return a.length() > b.length())
+	t = t.replace("[", "[lb]")
+	var used: Array = []
+	for k: String in _kw_keys:
+		if t.contains(k):
+			t = t.replace(k, "§%d¤" % used.size())
+			used.append(k)
+	for i in used.size():
+		t = t.replace("§%d¤" % i, "[img=15x15]res://assets/ui/kw_%s.png[/img][color=#ffe3a3]%s[/color]" % [Data.KW_ICON[used[i]], used[i]])
+	return t
 
 
 static var _icons := {}
@@ -968,13 +1001,26 @@ func _refresh_frieze() -> void:
 	for c in frieze.get_children():
 		c.queue_free()
 	var boss: Unit = null
-	var units: Array = battle.alive_heroes() + battle.alive_foes()
+	for f in battle.alive_foes():
+		if f.key == "gardien":
+			boss = f
+	# qui joue maintenant, puis la suite du round, puis le début du suivant
+	var units: Array = []
+	var q := maxi(battle.qi, 0)
+	for i in range(q, battle.order.size()):
+		units.append(battle.order[i])
+	units.append(null)
+	for i in range(0, q):
+		units.append(battle.order[i])
+	units = units.filter(func(u): return u == null or (is_instance_valid(u) and u.alive))
 	for u in units:
-		if u.key == "gardien":
-			boss = u
+		if u == null:
+			frieze.add_child(_label("↻", 18, GOLD, title_f))
+			continue
 		var col: Color = Data.CLASS_COLOR.get(u.key, Color("#c9463a"))
+		var now: bool = battle.order.size() > battle.qi and battle.qi >= 0 and battle.order[battle.qi] == u
 		var p := PanelContainer.new()
-		var st := sb(Color(0.07, 0.06, 0.065, 0.88), col, 6, 2 if u == battle.selected else 1, 4)
+		var st := sb(Color(0.16, 0.12, 0.06, 0.95) if now else Color(0.07, 0.06, 0.065, 0.88), GOLD if now else col, 6, 3 if now else 1, 4)
 		st.content_margin_left = 6
 		st.content_margin_right = 6
 		st.content_margin_top = 2
@@ -983,15 +1029,14 @@ func _refresh_frieze() -> void:
 		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var l := _label("", 13, INK, title_f)
 		if u.side == "hero":
-			l.text = u.nm + ("" if not u.moved else " ·")
+			l.text = u.nm
 		else:
 			l.text = "%s %s" % [u.nm.split(" ")[0], battle.intent(u)]
 			l.add_theme_color_override("font_color", Color("#ffc48a"))
+		p.tooltip_text = "Vitesse %d" % u.speed
+		p.mouse_filter = Control.MOUSE_FILTER_PASS
 		p.add_child(l)
 		frieze.add_child(p)
-		if u.side == "hero" and units.find(u) == battle.alive_heroes().size() - 1:
-			var sep := _label("⟩", 18, GOLD, title_f)
-			frieze.add_child(sep)
 	boss_bar.visible = boss != null
 	if boss:
 		var bb: ProgressBar = boss_bar.get_meta("bar")
@@ -1416,6 +1461,9 @@ func title_screen() -> void:
 	var s := _shadowed(_label("Roguelike tactique à cartes · les ruines de l'Écluse", 18, GOLD), 6)
 	s.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(s)
+	var cr := _shadowed(_label("Icônes : game-icons.net (Lorc, Delapouite et al., CC BY 3.0) · idéogrammes : KIE", 11, DIM), 4)
+	cr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(cr)
 	var sp := Control.new()
 	sp.custom_minimum_size = Vector2(0, 30)
 	box.add_child(sp)

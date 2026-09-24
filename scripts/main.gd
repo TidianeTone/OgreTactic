@@ -446,9 +446,8 @@ func _pad_button(b: int) -> void:
 				var i := posmod((battle.card_sel if battle.card_sel >= 0 else (-1 if s > 0 else 0)) + s, n)
 				battle.select_card(i)
 		JOY_BUTTON_BACK:
-			var live := battle.alive_heroes()
-			if live.size() > 0:
-				battle.select(live[(live.find(battle.selected) + 1) % live.size()])
+			if battle.active:
+				battle.select(battle.active)
 
 
 func _unhandled_input(e: InputEvent) -> void:
@@ -516,10 +515,9 @@ func _unhandled_input(e: InputEvent) -> void:
 				(_music[1] as AudioStreamPlayer).volume_db = _music_vol()
 				ui.toast("Musique coupée" if _mute else "Musique")
 			KEY_TAB:
-				var live := battle.alive_heroes()
-				if live.size() > 0:
-					var i := (live.find(battle.selected) + 1) % live.size()
-					battle.select(live[i])
+				if battle.active:
+					battle.select(battle.active)
+					focus(battle.active.position)
 			KEY_G:
 				quality = (quality + 1) % 3
 				_apply_quality()
@@ -862,7 +860,7 @@ func _fight(type: String, ids_override: Array = []) -> bool:
 			mods.append(pk[1])
 	battle.mods = mods
 	Battle.foe_bonus = 2 if mods.has("enrages") else 0
-	battle.hand_size = 4 if pacts.has("main") else 5
+	battle.hand_size = 2 if pacts.has("main") else 3
 	battle.besace = besace
 	battle.besace_max = besace_max + (1 if relics.has("sacoche") else 0)
 	battle.tool_rate = 0.3 + 0.1 * (floor_i - 1)
@@ -957,7 +955,7 @@ func _card_roll(min_rar := 1) -> String:
 func _item_opt(id: String, price := 0) -> Dictionary:
 	var it: Dictionary = Data.ITEMS[id]
 	var title: String = it.name + ("  ·  %d or" % price if price > 0 else "")
-	return {"title": title, "glyph": "⚔" if it.slot == "arme" else "◈", "text": Data.item_text(id),
+	return {"title": title, "image": "res://assets/ui/gear_%s.png" % Data.ITEM_ICON.get(id, "anneau"), "text": Data.item_text(id),
 		"color": [UI.GOLD, Color("#8fa3b8"), Color("#6fb0e0"), Color("#d08aff")][it.rarity]}
 
 
@@ -1008,7 +1006,7 @@ func _merchant() -> void:
 		for id in stock:
 			opts.append(_item_opt(id, Data.PRICE[Data.ITEMS[id].rarity]))
 		for id in tstock:
-			opts.append({"title": "%s  ·  %d or" % [Data.TOOLS[id].name, _tool_price(id)], "glyph": Data.TOOLS[id].glyph, "text": "Besace — " + Data.TOOLS[id].text, "color": Color("#7fe0c8")})
+			opts.append({"title": "%s  ·  %d or" % [Data.TOOLS[id].name, _tool_price(id)], "image": "res://assets/ui/tool_%s.png" % id, "text": "Besace — " + Data.TOOLS[id].text, "color": Color("#7fe0c8")})
 		if card:
 			opts.append({"title": "%s niv 2  ·  50 or" % Data.CARDS[card.id].name, "glyph": "✦", "text": Data.card_text(Data.card(card))})
 		if not healed:
@@ -1074,7 +1072,7 @@ func _relic_pick(title: String, subtitle: String) -> void:
 		if ids.has(r):
 			continue
 		ids.append(r)
-		opts.append({"title": Data.RELICS[r].name, "glyph": Data.RELICS[r].glyph, "text": Data.RELICS[r].text})
+		opts.append({"title": Data.RELICS[r].name, "image": "res://assets/ui/relic_%s.png" % r, "text": Data.RELICS[r].text})
 	if opts.is_empty():
 		return
 	var i := await ui.choose(title.to_upper(), subtitle, opts)
@@ -1113,10 +1111,10 @@ func _sanctuary() -> void:
 func _forge(title: String, subtitle: String) -> bool:
 	var idx: Array = []
 	for k in deck.size():
-		if Data.level(deck[k]) < 5:
+		if Data.level(deck[k]) < Data.MAX_LVL:
 			idx.append(k)
 	if idx.is_empty():
-		ui.toast("Tout le paquet est déjà au niveau 5.")
+		ui.toast("Tout le paquet est déjà au niveau 3.")
 		return false
 	var j := await ui.choose(title, subtitle, idx.map(func(k): return {"card": deck[k]}), true)
 	if j < 0:
@@ -1130,8 +1128,11 @@ func _forge(title: String, subtitle: String) -> bool:
 
 func _confirm_upgrade(before: Dictionary, after: Dictionary) -> bool:
 	## Aperçu avant / après : on voit ce que la carte gagne avant de valider.
-	var i := await ui.choose("AMÉLIORER ?", "Niveau %d → %d · cliquez la version de droite pour valider" % [Data.level(before), Data.level(after)],
+	var gain := Data.upgrade_diff(before, after)
+	var i := await ui.choose("AMÉLIORER ?", "Niveau %d → %d : %s" % [Data.level(before), Data.level(after), gain],
 		[{"card": before, "tag": "Avant"}, {"card": after, "tag": "Après"}], true, "Choisir une autre carte")
+	if i == 1:
+		ui.banner("%s · niveau %d" % [Data.CARDS[after.id].name, Data.level(after)], gain)
 	return i == 1
 
 
@@ -1150,7 +1151,7 @@ func _fuse() -> bool:
 		if deck[k].get("st", false):
 			continue
 		var key := "%s|%d" % [deck[k].id, Data.level(deck[k])]
-		if seen.has(key) and Data.level(deck[k]) < 5:
+		if seen.has(key) and Data.level(deck[k]) < Data.MAX_LVL:
 			pairs.append([seen[key], k])
 			seen.erase(key)
 		else:
@@ -1279,9 +1280,10 @@ func _autoplay() -> void:
 	rng.seed = run_seed
 	deck = Data.starter(party)
 	# toutes les cartes de l'escouade : chaque mécanique passe au moins une fois
-	for id in Data.CARDS:
-		if party.has(Data.CARDS[id].owner) and not Data.STARTER[Data.CARDS[id].owner].has(id):
-			deck.append({"id": id, "lvl": 2})
+	if not args.has("starter"):  # --starter : seulement les paquets de départ (équilibrage)
+		for id in Data.CARDS:
+			if party.has(Data.CARDS[id].owner) and not Data.STARTER[Data.CARDS[id].owner].has(id):
+				deck.append({"id": id, "lvl": 2})
 	_make_party()
 	if party == ["garde", "lame", "oracle"]:
 		heroes[0].equip = {"arme": "masse_os", "talisman": "anneau_bouclier"}
@@ -1296,7 +1298,7 @@ func _autoplay() -> void:
 			h.hp = h.max_hp
 		battle.objective = "portal" if n % 3 == 2 else "kill"
 		battle.champions = floor_i - 1
-		besace = Data.TOOLS.keys().duplicate()
+		besace = [] if args.has("starter") else Data.TOOLS.keys().duplicate()
 		battle.besace = besace
 		battle.besace_max = 20
 		battle.tool_rate = 1.0
@@ -1306,11 +1308,11 @@ func _autoplay() -> void:
 		ui.show_hud(true)
 		battle.start(heroes, ids, deck, relics)
 		var turns := 0
-		while not battle.over and turns < 14:
-			turns += 1
+		while not battle.over and battle.turn < 14:
 			await _auto_turn()
 			if battle.over:
 				break
+			turns = battle.turn
 			await battle.end_turn()
 		if battle.over and not battle.alive_heroes().is_empty():
 			won += 1
@@ -1325,11 +1327,13 @@ func _autoplay() -> void:
 
 
 func _auto_turn() -> void:
-	## Un tour de joueur naïf : chaque héros s'approche, puis on joue ce qui a une cible.
-	for h in battle.alive_heroes():
-		if battle.over:
-			return
-		battle.select(h)
+	## Un tour naïf du héros actif : il s'approche, se sert d'un objet, joue ce qui a une cible.
+	while not battle.player_turn and not battle.over:
+		await get_tree().process_frame
+	var hh: Unit = battle.active
+	if hh == null or battle.over:
+		return
+	for h in [hh]:
 		var R := battle.reach(h)
 		var foes_ := battle.alive_foes()
 		if foes_.is_empty():
@@ -1344,19 +1348,14 @@ func _auto_turn() -> void:
 		for pc in board.props.keys():
 			if board.props.get(pc, "") in ["coffre", "levier"] and Battle.dist(pc, h.cell) == 1 and not h.moved:
 				await battle.interact(h, pc)
-	if battle.besace.size() > 0 and not battle.over:
-		var used := false
-		for h in battle.alive_heroes():
-			battle.select(h)
-			var tg := battle.tool_targets(battle.besace[0], h)
-			if tg.size() > 0:
-				await battle.use_tool(0, tg[-1])
-				used = true
-				break
-		if not used and battle.besace.size() > 0:
+	if battle.besace.size() > 0 and not battle.over and battle.player_turn:
+		var tg := battle.tool_targets(battle.besace[0], hh)
+		if tg.size() > 0:
+			await battle.use_tool(0, tg[-1])
+		else:
 			battle.besace.pop_front()
 	var guard := 0
-	while guard < 12 and not battle.over:
+	while guard < 12 and not battle.over and battle.player_turn:
 		guard += 1
 		var played := false
 		for i in battle.hand.size():
@@ -1412,15 +1411,9 @@ func _uitest() -> void:
 	await _frames(20)
 	_shot(dir, "menu")
 	ui.toggle_menu()
-	var per_hero := true
-	for n in 30:
-		battle.discard.append_array(battle.hand)
-		battle.hand.clear()
-		battle.draw(5)
-		for h in battle.alive_heroes():
-			if not battle.hand.any(func(ci): return Data.card(ci).owner == h.key):
-				per_hero = false
-	print("chaque héros a une carte sur 30 pioches : ", per_hero)
+	while not battle.player_turn:
+		await get_tree().process_frame
+	print("main du héros actif (%s) : %s" % [battle.active.nm, battle.hand.all(func(ci): return Data.card(ci).owner == battle.active.key)])
 	ui.show_hud(false)
 	var got := [-2]
 	var chooser := func(): got[0] = await _rewards_probe()
@@ -1455,7 +1448,7 @@ func _uitest() -> void:
 	_shot(dir, "carte")
 	ui.picked.emit(0)
 	await _frames(10)
-	var rw := func(): await ui.choose("BUTIN", "test", [{"card": {"id": "tourelle", "lvl": 1}}, {"card": {"id": "voie", "lvl": 3}}, {"card": {"id": "harpon", "lvl": 5}}], true)
+	var rw := func(): await ui.choose("BUTIN", "test", [{"card": {"id": "tourelle", "lvl": 1}}, {"card": {"id": "voie", "lvl": 3}}, {"card": {"id": "harpon", "lvl": 3}}], true)
 	rw.call()
 	await _frames(30)
 	_shot(dir, "butin2")
@@ -2083,7 +2076,7 @@ func _boon(k: String) -> void:
 			for h in heroes:
 				h.hp = h.max_hp
 		"forge2":
-			var idx: Array = range(deck.size()).filter(func(q): return Data.level(deck[q]) < 5)
+			var idx: Array = range(deck.size()).filter(func(q): return Data.level(deck[q]) < Data.MAX_LVL)
 			var names: Array = []
 			for n in mini(2, idx.size()):
 				var q: int = idx.pop_at(rng.randi_range(0, idx.size() - 1))
@@ -2094,7 +2087,7 @@ func _boon(k: String) -> void:
 			var hopts: Array = heroes.map(func(h): return {"title": h.nm, "image": "res://assets/art/portrait_%s.png" % h.key, "text": "Ses cartes de départ gagnent un niveau.", "color": Data.CLASS_COLOR[h.key]})
 			var j := await ui.choose("RACINES", "Quel héros ?", hopts)
 			for q in deck.size():
-				if deck[q].get("st", false) and Data.CARDS[deck[q].id].owner == heroes[j].key and Data.level(deck[q]) < 5:
+				if deck[q].get("st", false) and Data.CARDS[deck[q].id].owner == heroes[j].key and Data.level(deck[q]) < Data.MAX_LVL:
 					_level_up(q)
 		"besace":
 			for n in 3:

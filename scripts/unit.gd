@@ -32,6 +32,7 @@ var dmg_bonus := 0
 var extra_armor := 0
 var extra_passives: Array = []
 var turns := 0
+var speed := 5              # initiative : les plus rapides jouent d'abord
 var tool := ""             # objet de besace porté (ennemis) : utilisé parfois, volable, lâché en tombant
 var alive := true
 
@@ -56,6 +57,7 @@ func setup(k: String, s: String) -> void:
 	hp = max_hp
 	move = data.move
 	jump = data.jump
+	speed = data.get("speed", 5)
 	fly = data.get("fly", false)
 	base_move = move
 	base_jump = jump
@@ -201,6 +203,7 @@ func make_champion(a: String) -> void:
 		"veloce":
 			move += 2
 			jump += 1
+			speed += 2
 		"epineux":
 			extra_passives.append("contre")
 	bs *= 1.12
