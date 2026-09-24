@@ -1,0 +1,16 @@
+# Godot
+.godot/
+build/
+*.tmp
+.godot_path
+
+# captures de travail du critique
+captures/
+
+# Blender
+blender/__pycache__/
+blender/_old_arch.txt
+
+# morceau sous droits : gardé en local, pas publié
+assets/music/far_away.mp3
+assets/music/far_away.mp3.import

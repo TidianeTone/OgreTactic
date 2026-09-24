@@ -1,0 +1,62 @@
+# Export navigateur (WebGL, sans threads : pas besoin d'en-têtes COOP/COEP) puis publication sur GitHub Pages.
+name: Web
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  GODOT: 4.7.2
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Godot et modèles d'export
+        run: |
+          set -e
+          base=https://github.com/godotengine/godot/releases/download/${GODOT}-stable
+          curl -sSfL -o godot.zip "$base/Godot_v${GODOT}-stable_linux.x86_64.zip"
+          curl -sSfL -o templates.tpz "$base/Godot_v${GODOT}-stable_export_templates.tpz"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT}-stable_linux.x86_64" godot
+          dest=~/.local/share/godot/export_templates/${GODOT}.stable
+          mkdir -p "$dest"
+          unzip -q templates.tpz
+          mv templates/* "$dest/"
+          rm -rf templates godot.zip templates.tpz
+
+      - name: Import des ressources
+        run: ./godot --headless --path . --import || true
+
+      - name: Export web
+        run: |
+          mkdir -p build
+          ./godot --headless --path . --export-release "Web" build/index.html
+          ls -la build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
