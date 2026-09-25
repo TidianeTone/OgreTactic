@@ -62,6 +62,13 @@ var powers_lbl: Label
 var keys_plate: PanelContainer
 var show_keys := -1         # H : -1 auto (1er round), 0 masquée, 1 affichée
 var played_box: HBoxContainer
+var orb_frame: TextureRect
+var voc_badge: TextureRect
+var voc_dot: Panel
+var _orb_key := ""
+# trou de chaque cadre d'orbe : centre x, centre y, largeur (fractions, blender/kie_ui/mesures.json)
+const ORB_HOLE := {"garde": [0.499, 0.529, 0.52], "lame": [0.501, 0.463, 0.672], "oracle": [0.491, 0.545, 0.519], "artificier": [0.498, 0.591, 0.558],
+	"moine": [0.498, 0.52, 0.526], "trappeur": [0.498, 0.562, 0.466], "tidiane": [0.501, 0.536, 0.474], "receleur": [0.503, 0.454, 0.65], "neutre": [0.502, 0.499, 0.779]}
 var _played_sig := ""
 var explore_box: VBoxContainer
 var explore_title: Label
@@ -240,10 +247,26 @@ func _build_hud() -> void:
 	var orb := Panel.new()
 	orb.add_theme_stylebox_override("panel", _orb_style())
 	orb.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	orb.position = Vector2(40, -150)
+	orb.position = Vector2(40, -160)
 	orb.size = Vector2(104, 104)
 	orb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(orb)
+	# cadre peint de la classe du héros actif, et médaillon de sa vocation
+	orb_frame = TextureRect.new()
+	orb_frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	orb_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	orb.add_child(orb_frame)
+	voc_badge = TextureRect.new()
+	voc_badge.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	voc_badge.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	voc_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	voc_badge.size = Vector2(62, 62)
+	voc_badge.position = Vector2(84, -34)
+	orb.add_child(voc_badge)
+	voc_dot = _panel(voc_badge, sb(Color.WHITE, Color(0, 0, 0, 0.5), 14, 1))
+	voc_dot.size = Vector2(26, 26)
+	voc_dot.position = Vector2(18, 18)
+	voc_dot.show_behind_parent = true
 	energy_lbl = _shadowed(_label("3", 44, Color("#2a1606"), title_f), 0)
 	energy_lbl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	energy_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -251,14 +274,14 @@ func _build_hud() -> void:
 	orb.add_child(energy_lbl)
 	pile_lbl = _shadowed(_label("", 15, INK), 6)
 	pile_lbl.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	pile_lbl.position = Vector2(24, -40)
+	pile_lbl.position = Vector2(24, -24)
 	pile_lbl.size = Vector2(160, 20)
 	pile_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hud.add_child(pile_lbl)
 	var pb := Button.new()
 	pb.flat = true
 	pb.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	pb.position = Vector2(24, -42)
+	pb.position = Vector2(24, -26)
 	pb.size = Vector2(160, 24)
 	pb.focus_mode = Control.FOCUS_NONE
 	pb.tooltip_text = "Voir la pioche · P : tout le paquet"
@@ -827,6 +850,21 @@ func refresh() -> void:
 	_refresh_heroes()
 	_refresh_frieze()
 	energy_lbl.text = str(battle.energy)
+	var ak: String = battle.active.key if battle.active else "neutre"
+	var av: String = battle.active.voc if battle.active else ""
+	if ak + av != _orb_key:
+		_orb_key = ak + av
+		var t: Texture2D = load("res://assets/ui/orb_%s.png" % ak)
+		var hole: Array = ORB_HOLE[ak]
+		var w: float = 104.0 / hole[2]
+		orb_frame.texture = t
+		orb_frame.size = Vector2(w, w * t.get_height() / t.get_width())
+		orb_frame.position = Vector2(52, 52) - Vector2(hole[0], hole[1]) * orb_frame.size
+		voc_badge.visible = av != ""
+		if av != "":
+			voc_badge.texture = load("res://assets/ui/orb_%s.png" % av)
+			(voc_dot.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = Data.CLASS_COLOR[av]
+			voc_badge.tooltip_text = "Vocation : " + Data.HEROES[av].name
 	pile_lbl.text = ("%s · pioche %d · défausse %d" % [battle.active.nm, battle.draw_pile.size(), battle.discard.size()]) if battle.active else "Tour ennemi"
 	var pw: Array = []
 	for id in Data.all_ids():

@@ -2434,6 +2434,7 @@ func _uitest() -> void:
 	fights = 9  # des ennemis équipés à coup sûr ou presque
 	heroes[0].equip = {"arme": "epee_ecluse", "armure": "brigandine_noyee", "bottes": "bottes_vase", "bijou": "croc_brochet"}
 	heroes[0].apply_gear()
+	heroes[1].voc = "oracle"
 	battle.start(heroes, Data.ENCOUNTERS[1][0], deck, relics)
 	target = _units_center()
 	_snap_cam()
