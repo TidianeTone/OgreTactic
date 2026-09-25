@@ -3,6 +3,7 @@ extends CanvasLayer
 ## Interface : main de cartes, héros, énergie, étiquettes au-dessus des unités, écrans de choix.
 
 signal picked(i: int)
+signal lib_closed
 
 const INK := Color("#efe6d2")
 const DIM := Color("#a79d8b")
@@ -16,6 +17,8 @@ const ICON := {
 }
 
 var main: Node3D
+static var big := false     # mode portable : petits textes grossis, boutons tactiles
+var touch_box: HBoxContainer
 var dim_alpha := 0.62   # voile des écrans de choix ; plus léger dans les lieux de repos
 var battle: Battle
 var root: Control
@@ -53,6 +56,8 @@ var sheet_plate: PanelContainer
 var sheet_title: Label
 var sheet_body: RichTextLabel
 var menu: Control
+var lib_layer: Control     # bibliothèque : sa propre couche, ouvrable par-dessus un choix ou la pause
+var _eq_act := {}          # action choisie sur l'écran d'équipement
 var powers_lbl: Label
 var keys_plate: PanelContainer
 var show_keys := false      # H : garder l'aide affichée
@@ -78,7 +83,7 @@ func _ready() -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var th := Theme.new()
 	th.default_font = body_f
-	th.default_font_size = 15
+	th.default_font_size = 18 if big else 15
 	th.set_constant("line_spacing", "Label", -4)
 	# infobulles lisibles : plaque sombre, texte clair et plus grand
 	var tst := sb(Color(0.07, 0.065, 0.07, 0.96), GOLD.darkened(0.25), 8, 1, 8)
@@ -98,6 +103,39 @@ func _ready() -> void:
 	_build_banner()
 	_build_explore()
 	hud.visible = false
+	if big:
+		_build_touch()
+
+
+func _toggle_danger() -> void:
+	battle.danger = not battle.danger
+	main.refresh_hover()
+
+
+func _build_touch() -> void:
+	## Mode portable : ce que font Échap, Q/E, clic droit et D, à portée de pouce sur le bord droit.
+	touch_box = HBoxContainer.new()
+	touch_box.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	touch_box.position = Vector2(-380, -206)  # au-dessus de « Fin du tour », sous la fiche d'ennemi
+	touch_box.add_theme_constant_override("separation", 10)
+	touch_box.z_index = 50
+	root.add_child(touch_box)
+	for e in [["☰", "Menu", func(): toggle_menu()], ["↺", "Tourner", func(): main.yaw -= 90.0], ["↻", "Tourner", func(): main.yaw += 90.0],
+			["✕", "Annuler", func(): battle.cancel()],
+			["⚠", "Danger", _toggle_danger]]:
+		var b := Button.new()
+		b.text = e[0]
+		b.tooltip_text = e[1]
+		b.add_theme_font_override("font", title_f)
+		b.add_theme_font_size_override("font_size", 30)
+		b.add_theme_color_override("font_color", INK)
+		b.add_theme_stylebox_override("normal", sb(Color(0.08, 0.07, 0.075, 0.82), GOLD.darkened(0.3), 32, 2, 6))
+		b.add_theme_stylebox_override("hover", sb(Color(0.08, 0.07, 0.075, 0.82), GOLD.darkened(0.3), 32, 2, 6))
+		b.add_theme_stylebox_override("pressed", sb(GOLD.darkened(0.2), GOLD, 32, 2, 4))
+		b.custom_minimum_size = Vector2(64, 64)
+		b.focus_mode = Control.FOCUS_NONE
+		b.pressed.connect(e[2])
+		touch_box.add_child(b)
 
 
 # ------------------------------------------------------------------ helpers
@@ -127,6 +165,8 @@ static func sb(bg: Color, border := Color(0, 0, 0, 0), radius := 10, bw := 0, sh
 func _label(text: String, size: int, col: Color, font: Font = null) -> Label:
 	var l := Label.new()
 	l.text = text
+	if big and size <= 18:
+		size += 3
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", col)
 	if font:
@@ -511,7 +551,7 @@ func toggle_menu() -> void:
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(t)
 	var first: Button
-	for e in [["Reprendre", func(): toggle_menu()], ["Abandonner la run", func(): main.abandon()], ["Quitter le jeu", func(): get_tree().quit()]]:
+	for e in [["Reprendre", func(): toggle_menu()], ["Bibliothèque", func(): library_screen()], ["Mode portable : %s" % ("oui" if big else "non"), func(): main.set_mobile(not big)], ["Abandonner la run", func(): main.abandon()], ["Quitter le jeu", func(): get_tree().quit()]]:
 		var b := Button.new()
 		b.text = e[0]
 		b.add_theme_font_override("font", title_f)
@@ -781,7 +821,7 @@ func refresh() -> void:
 	powers_lbl.text = ("Pouvoirs : " + " · ".join(pw)) if pw.size() > 0 else ""
 	end_btn.disabled = not battle.player_turn or battle.busy
 	end_btn.text = "Fin du tour" if battle.active == null else ("Valider l'orientation" if battle.orienting else "Fin · %s" % battle.active.nm)
-	keys_plate.visible = battle.turn <= 1 or show_keys
+	keys_plate.visible = (battle.turn <= 1 or show_keys) and not big  # au doigt, pas de clavier
 	var bsig := "%s|%d|%d|%d" % [JSON.stringify(battle.besace), battle.tool_sel, battle.besace_cap(), battle.bricole]
 	if bsig != _besace_sig:
 		_besace_sig = bsig
@@ -1082,6 +1122,10 @@ func _art(col: Color, kind: String) -> Texture2D:
 
 
 func _process(dt: float) -> void:
+	if touch_box:
+		# menu toujours là ; caméra, annuler et danger seulement sur le plateau
+		for i in range(1, touch_box.get_child_count()):
+			touch_box.get_child(i).visible = hud.visible or explore_box.visible
 	if not hud.visible:
 		return
 	_layout_hand(dt)
@@ -1582,10 +1626,20 @@ func _option(o: Dictionary, w := 250) -> Control:
 		var g := _shadowed(_label(o.get("glyph", "✦"), 34 if small else 64, col.lightened(0.2), title_f), 8)
 		g.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(g)
+	if o.get("dim", false):
+		v.get_child(v.get_child_count() - 1).modulate = Color(0.55, 0.55, 0.6)
 	var t := _label(o.title, 15 if small else 24, INK, title_f)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(t)
+	if o.has("chips"):
+		var cr := HBoxContainer.new()
+		cr.alignment = BoxContainer.ALIGNMENT_CENTER
+		cr.add_theme_constant_override("separation", 14)
+		cr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		for c in o.chips:
+			cr.add_child(_chip(c[0], c[1], Color.WHITE, 24))
+		v.add_child(cr)
 	var d := _label(o.get("text", ""), 12 if small else 15, DIM)
 	d.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1651,17 +1705,30 @@ func title_screen(resume := "") -> int:
 		rs.text = "Reprendre la partie"
 		rs.pressed.connect(func(): picked.emit(2))
 		box.position.y -= 150
-	var lib := Button.new()
-	lib.text = "Bibliothèque · %d / %d cartes" % [main.library.size(), Data.all_ids().size()]
-	lib.flat = true
-	lib.add_theme_font_override("font", title_f)
-	lib.add_theme_font_size_override("font_size", 18)
-	lib.add_theme_color_override("font_color", INK)
-	lib.add_theme_color_override("font_hover_color", GOLD)
-	lib.pressed.connect(func(): picked.emit(1))
+	box.position.y -= 24
+	# second rang : l'initiation (une run éclair) et la bibliothèque
+	var minor := func(txt: String, k: int) -> Button:
+		var mb := Button.new()
+		mb.text = txt
+		mb.add_theme_font_override("font", title_f)
+		mb.add_theme_font_size_override("font_size", 18)
+		mb.add_theme_color_override("font_color", INK)
+		mb.add_theme_color_override("font_hover_color", Color("#2a1606"))
+		mb.add_theme_color_override("font_focus_color", Color("#2a1606"))
+		mb.add_theme_stylebox_override("normal", sb(Color(0.1, 0.09, 0.1, 0.88), GOLD.darkened(0.3), 10, 2, 8))
+		mb.add_theme_stylebox_override("hover", sb(GOLD, Color("#fff0c8"), 10, 2, 8))
+		mb.add_theme_stylebox_override("focus", sb(GOLD, Color("#fff0c8"), 10, 2, 8))
+		mb.add_theme_stylebox_override("pressed", sb(GOLD.darkened(0.15), Color("#fff0c8"), 10, 2, 4))
+		mb.custom_minimum_size = Vector2(250, 46)
+		mb.pressed.connect(func(): picked.emit(k))
+		return mb
+	var tut: Button = minor.call("Initiation · run éclair", 3)
+	tut.tooltip_text = "Trois combats en Oklm, points de job accélérés : de quoi voir le multiclasse en un quart d'heure."
+	var lib: Button = minor.call("Bibliothèque · %d / %d" % [main.library.size(), Data.all_ids().size()], 1)
+	lib.tooltip_text = "Toutes les cartes déjà croisées, par classe et par guilde."
 	var c := VBoxContainer.new()
 	c.alignment = BoxContainer.ALIGNMENT_CENTER
-	c.add_theme_constant_override("separation", 8)
+	c.add_theme_constant_override("separation", 10)
 	if rs:
 		b.remove_theme_stylebox_override("normal")
 		b.add_theme_stylebox_override("normal", sb(Color(0.1, 0.09, 0.1, 0.9), GOLD, 12, 2, 10))
@@ -1675,24 +1742,34 @@ func title_screen(resume := "") -> int:
 	var cb := CenterContainer.new()
 	cb.add_child(b)
 	c.add_child(cb)
-	var cl := CenterContainer.new()
-	cl.add_child(lib)
-	c.add_child(cl)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 14)
+	row.add_child(tut)
+	row.add_child(lib)
+	c.add_child(row)
+	if OS.has_feature("web") or main.args.has("portable"):
+		var mob: Button = minor.call("Mode portable : %s" % ("oui" if big else "non"), 4)
+		mob.tooltip_text = "Interface agrandie, gestes tactiles (deux doigts : zoom et rotation ; toucher = viser, retoucher = valider), rendu allégé."
+		var cm := CenterContainer.new()
+		cm.add_child(mob)
+		c.add_child(cm)
+		box.position.y -= 56
 	box.add_child(c)
 	if Input.get_connected_joypads().size() > 0:
 		(rs if rs else b).grab_focus.call_deferred()
 	var k := 0
 	while true:
 		k = await picked
+		if k == 4:
+			main.set_mobile(not big)
+			return -1
 		if k != 1:
 			break
 		overlay.visible = false
-		var keep := overlay
-		overlay = null
 		await library_screen()
-		overlay = keep
 		overlay.visible = true
-		lib.text = "Bibliothèque · %d / %d cartes" % [main.library.size(), Data.all_ids().size()]
+		lib.text = "Bibliothèque · %d / %d" % [main.library.size(), Data.all_ids().size()]
 	var tw := create_tween()
 	tw.tween_property(overlay, "modulate:a", 0.0, 0.4)
 	await tw.finished
@@ -1788,22 +1865,22 @@ func vocation_intro(h: Unit) -> void:
 
 func library_screen() -> void:
 	## Toutes les cartes : celles déjà croisées s'affichent, les autres restent des dos de carte.
-	_close_overlay()
-	last_n = 1
-	overlay = Control.new()
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.z_index = 100
-	root.add_child(overlay)
+	if lib_layer and is_instance_valid(lib_layer):
+		return
+	lib_layer = Control.new()
+	lib_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	lib_layer.z_index = 120  # au-dessus des choix et du menu de pause
+	root.add_child(lib_layer)
 	var dim := ColorRect.new()
 	dim.color = Color(0.03, 0.03, 0.04, 0.9)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.add_child(dim)
+	lib_layer.add_child(dim)
 	var box := VBoxContainer.new()
 	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	box.offset_top = 24
 	box.offset_bottom = -24
 	box.add_theme_constant_override("separation", 10)
-	overlay.add_child(box)
+	lib_layer.add_child(box)
 	var total: int = Data.all_ids().size()
 	var tl := _shadowed(_label("BIBLIOTHÈQUE", 44, INK, wide_f), 10)
 	tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1883,8 +1960,271 @@ func library_screen() -> void:
 	close.flat = true
 	close.add_theme_font_size_override("font_size", 16)
 	close.add_theme_color_override("font_color", DIM)
-	close.pressed.connect(func(): picked.emit(-1))
+	close.pressed.connect(func(): lib_closed.emit())
 	tabs.add_child(close)
 	fill.call("classes")
+	await lib_closed
+	lib_layer.queue_free()
+	lib_layer = null
+
+
+# ------------------------------------------------------------------ équipement
+
+const ITEM_COL := [GOLD, Color("#8fa3b8"), Color("#6fb0e0"), Color("#d08aff")]
+
+
+func _gear_tile(id: String, sz: int, col: Color) -> PanelContainer:
+	var t := PanelContainer.new()
+	t.custom_minimum_size = Vector2(sz, sz)
+	t.add_theme_stylebox_override("panel", sb(Color(0.05, 0.045, 0.05, 0.95), col, 10, 2, 4))
+	var ic := TextureRect.new()
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if id != "":
+		ic.texture = load("res://assets/ui/gear_%s.png" % Data.ITEM_ICON.get(id, "anneau"))
+	t.add_child(ic)
+	t.pivot_offset = Vector2(sz, sz) / 2
+	t.mouse_filter = Control.MOUSE_FILTER_STOP
+	t.mouse_entered.connect(func(): create_tween().tween_property(t, "scale", Vector2.ONE * 1.08, 0.1))
+	t.mouse_exited.connect(func(): create_tween().tween_property(t, "scale", Vector2.ONE, 0.1))
+	return t
+
+
+func _clicked(e: InputEvent) -> bool:
+	return e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT
+
+
+func equipment_screen(heroes: Array, bag: Array) -> Dictionary:
+	## Héros et emplacements en haut, sac en dessous, fiche de l'objet survolé en bas.
+	## Un objet du sac puis un héros : équipe. Un emplacement occupé : retire. Rend {} pour fermer.
+	_close_overlay()
+	last_n = 0  # le pilote de test ferme l'écran
+	_eq_act = {}
+	overlay = Control.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 100
+	root.add_child(overlay)
+	var opened := Time.get_ticks_msec()
+	var act := func(d: Dictionary) -> void:
+		if Time.get_ticks_msec() - opened > 300:  # le clic de l'écran précédent ne compte pas
+			_eq_act = d
+			picked.emit(0)
+	var dim := ColorRect.new()
+	dim.color = Color(0.03, 0.03, 0.04, dim_alpha)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(dim)
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 16)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(box)
+	var tl := _shadowed(_label("ÉQUIPEMENT", 44, INK, wide_f), 10)
+	tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(tl)
+	var sl := _shadowed(_label(("Touchez un objet pour lire son effet, puis un héros pour l'équiper" if big else "Survolez pour lire l'effet · un objet du sac, puis un héros") + " · un emplacement occupé se vide d'un clic", 16, GOLD), 6)
+	sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(sl)
+
+	# fiche de l'objet survolé (construite plus bas, remplie au survol)
+	var card := PanelContainer.new()
+	var cs := sb(Color(0.08, 0.07, 0.075, 0.94), GOLD.darkened(0.4), 12, 2, 10)
+	cs.content_margin_left = 22
+	cs.content_margin_right = 22
+	cs.content_margin_top = 12
+	cs.content_margin_bottom = 12
+	card.add_theme_stylebox_override("panel", cs)
+	card.custom_minimum_size = Vector2(760, 124)
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var ch := HBoxContainer.new()
+	ch.add_theme_constant_override("separation", 18)
+	ch.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(ch)
+	var c_icon := TextureRect.new()
+	c_icon.custom_minimum_size = Vector2(92, 92)
+	c_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	c_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	c_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ch.add_child(c_icon)
+	var cv := VBoxContainer.new()
+	cv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cv.alignment = BoxContainer.ALIGNMENT_CENTER
+	cv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ch.add_child(cv)
+	var c_name := _label("", 22, INK, title_f)
+	cv.add_child(c_name)
+	var c_kind := _label("", 13, DIM)
+	cv.add_child(c_kind)
+	var c_fx := _rich("", 15, INK)
+	c_fx.custom_minimum_size = Vector2(600, 0)
+	cv.add_child(c_fx)
+	var show := func(id: String, note := "") -> void:
+		if id == "":
+			c_icon.texture = null
+			c_name.text = "Survolez un objet"
+			c_name.add_theme_color_override("font_color", DIM)
+			c_kind.text = note
+			c_fx.text = ""
+			return
+		var it: Dictionary = Data.ITEMS[id]
+		c_icon.texture = load("res://assets/ui/gear_%s.png" % Data.ITEM_ICON.get(id, "anneau"))
+		c_name.text = it.name
+		c_name.add_theme_color_override("font_color", ITEM_COL[it.rarity].lightened(0.25))
+		var lines: PackedStringArray = Data.item_text(id).split("\n")
+		c_kind.text = "%s · %s%s" % [lines[0], Data.RARITY_NAME[it.rarity], ("  ·  " + note) if note != "" else ""]
+		var fx: Array = []
+		for part in lines[1].split(" · "):
+			var kv := part.split(" : ", true, 1)
+			fx.append(("[color=#e3b45c]%s[/color] : %s" % [kv[0], kv[1]]) if kv.size() == 2 else "[color=#e3b45c]%s[/color]" % part)
+		c_fx.text = "\n".join(fx)
+
+	# héros et leurs deux emplacements
+	var sel := [-1]  # index de l'objet du sac choisi
+	var hero_panels: Array = []
+	var hrow := HBoxContainer.new()
+	hrow.alignment = BoxContainer.ALIGNMENT_CENTER
+	hrow.add_theme_constant_override("separation", 22)
+	box.add_child(hrow)
+	for hi in heroes.size():
+		var h: Unit = heroes[hi]
+		var col: Color = Data.CLASS_COLOR[h.key]
+		var p := PanelContainer.new()
+		p.custom_minimum_size = Vector2(300, 0)
+		var ps := sb(Color(0.08, 0.07, 0.075, 0.92), col, 14, 2, 12)
+		ps.content_margin_left = 16
+		ps.content_margin_right = 16
+		ps.content_margin_top = 14
+		ps.content_margin_bottom = 14
+		p.add_theme_stylebox_override("panel", ps)
+		p.mouse_filter = Control.MOUSE_FILTER_STOP
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 10)
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		p.add_child(v)
+		var top := HBoxContainer.new()
+		top.add_theme_constant_override("separation", 12)
+		top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(top)
+		var por := TextureRect.new()
+		por.texture = load("res://assets/art/portrait_%s.png" % h.key)
+		por.custom_minimum_size = Vector2(72, 72)
+		por.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		por.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		por.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		top.add_child(por)
+		var nv := VBoxContainer.new()
+		nv.alignment = BoxContainer.ALIGNMENT_CENTER
+		nv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		top.add_child(nv)
+		nv.add_child(_label(h.nm, 24, col.lightened(0.35), title_f))
+		var st := HBoxContainer.new()
+		st.add_theme_constant_override("separation", 10)
+		st.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		st.add_child(_chip("pv", "%d/%d" % [h.hp, h.max_hp], Color.WHITE, 20))
+		st.add_child(_chip("deplacement", str(h.move), Color.WHITE, 20))
+		st.add_child(_chip("attaque", "+%d" % h.gear_dmg(), Color(1.0, 0.75, 0.6), 20))
+		nv.add_child(st)
+		var slots := HBoxContainer.new()
+		slots.alignment = BoxContainer.ALIGNMENT_CENTER
+		slots.add_theme_constant_override("separation", 18)
+		slots.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(slots)
+		for slot in ["arme", "talisman"]:
+			var id: String = h.equip[slot]
+			var cap: String = slot.capitalize()
+			var sv := VBoxContainer.new()
+			sv.add_theme_constant_override("separation", 4)
+			sv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var t := _gear_tile(id, 84, ITEM_COL[Data.ITEMS[id].rarity] if id != "" else DIM.darkened(0.5))
+			if id == "":
+				var q := _label("vide", 13, DIM.darkened(0.3))
+				q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+				t.add_child(q)
+			t.mouse_entered.connect(func():
+				if id != "":
+					show.call(id, "porté par %s · clic : retour au sac" % h.nm)
+				else:
+					show.call("", "%s de %s : libre" % [cap, h.nm]))
+			t.gui_input.connect(func(e):
+				if _clicked(e):
+					t.accept_event()
+					if sel[0] >= 0:
+						act.call({"equip": sel[0], "hero": hi})
+					elif id != "":
+						act.call({"unequip": slot, "hero": hi}))
+			sv.add_child(t)
+			var sl2 := _label(cap, 13, DIM)
+			sl2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			sv.add_child(sl2)
+			slots.add_child(sv)
+		p.gui_input.connect(func(e):
+			if _clicked(e) and sel[0] >= 0:
+				act.call({"equip": sel[0], "hero": hi}))
+		hero_panels.append(p)
+		hrow.add_child(p)
+
+	# le sac
+	var bl := _shadowed(_label("SAC · %d objet%s" % [bag.size(), "s" if bag.size() > 1 else ""], 18, INK, title_f), 6)
+	bl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(bl)
+	var brow := HFlowContainer.new()
+	brow.alignment = FlowContainer.ALIGNMENT_CENTER
+	brow.add_theme_constant_override("h_separation", 12)
+	brow.add_theme_constant_override("v_separation", 12)
+	brow.custom_minimum_size = Vector2(1100, 0)
+	var bc := CenterContainer.new()
+	bc.add_child(brow)
+	box.add_child(bc)
+	var bag_tiles: Array = []
+	var refresh_sel := func() -> void:
+		# l'objet choisi s'allume ; les héros qui ne peuvent pas le porter s'éteignent
+		for i in bag_tiles.size():
+			bag_tiles[i].modulate = Color(1.3, 1.2, 0.9) if i == sel[0] else (Color(0.7, 0.7, 0.75) if sel[0] >= 0 else Color.WHITE)
+		for i in hero_panels.size():
+			var ok: bool = sel[0] < 0 or Data.ITEMS[bag[sel[0]]].owner in ["any", heroes[i].key]
+			hero_panels[i].modulate = Color.WHITE if ok else Color(0.4, 0.4, 0.45)
+			hero_panels[i].mouse_filter = Control.MOUSE_FILTER_STOP if ok else Control.MOUSE_FILTER_IGNORE
+	if bag.is_empty():
+		brow.add_child(_label("Le sac est vide : coffres, élites et marchand le rempliront.", 15, DIM))
+	for bi in bag.size():
+		var id: String = bag[bi]
+		var it: Dictionary = Data.ITEMS[id]
+		var t := _gear_tile(id, 76, ITEM_COL[it.rarity])
+		var fits: Array = heroes.filter(func(u): return it.owner == "any" or it.owner == u.key)
+		t.mouse_entered.connect(func():
+			show.call(id, ("pour " + ", ".join(fits.map(func(u): return u.nm))) if fits.size() > 0 else "personne ici ne sait s'en servir"))
+		t.gui_input.connect(func(e):
+			if _clicked(e):
+				t.accept_event()
+				if fits.is_empty():
+					return
+				if fits.size() == 1 and not big:  # au doigt, le premier toucher sert à lire
+					act.call({"equip": bi, "hero": heroes.find(fits[0])})  # un seul porteur possible : directement
+					return
+				sel[0] = -1 if sel[0] == bi else bi
+				refresh_sel.call())
+		bag_tiles.append(t)
+		brow.add_child(t)
+	var cc := CenterContainer.new()
+	cc.add_child(card)
+	box.add_child(cc)
+	show.call("")
+	var done := Button.new()
+	done.text = "Terminer"
+	done.add_theme_font_override("font", title_f)
+	done.add_theme_font_size_override("font_size", 20)
+	done.add_theme_color_override("font_color", INK)
+	done.add_theme_stylebox_override("normal", sb(Color(0.1, 0.09, 0.1, 0.94), GOLD.darkened(0.2), 10, 2, 8))
+	done.add_theme_stylebox_override("hover", sb(Color(0.2, 0.16, 0.1, 0.96), GOLD, 10, 2, 8))
+	done.custom_minimum_size = Vector2(260, 50)
+	done.pressed.connect(func(): act.call({}))
+	var dc := CenterContainer.new()
+	dc.add_child(done)
+	box.add_child(dc)
+	overlay.modulate.a = 0
+	create_tween().tween_property(overlay, "modulate:a", 1.0, 0.2)
 	await picked
 	_close_overlay()
+	return _eq_act

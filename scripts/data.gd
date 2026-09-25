@@ -267,15 +267,16 @@ const ARCHETYPES := {
 	"receleur": [["Brocanteur", "la besace pleine"], ["Casse et Revente", "détruire ses objets pour frapper"], ["Pickpocket", "voler, et le Butin"]],
 }
 
+# Decks de départ (revus le 25/09) : les bases plus une graine de chaque route de ARCHETYPES.
 const STARTER := {
-	"garde": ["frappe", "frappe", "pavois", "pavois", "charge", "bouclier"],
-	"lame": ["estoc", "estoc", "double", "double", "ombre", "fente"],
-	"oracle": ["braise", "braise", "braise", "seve", "seve", "surveil"],
-	"artificier": ["grenade", "baril", "baril", "etincelle", "rivet", "rivet"],
-	"moine": ["paume", "paume", "poing", "poing", "tourbillon", "bond"],
+	"garde": ["frappe", "c_ouvrir", "pavois", "pavois", "charge", "bouclier"],
+	"lame": ["estoc", "estoc", "double", "c_aiguille", "ombre", "fente"],
+	"oracle": ["braise", "braise", "c_pas_braise", "seve", "c_ondee", "surveil"],
+	"artificier": ["grenade", "baril", "baril", "etincelle", "rivet", "c_rafale_rivets"],
+	"moine": ["paume", "c_paume_ouverte", "poing", "poing", "tourbillon", "bond"],
 	"trappeur": ["fleche", "fleche", "fleche", "piege", "piege", "marque"],
-	"tidiane": ["esquisse", "esquisse", "recul", "wavedash", "journal", "pacte"],
-	"receleur": ["larcin", "cle", "cle", "bricolage", "camelote", "camelote"],
+	"tidiane": ["esquisse", "c_contretemps", "recul", "wavedash", "journal", "pacte"],
+	"receleur": ["larcin", "cle", "c_casse_tout", "bricolage", "camelote", "camelote"],
 }
 const VOIX := {"B": ["Analyse", Color("#4aa3d8")], "R": ["Émotion", Color("#e0483f")], "N": ["Ambition", Color("#9b6dd6")]}
 # Difficulté 1 à 5. Le niveau 2 est l'équilibrage courant, le 4 celui d'origine.

@@ -74,9 +74,13 @@ var rng := RandomNumberGenerator.new()
 var _music: Array = []      # deux lecteurs pour le fondu enchaîné
 var _music_kind := ""
 var _mute := false
+var mobile := false        # mode portable : interface agrandie, gestes tactiles, rendu allégé (user://reglages.cfg)
+var _touches := {}         # doigts posés : index -> position
+var _tap_drag := 0.0       # chemin parcouru par le doigt depuis qu'il s'est posé
 var music_vol := 0.6        # 0 à 1, réglé dans le menu Échap et gardé dans user://reglages.cfg
 var library := {}           # cartes découvertes, gardées dans user://bibliotheque.cfg
 var _lib_dirty := false
+var tuto := false  # run d'initiation : points de job ×3, ni sauvegarde ni carte d'étage
 var voc_intro_done := false  # l'explication de la vocation déjà montrée pendant cette run
 
 
@@ -94,6 +98,12 @@ func _ready() -> void:
 	if args.has("difficulty"):
 		difficulty = clampi(int(args.difficulty) - 1, 0, 4)
 	_load_library()
+	mobile = _read_mobile()
+	UI.big = mobile
+	if mobile:
+		# base plus petite : tout grossit d'un quart sur un téléphone en paysage (20:9 -> 1600 x 720)
+		get_window().content_scale_size = Vector2i(1440, 720)
+		quality = 0
 	_setup_world()
 	board = Board.new()
 	add_child(board)
@@ -132,6 +142,8 @@ func _ready() -> void:
 		_eventtest.call_deferred()
 	elif args.has("savetest"):
 		_savetest.call_deferred()
+	elif args.has("tutotest"):
+		_tutotest.call_deferred()
 	elif args.has("capture"):
 		_capture.call_deferred()
 	else:
@@ -233,7 +245,7 @@ func _apply_quality() -> void:
 	cam_attr.dof_blur_near_enabled = quality >= 1
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL if quality == 0 else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	get_viewport().msaa_3d = Viewport.MSAA_DISABLED if quality == 0 else Viewport.MSAA_2X
-	get_viewport().scaling_3d_scale = 0.8 if quality == 0 else 1.0
+	get_viewport().scaling_3d_scale = (0.6 if mobile else 0.8) if quality == 0 else 1.0
 
 
 func focus(p) -> void:
@@ -281,7 +293,7 @@ func _process(dt: float) -> void:
 	_feed_units()
 	if exploring:
 		_adv_process(dt)
-	if ui and ui.hud.visible and not args.has("capture") and not pad and not ui.menu_open():
+	if ui and ui.hud.visible and not args.has("capture") and not pad and not mobile and not ui.menu_open():
 		var mp := get_viewport().get_mouse_position()
 		var h = _pick(cam.project_ray_origin(mp), cam.project_ray_normal(mp))
 		if h != hover:
@@ -473,12 +485,24 @@ func _unhandled_input(e: InputEvent) -> void:
 	var esc: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_ESCAPE) \
 		or (e is InputEventJoypadButton and e.pressed and e.button_index == JOY_BUTTON_START)
 	if esc:
-		if ui.menu_open() or not (battle.card_sel >= 0 or battle.inspect):
+		if ui.lib_layer and is_instance_valid(ui.lib_layer):
+			ui.lib_closed.emit()
+		elif ui.menu_open() or not (battle.card_sel >= 0 or battle.inspect):
 			ui.toggle_menu()
 		else:
 			battle.cancel()
 		return
-	if ui.menu_open() or ui.overlay != null:
+	if ui.menu_open() or ui.overlay != null or ui.lib_layer != null:
+		return
+	if e is InputEventScreenTouch or e is InputEventScreenDrag:
+		_touch(e)
+		return
+	if mobile and e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
+		# le toucher agit au lever du doigt : un glissé tourne la caméra sans rien valider
+		if not e.pressed and _tap_drag < 14.0:
+			_tap(e.position)
+		return
+	if mobile and e is InputEventMouseMotion:
 		return
 	if e is InputEventKey and e.keycode == KEY_ALT and not e.echo:
 		refresh_hover()  # Alt montre les objets interactifs
@@ -512,6 +536,13 @@ func _unhandled_input(e: InputEvent) -> void:
 				if exploring and ui.overlay == null:
 					if _adv_hover != null:
 						_adv_click(_adv_hover)
+				elif ui.hud.visible and not pad:
+					var c = _pick(cam.project_ray_origin(e.position), cam.project_ray_normal(e.position))
+					if c != hover:
+						hover = c
+						refresh_hover()
+					if hover != null:
+						battle.click(hover)
 				elif hover != null and ui.hud.visible:
 					battle.click(hover)
 	elif e is InputEventKey and e.pressed and not e.echo:
@@ -575,6 +606,11 @@ func _title() -> void:
 	orbit = false
 	if k == 2 and _load_run():
 		return
+	if k < 0:
+		return  # le mode portable vient de changer : la scène repart
+	if k == 3:
+		_tutorial()
+		return
 	new_run()
 
 
@@ -620,8 +656,17 @@ func new_run() -> void:
 	rng.seed = run_seed
 	mode = await _pick_mode()
 	difficulty = await _pick_difficulty()
-	pacts = await _pick_pacts()
 	party = await _draft()
+	pacts = await _pick_pacts()
+	tuto = false
+	_start_run()
+	if mode == "aventure":
+		_adventure()
+	else:
+		_loop()
+
+
+func _start_run() -> void:
 	floor_i = 1
 	step = 0
 	fmap = []
@@ -653,10 +698,45 @@ func new_run() -> void:
 	ui.refresh_relics(relics)
 	ui.set_gold(gold)
 	_make_party()
-	if mode == "aventure":
-		_adventure()
-	else:
-		_loop()
+
+
+func _tutorial() -> void:
+	## Initiation : trois combats en Oklm, points de job ×3. La vocation tombe dès le premier,
+	## l'élite finale fait passer les paliers suivants : on voit un multiclasse se construire en un quart d'heure.
+	tuto = true
+	run_seed = randi()
+	rng.seed = run_seed
+	mode = "descente"
+	difficulty = 0
+	pacts = []
+	party = ["garde", "lame", "oracle"]
+	_start_run()
+	await ui.choose("INITIATION", "Une descente éclair pour découvrir le multiclasse", [
+		{"title": "Trois combats", "glyph": "⚔", "text": "Deux escarmouches, puis une élite. Ennemis mous, soins généreux.", "color": Color("#8fd0a0")},
+		{"title": "Points de job", "glyph": "✦", "text": "Chaque victoire fait progresser vos héros, ici trois fois plus vite qu'en descente.", "color": UI.GOLD},
+		{"title": "Vocation", "glyph": "⚭", "text": "Un héros assez aguerri apprend une deuxième classe. Ce qu'elle ouvre, à vous de le voir.", "color": Color("#d08aff")},
+	], true, "Commencer")
+	for type in ["combat", "combat", "elite"]:
+		next_arch = Board.ARCHETYPES[rng.randi_range(0, Board.ARCHETYPES.size() - 1)]
+		next_obj = "kill"
+		next_mods = []
+		if not await _fight(type):
+			await ui.game_over(false, "L'initiation s'arrête ici. Rien n'est perdu : la vraie descente vous attend.")
+			if args.has("tutotest"):
+				print("initiation perdue")
+				get_tree().quit()
+				return
+			get_tree().reload_current_scene()
+			return
+		await _post_fight(type)
+		step += 1
+	await ui.choose("INITIATION TERMINÉE", "Vos héros ont chacun une deuxième classe. En descente, ça se mérite sur trois étages.",
+		[{"title": "Retour au titre", "glyph": "↻", "text": "Nouvelle descente, bibliothèque, ou une autre initiation.", "color": UI.GOLD}])
+	if args.has("tutotest"):
+		print("initiation : ", heroes.map(func(h): return "%s pj %d voc %s maîtrise %d" % [h.nm, h.pj, h.voc, mastery(h)]), " · paquet ", deck.size())
+		get_tree().quit()
+		return
+	get_tree().reload_current_scene()
 
 
 func _pick_difficulty() -> int:
@@ -675,9 +755,9 @@ func _pick_pacts() -> Array:
 		var opts: Array = []
 		for k in Data.PACTS:
 			var act: bool = on.has(k)
-			opts.append({"title": ("✓ " if act else "") + Data.PACTS[k].name, "glyph": "☠" if act else "○", "text": Data.PACTS[k].text,
+			opts.append({"title": ("✓ " if act else "") + Data.PACTS[k].name, "image": "res://assets/ui/pact_%s.png" % k, "dim": not act, "text": Data.PACTS[k].text,
 				"color": Color("#e0583a") if act else Color("#8f86a8")})
-		var i := await ui.choose("PACTES", "Chaque pacte : +25 % d'or et plus de cartes rares. %d actif(s)." % on.size(), opts, true,
+		var i := await ui.choose("PACTES", "Chaque pacte : +25 %% d'or et plus de cartes rares. %d actif(s)." % on.size(), opts, true,
 			"Descendre avec %d pacte(s)" % on.size() if on.size() > 0 else "Aucun pacte")
 		if i < 0:
 			return on
@@ -698,7 +778,7 @@ func _draft() -> Array:
 		for k in left:
 			var d: Dictionary = Data.HEROES[k]
 			opts.append({"title": d.name, "image": "res://assets/art/portrait_%s.png" % k, "color": Data.CLASS_COLOR[k],
-				"text": "%s\n%d PV · dépl. %d\n%s\nRoutes : %s" % [d.title, d.hp, d.move, d.role, " · ".join(Data.ARCHETYPES[k].map(func(x): return x[0]))]})
+				"chips": [["pv", str(d.hp)], ["deplacement", str(d.move)]], "text": "%s\n%s" % [d.title, d.role]})
 		var chosen: String = ", ".join(out.map(func(k): return Data.HEROES[k].name))
 		var i := await ui.choose("L'ESCOUADE", "Choisissez trois héros (%d / 3)%s" % [out.size(), ("  ·  " + chosen) if chosen != "" else ""], opts, true, "Compléter au hasard")
 		if i < 0:
@@ -1037,7 +1117,7 @@ func mastery(h: Unit) -> int:
 
 func _gain_pj(h: Unit, n: int) -> void:
 	var before := mastery(h)
-	h.pj += n
+	h.pj += n * (3 if tuto else 1)
 	for lvl in range(before + 1, mastery(h) + 1):
 		await _mastery_up(h, lvl)
 
@@ -1269,7 +1349,7 @@ func _load_run() -> bool:
 
 func _testing() -> bool:
 	## Les essais n'écrivent ni dans la bibliothèque ni dans la sauvegarde du joueur.
-	return ["autoplay", "uitest", "advtest", "capture", "cardtest", "voctest", "looktest", "haventest", "eventtest"].any(func(k): return args.has(k))
+	return ["autoplay", "uitest", "advtest", "capture", "cardtest", "voctest", "looktest", "haventest", "eventtest", "tutotest"].any(func(k): return args.has(k))
 
 
 func _save_library() -> void:
@@ -1298,34 +1378,25 @@ func _item_opt(id: String, price := 0) -> Dictionary:
 
 
 func _equipment() -> void:
+	## Écran dédié : survol = effet de l'objet ; un objet du sac puis un héros pour équiper, un emplacement pour retirer.
 	while true:
-		var opts: Array = []
-		for h in heroes:
-			var gear: Array = []
-			for slot in ["arme", "talisman"]:
-				gear.append(Data.ITEMS[h.equip[slot]].name if h.equip[slot] != "" else "—")
-			opts.append({"title": h.nm, "glyph": "", "text": "Arme : %s\nTalisman : %s" % gear, "color": Data.CLASS_COLOR[h.key]})
-		for id in bag:
-			opts.append(_item_opt(id))
-		var i := await ui.choose("ÉQUIPEMENT", "Choisissez un objet du sac pour l'équiper", opts, true)
-		if i < heroes.size():
+		var a: Dictionary = await ui.equipment_screen(heroes, bag)
+		if a.has("equip"):
+			var id: String = bag[a.equip]
+			var u: Unit = heroes[a.hero]
+			var slot: String = Data.ITEMS[id].slot
+			bag.remove_at(a.equip)
+			if u.equip[slot] != "":
+				bag.append(u.equip[slot])
+			u.equip[slot] = id
+			u.apply_gear()
+		elif a.has("unequip"):
+			var u: Unit = heroes[a.hero]
+			bag.append(u.equip[a.unequip])
+			u.equip[a.unequip] = ""
+			u.apply_gear()
+		else:
 			return
-		var id: String = bag[i - heroes.size()]
-		var it: Dictionary = Data.ITEMS[id]
-		var fits: Array = heroes.filter(func(u): return it.owner == "any" or it.owner == u.key)
-		var hopts: Array = []
-		for u in fits:
-			var cur: String = u.equip[it.slot]
-			hopts.append({"title": u.nm, "glyph": "", "text": "Remplace : %s" % (Data.ITEMS[cur].name if cur != "" else "rien"), "color": Data.CLASS_COLOR[u.key]})
-		var j := await ui.choose(it.name.to_upper(), Data.item_text(id), hopts, true)
-		if j < 0:
-			continue
-		var u: Unit = fits[j]
-		bag.erase(id)
-		if u.equip[it.slot] != "":
-			bag.append(u.equip[it.slot])
-		u.equip[it.slot] = id
-		u.apply_gear()
 
 
 # ------------------------------------------------------------------ lieux de repos
@@ -2064,12 +2135,12 @@ func _voctest() -> void:
 	f4.call()
 	await _frames(40)
 	_shot(dir, "5_bibliotheque")
-	for b in ui.overlay.find_children("*", "Button", true, false):
+	for b in ui.lib_layer.find_children("*", "Button", true, false):
 		if b.text == "Guildes":
 			b.pressed.emit()
 	await _frames(40)
 	_shot(dir, "6_bibliotheque_guildes")
-	ui.picked.emit(-1)
+	ui.lib_closed.emit()
 	await _frames(10)
 	gold = 240
 	var f5 := func(): await _shelf(_shelf_stock())
@@ -2115,6 +2186,13 @@ func _voctest() -> void:
 	await _frames(40)
 	_shot(dir, "10_orientation")
 	get_tree().quit()
+
+
+func _tutotest() -> void:
+	## L'initiation jouée par le bot : trois combats, vocations et paliers, puis bilan.
+	Engine.time_scale = 8.0
+	_test_driver()
+	await _tutorial()
 
 
 func _savetest() -> void:
@@ -2349,6 +2427,30 @@ func _uitest() -> void:
 	await _frames(30)
 	_shot(dir, "escouade")
 	ui.picked.emit(-1)
+	await _frames(10)
+	var pk := func(): await _pick_pacts()
+	pk.call()
+	await _frames(30)
+	ui.picked.emit(1)  # un pacte coché : l'icône allumée
+	await _frames(30)
+	_shot(dir, "pactes")
+	ui.picked.emit(-1)
+	await _frames(10)
+	bag = ["kriss", "bottes_heron", "miroir", "coeur_pierre", "sceptre_maree"]
+	heroes[0].equip.arme = "epee_ecluse"
+	heroes[0].apply_gear()
+	var eq := func(): await _equipment()
+	eq.call()
+	await _frames(30)
+	var tiles: Array = ui.overlay.find_children("*", "PanelContainer", true, false).filter(func(c): return c.custom_minimum_size == Vector2(76, 76))
+	pad = true
+	var mv := InputEventMouseMotion.new()
+	mv.position = tiles[1].get_global_rect().get_center()
+	mv.global_position = mv.position
+	get_viewport().push_input(mv)
+	await _frames(20)
+	_shot(dir, "equipement")
+	ui.picked.emit(0)
 	await _frames(10)
 	floor_i = 1
 	step = 0
@@ -2734,7 +2836,7 @@ func adv_menu(k: String) -> void:
 
 func _adv_process(dt: float) -> void:
 	target = target.lerp(leader.position + Vector3(0, 0.6, 0), 1.0 - exp(-dt * 3.0))
-	if ui.menu_open() or ui.overlay != null or _adv_busy:
+	if ui.menu_open() or ui.overlay != null or _adv_busy or mobile:
 		return
 	var mp := get_viewport().get_mouse_position()
 	var hc = aboard.pick(cam.project_ray_origin(mp), cam.project_ray_normal(mp))
@@ -3484,8 +3586,85 @@ func set_music_volume(v: float) -> void:
 	if _music.size() > 1:
 		(_music[1] as AudioStreamPlayer).volume_db = _music_vol()
 	var cf := ConfigFile.new()
+	cf.load("user://reglages.cfg")
 	cf.set_value("son", "musique", music_vol)
 	cf.save("user://reglages.cfg")
+
+
+func _read_mobile() -> bool:
+	## Par défaut : actif sur un navigateur de téléphone ; --portable=1 / 0 pour forcer.
+	if args.has("portable"):
+		return args.portable != "0"
+	var cf := ConfigFile.new()
+	if cf.load("user://reglages.cfg") == OK and cf.has_section_key("ecran", "portable"):
+		return bool(cf.get_value("ecran", "portable"))
+	return OS.has_feature("web_android") or OS.has_feature("web_ios")
+
+
+func set_mobile(on: bool) -> void:
+	## Change le mode et relance la scène (l'interface se reconstruit) ; la partie sauvegardée reste.
+	var cf := ConfigFile.new()
+	cf.load("user://reglages.cfg")
+	cf.set_value("ecran", "portable", on)
+	cf.save("user://reglages.cfg")
+	if on and OS.has_feature("web"):
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	args.erase("portable")
+	get_tree().reload_current_scene()
+
+
+func _touch(e: InputEvent) -> void:
+	## Deux doigts : écarter = zoom, glisser = tourner autour du plateau. Un doigt qui glisse : tourner aussi.
+	if e is InputEventScreenTouch:
+		if e.pressed:
+			_touches[e.index] = e.position
+			if _touches.size() == 1:
+				_tap_drag = 0.0
+		else:
+			_touches.erase(e.index)
+		if _touches.size() > 1:
+			_tap_drag = 99.0  # un geste à deux doigts n'est jamais un toucher
+	elif e is InputEventScreenDrag and _touches.has(e.index):
+		if _touches.size() >= 2:
+			var ids: Array = _touches.keys().slice(0, 2)
+			var a: Vector2 = _touches[ids[0]]
+			var b: Vector2 = _touches[ids[1]]
+			var before := a.distance_to(b)
+			var mid0 := (a + b) / 2.0
+			_touches[e.index] = e.position
+			a = _touches[ids[0]]
+			b = _touches[ids[1]]
+			if before > 10.0:
+				dist = clampf(dist * before / maxf(10.0, a.distance_to(b)), 7.0, 60.0)
+			var dm := (a + b) / 2.0 - mid0
+			yaw -= dm.x * 0.25
+			pitch = clampf(pitch + dm.y * 0.15, 12.0, 82.0)
+		else:
+			_touches[e.index] = e.position
+			_tap_drag += e.relative.length()
+			if _tap_drag > 14.0:
+				yaw -= e.relative.x * 0.3
+				pitch = clampf(pitch + e.relative.y * 0.2, 12.0, 82.0)
+
+
+func _tap(pos: Vector2) -> void:
+	## Au doigt, pas de survol : un premier toucher vise (aperçu, fiche), le même toucher une deuxième fois valide.
+	if exploring and ui.overlay == null:
+		var hc = aboard.pick(cam.project_ray_origin(pos), cam.project_ray_normal(pos))
+		if hc != null and hc == _adv_hover:
+			_adv_click(hc)
+		else:
+			_adv_hover = hc
+			aboard.highlight({hc: Color(1, 1, 1, 0.7)} if hc != null and aboard.walkable(hc) else {})
+		return
+	if not ui.hud.visible:
+		return
+	var c = _pick(cam.project_ray_origin(pos), cam.project_ray_normal(pos))
+	if c != null and c == hover:
+		battle.click(c)
+	else:
+		hover = c
+		refresh_hover()
 
 
 const PLAYLIST := {"titre": ["reveur"], "calme": ["chill_bnb", "pulse_alice", "far_away", "reveur"],
