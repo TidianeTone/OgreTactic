@@ -383,7 +383,8 @@ func _pan(rel: Vector2) -> void:
 	var right := Vector3(cos(yr), 0, -sin(yr))
 	var fwd := Vector3(sin(yr), 0, cos(yr))
 	target += (right * rel.x + fwd * rel.y) * _dist * 0.0016
-	target = target.clamp(Vector3(-3, 0, -3), Vector3(board.dim + 2, 4, board.dim + 2))
+	var bd: Board = aboard if exploring else board  # le donjon est bien plus grand que l'arène
+	target = target.clamp(Vector3(-3, 0, -3), Vector3(bd.dim + 2, 4, bd.dim + 2))
 
 
 var _pad_rest := {}
@@ -519,7 +520,14 @@ func _unhandled_input(e: InputEvent) -> void:
 			KEY_LEFT, KEY_RIGHT:
 				battle.turn_facing(1 if e.keycode == KEY_RIGHT else -1)
 			KEY_P:
-				view_deck()
+				if exploring:
+					adv_menu("deck")
+				else:
+					view_deck()
+			KEY_I:
+				adv_menu("equip")
+			KEY_F:
+				adv_menu("fuse")
 			KEY_H:
 				ui.show_keys = not ui.show_keys
 				ui.refresh()
@@ -854,15 +862,15 @@ func _build_room(seed: int, bi: int, size := 14, arch := "", with_props := false
 
 func _fight(type: String, ids_override: Array = []) -> bool:
 	var ids: Array
-	var size := 14 + 2 * rng.randi_range(0, 1)
+	var size := 16 + 2 * rng.randi_range(0, 1)
 	var arch := next_arch
 	match type:
 		"elite":
 			ids = Data.ELITES[floor_i]
-			size = 16
+			size = 18
 		"boss":
 			ids = Data.BOSS
-			size = 18
+			size = 20
 		_:
 			var pool: Array = Data.ENCOUNTERS[floor_i]
 			ids = pool[rng.randi_range(0, pool.size() - 1)]
@@ -2368,10 +2376,26 @@ func _show_dungeon() -> void:
 
 
 func _explore_hud() -> void:
-	var line: Array = heroes.map(func(h): return "%s %d/%d" % [h.nm, h.hp, h.max_hp])
 	var bz: String = " ".join(besace.map(func(id): return Data.TOOLS[id].glyph))
-	ui.show_explore(true, Data.BIOMES[_biome()].name, "Étage %d · donjon · difficulté %d/5" % [floor_i, difficulty + 1],
-		" · ".join(line) + (("   ·   Besace  " + bz) if bz != "" else ""))
+	ui.show_explore(true, Data.BIOMES[_biome()].name, "Étage %d · donjon · %d or · difficulté %d/5" % [floor_i, gold, difficulty + 1],
+		("Besace  " + bz) if bz != "" else "")
+
+
+func adv_menu(k: String) -> void:
+	## Inventaire ouvert depuis le donjon : équipement, paquet, fusion.
+	if not exploring or _adv_busy or ui.overlay != null:
+		return
+	_adv_busy = true
+	aboard.highlight({})
+	match k:
+		"equip":
+			await _equipment()
+		"deck":
+			await view_deck()
+		"fuse":
+			await _fuse()
+	_adv_busy = false
+	_explore_hud()
 
 
 func _adv_process(dt: float) -> void:

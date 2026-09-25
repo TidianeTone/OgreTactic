@@ -58,6 +58,8 @@ var explore_box: VBoxContainer
 var explore_title: Label
 var explore_sub: Label
 var explore_party: Label
+var explore_heroes: VBoxContainer
+var explore_panels := {}
 var besace_row: HBoxContainer
 var _besace_sig := ""
 
@@ -344,8 +346,27 @@ func _build_explore() -> void:
 	explore_box.add_child(explore_title)
 	explore_box.add_child(explore_sub)
 	explore_box.add_child(explore_party)
+	explore_heroes = VBoxContainer.new()
+	explore_heroes.add_theme_constant_override("separation", 8)
+	explore_box.add_child(explore_heroes)
+	# l'inventaire reste à portée pendant l'exploration
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	for e in [["Équipement · I", "equip"], ["Paquet · P", "deck"], ["Fusion · F", "fuse"]]:
+		var b := Button.new()
+		b.text = e[0]
+		b.add_theme_font_override("font", title_f)
+		b.add_theme_font_size_override("font_size", 15)
+		b.add_theme_color_override("font_color", INK)
+		b.add_theme_stylebox_override("normal", sb(Color(0.08, 0.07, 0.075, 0.9), Color("#8fa3b8"), 8, 1, 6))
+		b.add_theme_stylebox_override("hover", sb(Color(0.16, 0.18, 0.2, 0.95), Color.WHITE, 8, 1, 6))
+		b.focus_mode = Control.FOCUS_NONE
+		var k: String = e[1]
+		b.pressed.connect(func(): main.adv_menu(k))
+		row.add_child(b)
+	explore_box.add_child(row)
 	var hint := _plate(explore_box)
-	hint.add_child(_label("Clic : avancer · croiser un monstre lance le combat · clic droit maintenu : caméra · P : paquet · Échap : menu", 12, DIM))
+	hint.add_child(_label("Clic : avancer · croiser un monstre lance le combat · clic droit maintenu : caméra · Échap : menu", 12, DIM))
 	explore_box.visible = false
 
 
@@ -355,6 +376,9 @@ func show_explore(on: bool, title := "", sub := "", party := "") -> void:
 		explore_title.text = title
 		explore_sub.text = sub
 		explore_party.text = party
+		explore_party.visible = party != ""
+		_rebuild_heroes(explore_heroes, main.heroes, explore_panels)
+		_refresh_heroes(explore_panels)
 
 
 func _orb_style() -> StyleBoxFlat:
@@ -559,20 +583,28 @@ func show_hud(on: bool) -> void:
 
 # ------------------------------------------------------------------ héros et reliques
 
-func _rebuild_heroes() -> void:
-	for c in hero_box.get_children():
+func _rebuild_heroes(box: VBoxContainer = null, list: Array = [], panels: Dictionary = {}) -> void:
+	## Les fiches des héros : en combat (cliquables) ou pendant l'exploration du donjon.
+	var fight := box == null
+	if fight:
+		box = hero_box
+		list = battle.heroes
+		panels = hero_panels
+	for c in box.get_children():
 		c.queue_free()
-	hero_panels.clear()
-	for h in battle.heroes:
+	panels.clear()
+	for h in list:
 		var col: Color = Data.CLASS_COLOR[h.key]
 		var p := Panel.new()
-		p.custom_minimum_size = Vector2(270, 78)
+		p.custom_minimum_size = Vector2(270, 100)
+		p.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		p.add_theme_stylebox_override("panel", sb(Color(0.07, 0.065, 0.07, 0.78), col.darkened(0.2), 10, 1, 6))
 		p.mouse_filter = Control.MOUSE_FILTER_STOP
-		p.gui_input.connect(func(e):
-			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and h.alive:
-				battle.pick_hero(h))
-		hero_box.add_child(p)
+		if fight:
+			p.gui_input.connect(func(e):
+				if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and h.alive:
+					battle.pick_hero(h))
+		box.add_child(p)
 		var badge := _panel(p, sb(col, col.lightened(0.4), 8, 2))
 		badge.position = Vector2(12, 13)
 		badge.size = Vector2(52, 52)
@@ -635,12 +667,32 @@ func _rebuild_heroes() -> void:
 		st.add_child(arm)
 		st.add_child(boot)
 		p.add_child(st)
-		hero_panels[h] = {"panel": p, "bar": bar, "hp": hp, "st": st, "col": col}
+		# les stats d'un coup d'œil : bonus de dégâts, déplacement, saut, vitesse
+		var stats := HBoxContainer.new()
+		stats.add_theme_constant_override("separation", 10)
+		stats.position = Vector2(76, 72)
+		stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		p.add_child(stats)
+		panels[h] = {"panel": p, "bar": bar, "hp": hp, "st": st, "col": col, "stats": stats}
 
 
-func _refresh_heroes() -> void:
-	for h in hero_panels:
-		var d: Dictionary = hero_panels[h]
+func _stats_row(row: HBoxContainer, h: Unit) -> void:
+	for c in row.get_children():
+		c.queue_free()
+	row.add_child(_chip("attaque", "+%d" % (h.gear_dmg() + h.dmg_bonus), Color(1.0, 0.75, 0.6), 18))
+	row.add_child(_chip("deplacement", str(h.move), Color.WHITE, 18))
+	var l := _shadowed(_label("saut %d · vit. %d" % [h.jump, h.speed], 13, DIM), 4)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(l)
+	row.tooltip_text = "Bonus de dégâts de l'équipement, déplacement, hauteur de saut, vitesse (ordre du tour)"
+
+
+func _refresh_heroes(panels: Dictionary = {}) -> void:
+	if panels.is_empty():
+		panels = hero_panels
+	for h in panels:
+		var d: Dictionary = panels[h]
+		_stats_row(d.stats, h)
 		d.bar.max_value = h.max_hp
 		d.bar.value = h.hp
 		d.hp.text = "%d / %d" % [h.hp, h.max_hp] if h.alive else "tombé"

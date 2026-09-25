@@ -74,11 +74,11 @@ func _generate(seed: int, b: Dictionary, size: int, arch: String) -> void:
 		"cour":
 			_gen_cour()
 		"ilots":
-			_gen_islands(2, 4, dim * dim / 16)
+			_gen_islands(3, 5, dim * dim / 20)
 		"donjon":
 			_gen_dungeon()
 		_:
-			_gen_islands(3, 6, dim * dim / 36)
+			_gen_islands(4, 7, dim * dim / 40)  # plateformes larges : de la place pour manœuvrer
 	_ring(seed)
 	_towers_and_trees()
 
@@ -346,11 +346,15 @@ func _carve(a: Vector2i, b: Vector2i) -> void:
 		else:
 			step = Vector2i(0, signi(b.y - p.y))
 		p += step
-		paths[p] = true
-		if kind[p] == "water":
-			kind[p] = "bridge"
-			h[p] = 3
-			along_x[p] = step.x != 0
+		# ponts de deux cases de large : on s'y croise, on s'y contourne
+		for q in [p, p + Vector2i(step.y, step.x)]:
+			if not _in(q) or (q != p and archetype == "donjon"):
+				continue
+			paths[q] = true
+			if kind[q] == "water":
+				kind[q] = "bridge"
+				h[q] = 3
+				along_x[q] = step.x != 0
 
 
 func _out(c: Vector2i) -> int:

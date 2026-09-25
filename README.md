@@ -35,7 +35,8 @@ dans Blender par script (`blender/`).
 - Cartes de niveau 1 à 3 avec déclencheurs, forge et fusion de doubles
 - Besace d'objets à usage unique ; les ennemis en portent aussi, on peut les leur voler
 - Runes au sol (force, source, garde, élan, portails, ronces)
-- Deux modes : Descente (carte d'étage) et Aventure (donjon à explorer)
+- Deux modes : Descente (carte d'étage) et Aventure (donjon à explorer) ; en Aventure, équipement, paquet et fusion restent accessibles (I, P, F)
+- 12 biomes, dont la Crypte aux Cierges, le Bosquet Émeraude, la Grotte au Croissant et le Temple de Jade
 - Un Ancien à chaque étage, modificateurs de salles, pactes, 5 niveaux de difficulté
 
 ## Développement

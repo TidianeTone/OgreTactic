@@ -9,7 +9,7 @@ func _init() -> void:
 		for s in 12:
 			var seed := 5 + s * 7 + bi * 1000
 			var t := Time.get_ticks_msec()
-			b.generate(seed, Data.BIOMES[bi], 14, Board.ARCHETYPES[s % 4], true)
+			b.generate(seed, Data.BIOMES[bi], 16 + 2 * (s % 3), Board.ARCHETYPES[s % 4], true)
 			var t2 := Time.get_ticks_msec()
 			b.build_visuals()
 			var t3 := Time.get_ticks_msec()

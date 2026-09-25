@@ -33,6 +33,7 @@ ALGAE = pal(["#3f5a3a", "#4a6a40", "#35503a"])
 SAND = pal(["#d8cfb0", "#cbbf9b", "#e0d8bd", "#bfb28c"])
 AUTUMN = pal(["#b4501c", "#c8662a", "#8c3616", "#d98434", "#a4401a", "#e39a3e"])
 GREEN = pal(["#4f7a2f", "#3d6427", "#6a8f3a", "#2f4f22", "#7da44a"])
+TEAL = pal(["#2f8a7e", "#3aa396", "#237064", "#4fb8a8", "#1f5e56"])
 ROOF = pal(["#6e4b3b", "#5b3c2f", "#7d5646", "#4a3027", "#86604c"])
 WOOD = pal(["#5a4030", "#4a3426", "#654838"])
 FLOWER = pal(["#c8301c", "#e04a2a", "#a82418", "#ee6a3a"])
@@ -417,6 +418,9 @@ PALETTES = {
     "blanc": (["#ebe6d9", "#dfd9c9", "#f2eee3", "#d6cfbd", "#e5dfcf", "#faf6ec"], "#9d968a", ["#f6f3ea", "#e9e4d6"]),
     "lilas": (["#a89cc0", "#9a8db4", "#b6abcc", "#8d80a8", "#a293bb", "#bfb4d4"], "#5a4f72", ["#e3c46a", "#cfae52"]),
     "terre": (["#7a5a4a", "#6b4d40", "#86665a", "#5e4238", "#73574a", "#8f6f5e"], "#3a2922", ["#8d6f60", "#7d6153"]),
+    "crypte": (["#8e4a58", "#a0566a", "#7a3e4e", "#b0667a", "#6e3646", "#9a5264"], "#2e1c2a", ["#4f8c88", "#5d9c96"]),
+    "jade": (["#5d8c6c", "#6c9c7a", "#4c7a5c", "#7aac88", "#548463", "#86b894"], "#223a2e", ["#c9b86a", "#b8a458"]),
+    "quartz": (["#b48c9c", "#a27a8c", "#c49eac", "#8f6a7e", "#bb95a4", "#d0b0bc"], "#4a3040", ["#e8d8e8", "#d8c4dc"]),
 }
 GRASS = pal(["#b9b24a", "#a7a23e", "#c9c35a", "#8f9a3a", "#d6cc6a"])
 PINK = pal(["#e0418c", "#f06aa8", "#c93278", "#f59ac4"])
@@ -1075,6 +1079,18 @@ def emit(kit):
         export(name, objs)
 
 
+def foliage_kit(kit, biome, leaves):
+    FLAT = dict(origin=(8, 8, 0), skip=((0, 0, -1),))
+    for i in range(3):
+        kit.append(("tree_%s_%d" % (biome, i), tree(700 + i, leaves, 1.25 if i == 2 else 1.0), None, dict(v=VT)))
+    kit.append(("tree_%s_small" % biome, tree(710, leaves, 0.6), None, dict(v=VT)))
+    for i in range(2):
+        kit.append(("bush_%s_%d" % (biome, i), bush(800 + i, leaves), None, dict(v=VT, skip=((0, 0, -1),))))
+        kit.append(("ivy_%s_%d" % (biome, i), ivy(900 + i, leaves), None, dict(origin=(8, 8, 0))))
+    kit.append(("litter_" + biome, pile(950, leaves), None, FLAT))
+    kit.append(("float_" + biome, scatter(960, leaves, 12), None, FLAT))
+
+
 def build():
     global STONE, MORTAR, QUOIN
     for o in list(coll().objects):
@@ -1082,7 +1098,10 @@ def build():
     WALL = dict(origin=(8, 8, 0), skip=((0, 1, 0), (0, 0, -1)))
     FLAT = dict(origin=(8, 8, 0), skip=((0, 0, -1),))
     base = (STONE, MORTAR, QUOIN)
+    only = os.environ.get("DELVE_ONLY", "")  # ex. "crypte,jade,teal" : ne régénère que ça
     for name, (st, mo, qu) in PALETTES.items():
+        if only and name not in only.split(","):
+            continue
         STONE, MORTAR, QUOIN = base if st is None else (pal(st), lin(mo), pal(qu))
         SUB[0] = "" if name == "pierre" else name
         kit = []
@@ -1091,6 +1110,12 @@ def build():
     STONE, MORTAR, QUOIN = base
     SUB[0] = ""
     kit = []
+    if only:
+        if "teal" in only.split(","):
+            foliage_kit(kit, "teal", TEAL)
+        emit(kit)
+        print("ok (partiel)")
+        return
     kit.append(("seabed", seabed(530), None, FLAT))
     kit.append(("lily_0", lily(500), None, FLAT)); kit.append(("lily_1", lily(501), None, FLAT))
     kit.append(("flowers", flowers(510), None, FLAT))
@@ -1119,15 +1144,8 @@ def build():
         kit.append(("pine_%d" % i, pine(720 + i), None, dict(v=VT)))
     vox, g = crystal(710, True)
     kit.append(("crystal_giant", vox, g, dict(origin=(8, 8, 0))))
-    for biome, leaves in (("autumn", AUTUMN), ("green", GREEN), ("pink", PINK)):
-        for i in range(3):
-            kit.append(("tree_%s_%d" % (biome, i), tree(700 + i, leaves, 1.25 if i == 2 else 1.0), None, dict(v=VT)))
-        kit.append(("tree_%s_small" % biome, tree(710, leaves, 0.6), None, dict(v=VT)))
-        for i in range(2):
-            kit.append(("bush_%s_%d" % (biome, i), bush(800 + i, leaves), None, dict(v=VT, skip=((0, 0, -1),))))
-            kit.append(("ivy_%s_%d" % (biome, i), ivy(900 + i, leaves), None, dict(origin=(8, 8, 0))))
-        kit.append(("litter_" + biome, pile(950, leaves), None, FLAT))
-        kit.append(("float_" + biome, scatter(960, leaves, 12), None, FLAT))
+    for biome, leaves in (("autumn", AUTUMN), ("green", GREEN), ("pink", PINK), ("teal", TEAL)):
+        foliage_kit(kit, biome, leaves)
     emit(kit)
     print("ok", sum(len(f) for _, _, f in os.walk(OUT)), "fichiers")
 
