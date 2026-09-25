@@ -62,6 +62,26 @@ var pushed := false        # repoussé ce tour
 var q40 := false           # Règle des 40 % déjà servie
 
 
+var voc_node: Node3D
+
+
+func wear_voc(k: String) -> void:
+	## L'insigne de la vocation, porté dans le dos : la classe apprise se voit sur le modèle.
+	if voc_node:
+		voc_node.queue_free()
+		voc_node = null
+	if k == "" or not ResourceLoader.exists("res://assets/voc_%s.glb" % k):
+		return
+	voc_node = load("res://assets/voc_%s.glb" % k).instantiate()
+	var vc: Color = Data.CLASS_COLOR[k]
+	for mi in voc_node.find_children("*", "MeshInstance3D", true, false):
+		mi.material_override = Board.material("glow_unit" if String(mi.name).ends_with("glow") else "unit")
+		mi.set_instance_shader_parameter("rim", Vector3(vc.r, vc.g, vc.b) * 0.9)  # liseré à la couleur de la classe apprise
+	voc_node.scale = Vector3.ONE * 1.4  # dépasse des épaules : lisible de face comme de dos
+	voc_node.position = Vector3(0, -0.12, 0.05)
+	model.add_child(voc_node)
+
+
 func reset_fight() -> void:
 	for k in ["aegis", "bait", "exposed", "parry", "dodge_next", "keep_block", "tele", "triple", "lvl_next", "bounty", "struck_hero", "pushed", "q40"]:
 		set(k, false)

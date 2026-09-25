@@ -526,6 +526,11 @@ func _unhandled_input(e: InputEvent) -> void:
 					view_deck()
 			KEY_I:
 				adv_menu("equip")
+			KEY_D:
+				if not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and ui.hud.visible:
+					battle.danger = not battle.danger
+					ui.toast("Zone de danger : tout ce que les ennemis peuvent frapper ce tour" if battle.danger else "Zone de danger masquée")
+					refresh_hover()
 			KEY_F:
 				adv_menu("fuse")
 			KEY_H:
@@ -866,7 +871,7 @@ func _fight(type: String, ids_override: Array = []) -> bool:
 	var arch := next_arch
 	match type:
 		"elite":
-			ids = Data.ELITES[floor_i]
+			ids = Data.ELITES_NOYES[floor_i] if rng.randf() < 0.5 else Data.ELITES.get(floor_i, Data.ELITES[2])
 			size = 18
 		"boss":
 			ids = Data.BOSS
@@ -1052,6 +1057,7 @@ func _choose_vocation(h: Unit, second := false) -> void:
 		h.voc2 = k
 	else:
 		h.voc = k
+		h.wear_voc(k)
 	var g := Guildes.index(h.key, k)
 	var gl: Array = Guildes.LIST[g]
 	# pas de divulgâchage : ce qui n'est pas encore débloqué reste un dos de carte
@@ -1224,6 +1230,7 @@ func _load_run() -> bool:
 			heroes[i].set(k, d.heroes[i][k])
 		heroes[i].apply_gear()
 		heroes[i].hp = int(d.heroes[i].hp)
+		heroes[i].wear_voc(heroes[i].voc)
 	rng.seed = run_seed
 	rng.state = d.rng
 	for ci in deck:
@@ -1310,9 +1317,9 @@ func _merchant() -> void:
 	var shelf := _shelf_stock()
 	var tstock: Array = [_tool_roll(), _tool_roll(3)]
 	var healed := false
-	await _shelf(shelf)
 	while true:
-		var opts: Array = []
+		var opts: Array = _shelf_opts(shelf)
+		var nc := opts.size()
 		for id in stock:
 			opts.append(_item_opt(id, Data.PRICE[Data.ITEMS[id].rarity]))
 		for id in tstock:
@@ -1321,11 +1328,19 @@ func _merchant() -> void:
 			opts.append({"title": "Soins  ·  35 or", "glyph": "✚", "text": "Chaque héros récupère 50 % de ses PV max."})
 		opts.append({"title": "Épurer  ·  40 or", "glyph": "✂", "text": "Retirer une carte du paquet."})
 		opts.append({"title": "Forge  ·  35 or", "glyph": "⚒", "text": "Une carte du paquet gagne un niveau."})
-		if shelf.size() > 0:
-			opts.append({"title": "Étal de cartes", "glyph": "✦", "text": "Encore %d carte(s) à vendre." % shelf.size(), "color": UI.GOLD})
-		var i := await ui.choose("MARCHAND", "Vous avez %d or" % gold, opts, true)
+		var i := await ui.choose("MARCHAND", "Vous avez %d or · une carte achetée rejoint le paquet de son héros" % gold, opts, true, "Partir")
 		if i < 0:
 			return
+		if i < nc:
+			if gold < shelf[i].price:
+				ui.toast("Pas assez d'or.")
+				continue
+			gold -= shelf[i].price
+			deck.append(shelf[i].card)
+			shelf.remove_at(i)
+			ui.set_gold(gold)
+			continue
+		i -= nc
 		if i < stock.size():
 			var id: String = stock[i]
 			var price: int = Data.PRICE[Data.ITEMS[id].rarity]
@@ -1347,11 +1362,8 @@ func _merchant() -> void:
 			tstock.remove_at(i - stock.size())
 			_gain_tool(tid)
 		else:
-			var rest: Array = ["heal", "purge", "forge", "shelf"].filter(func(k): return (k != "heal" or not healed) and (k != "shelf" or shelf.size() > 0))
+			var rest: Array = ["heal", "purge", "forge"].filter(func(k): return k != "heal" or not healed)
 			var k: String = rest[i - stock.size() - tstock.size()]
-			if k == "shelf":
-				await _shelf(shelf)
-				continue
 			var price: int = {"heal": 35, "purge": 40, "forge": 35}[k]
 			if gold < price:
 				ui.toast("Pas assez d'or.")
@@ -1400,11 +1412,15 @@ func _shelf_stock() -> Array:
 	return out
 
 
+func _shelf_opts(shelf: Array) -> Array:
+	return shelf.map(func(o):
+		var who: String = Data.HEROES[Data.holder(o.card)].name
+		return {"card": o.card, "tag": ("✦ %d or · soldée · %s" if o.has("sale") else ("✦ %d or · " + o.voc + " · %s" if o.has("voc") else "%d or · %s")) % [o.price, who]})
+
+
 func _shelf(shelf: Array) -> void:
 	while shelf.size() > 0:
-		var opts: Array = shelf.map(func(o):
-			var who: String = Data.HEROES[Data.holder(o.card)].name
-			return {"card": o.card, "tag": ("✦ %d or · soldée · %s" if o.has("sale") else ("✦ %d or · " + o.voc + " · %s" if o.has("voc") else "%d or · %s")) % [o.price, who]})
+		var opts: Array = _shelf_opts(shelf)
 		var i := await ui.choose("ÉTAL DE CARTES", "Vous avez %d or · une carte achetée rejoint le paquet de son héros" % gold, opts, true, "Voir les objets et services")
 		if i < 0:
 			return
@@ -1569,7 +1585,11 @@ func _capture() -> void:
 	_make_party()
 	heroes[0].equip.arme = "epee_ecluse"
 	heroes[1].equip.talisman = "bottes_heron"
-	var ids: Array = Data.BOSS if args.has("boss") else Data.ENCOUNTERS[floor_i][0]
+	if args.has("voc"):
+		for h in heroes:
+			h.voc = args.voc if args.voc != h.key else "lame"
+			h.wear_voc(h.voc)
+	var ids: Array = Data.BOSS if args.has("boss") else (Array(args.foes.split(",")) if args.has("foes") else Data.ENCOUNTERS[floor_i][0])
 	var size := 18 if args.has("boss") else int(args.get("size", "16"))
 	_build_room(run_seed, _biome(), size, "cour" if args.has("boss") else args.get("arch", ""), true)
 	ui.show_hud(true)
@@ -1682,6 +1702,8 @@ func _autoplay() -> void:
 		Battle.foe_mult = Data.DIFFICULTY[difficulty].foe[floor_i - 1]
 		_build_room(run_seed + n * 101, _biome(), [14, 16, 18][n % 3], Board.ARCHETYPES[n % 4], true)
 		var ids: Array = Data.BOSS if n == fights_n - 1 else Data.ENCOUNTERS[floor_i][n % Data.ENCOUNTERS[floor_i].size()]
+		if args.has("foes"):
+			ids = Array(args.foes.split(","))
 		ui.show_hud(true)
 		battle.start(heroes, ids, deck, relics)
 		var turns := 0
@@ -1757,6 +1779,12 @@ func _voctest() -> void:
 	f5.call()
 	await _frames(40)
 	_shot(dir, "7_etal")
+	ui.picked.emit(-1)
+	await _frames(10)
+	var f5b := func(): await _merchant()
+	f5b.call()
+	await _frames(60)
+	_shot(dir, "7b_marchand")
 	ui.picked.emit(-1)
 	await _frames(10)
 	floor_i = 1
@@ -2179,7 +2207,7 @@ func _gen_dungeon(saved := {}) -> void:
 				var pool: Array = Data.ENCOUNTERS[floor_i]
 				ids = pool[rng.randi_range(0, pool.size() - 1)]
 			"elite", "gardien":
-				ids = Data.ELITES[floor_i] if Data.ELITES.has(floor_i) else Data.ELITES[2]
+				ids = Data.ELITES_NOYES[floor_i] if rng.randf() < 0.5 else Data.ELITES.get(floor_i, Data.ELITES[2])
 			"boss":
 				ids = Data.BOSS
 		var mods: Array = []
@@ -2199,12 +2227,16 @@ func _gen_dungeon(saved := {}) -> void:
 	leader = Unit.new()
 	leader.setup(party[0], "hero")
 	adv_root.add_child(leader)
+	if heroes.size() > 0:
+		leader.wear_voc(heroes[0].voc)
 	leader.place(aboard._nearest_walkable(aboard.start), aboard)
 	followers.clear()
 	for k in range(1, party.size()):
 		var f := Unit.new()
 		f.setup(party[k], "hero")
 		adv_root.add_child(f)
+		if heroes.size() > k:
+			f.wear_voc(heroes[k].voc)
 		f.place(leader.cell, aboard)
 		f.visible = false
 		followers.append(f)

@@ -267,7 +267,7 @@ func _build_hud() -> void:
 	for row in [["Clic", "héros, carte, case, objet de besace"], ["Clic ennemi", "épingler / retirer sa fiche"],
 			["Survol", "infos de la case ou de l'objet"], ["Clic droit", "annuler · maintenu : caméra"],
 			["ZQSD", "déplacer la caméra (clic droit tenu)"], ["Q / E · molette", "pivoter · zoomer"],
-			["Espace · ← →", "fin du tour, puis orientation"], ["Tab · 1 à 9", "recentrer · jouer une carte"],
+			["Espace · ← →", "fin du tour, puis orientation"], ["D", "zone de danger"], ["Tab · 1 à 9", "recentrer · jouer une carte"],
 			["Alt", "montrer les objets interactifs"], ["P · M", "paquet · musique"], ["H · Échap", "cette aide · menu"]]:
 		var k := _label(row[0], 14, Color("#ffe3a3"), title_f)
 		k.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -1275,7 +1275,10 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 	var sl := _shadowed(_label(subtitle, 16, GOLD), 6)
 	sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(sl)
-	var many: bool = options.size() > 7 and options[0].has("card")
+	# cartes et objets mêlés (le marchand) : les cartes en haut, le reste en dessous
+	var split: bool = options.size() > 7 and options.any(func(o): return o.has("card")) and options.any(func(o): return not o.has("card"))
+	var many: bool = not split and options.size() > 7 and options[0].has("card")
+	var row2: Container
 	var row: Container
 	if many:
 		var grid := GridContainer.new()
@@ -1293,6 +1296,16 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 		sco.add_child(sc)
 		box.add_child(sco)
 		row = grid
+	elif split:
+		for k in 2:
+			var hb := HBoxContainer.new()
+			hb.alignment = BoxContainer.ALIGNMENT_CENTER
+			hb.add_theme_constant_override("separation", 12)
+			box.add_child(hb)
+			if k == 0:
+				row = hb
+			else:
+				row2 = hb
 	else:
 		var hb := HBoxContainer.new()
 		hb.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -1310,7 +1323,7 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 		elif o.has("card"):
 			w = make_card(o.card)
 			var holder := Control.new()
-			var sc_k := 0.8 if many else 1.2
+			var sc_k := 0.8 if many else (1.0 if split else 1.2)
 			holder.custom_minimum_size = CARD * sc_k
 			holder.tooltip_text = w.tooltip_text
 			w.scale = Vector2.ONE * sc_k
@@ -1320,7 +1333,7 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 				w.position.y = 38
 				holder.custom_minimum_size.y += 38
 				var gold_tag: bool = o.tag == "Après" or o.tag.begins_with("✦")
-				var tg := _shadowed(_label(o.tag, 22 if o.tag.length() < 16 else 16, GOLD if gold_tag else DIM, title_f), 6)
+				var tg := _shadowed(_label(o.tag, 22 if o.tag.length() < 16 else (16 if o.tag.length() < 24 else 13), GOLD if gold_tag else DIM, title_f), 6)
 				tg.position = Vector2(0, 0)
 				tg.size = Vector2(CARD.x * sc_k, 30)
 				tg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1328,7 +1341,7 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 			_passthrough(w)
 			w = holder
 		else:
-			w = _option(o, 250 if options.size() <= 4 else (205 if options.size() <= 6 else (186 if options.size() <= 7 else 170)))
+			w = _option(o, 164 if split else (250 if options.size() <= 4 else (205 if options.size() <= 6 else (186 if options.size() <= 7 else 170))))
 		w.mouse_filter = Control.MOUSE_FILTER_STOP
 		var idx := i
 		w.focus_mode = Control.FOCUS_ALL
@@ -1341,7 +1354,7 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 		w.mouse_exited.connect(func(): w.modulate = Color.WHITE)
 		w.focus_entered.connect(func(): w.modulate = Color(1.2, 1.12, 0.95))
 		w.focus_exited.connect(func(): w.modulate = Color.WHITE)
-		row.add_child(w)
+		(row2 if split and not o.has("card") else row).add_child(w)
 		if i == 0 and Input.get_connected_joypads().size() > 0:
 			w.grab_focus.call_deferred()
 	if allow_skip:
@@ -1498,13 +1511,14 @@ func _passthrough(n: Node) -> void:
 
 func _option(o: Dictionary, w := 250) -> Control:
 	var col: Color = o.get("color", GOLD)
+	var small := w < 170  # version compacte, sous l'étal du marchand
 	var p := PanelContainer.new()
-	p.custom_minimum_size = Vector2(w, 300)
+	p.custom_minimum_size = Vector2(w, 190 if small else 300)
 	var s := sb(Color(0.08, 0.07, 0.075, 0.92), col, 14, 2, 14)
-	s.content_margin_left = 20
-	s.content_margin_right = 20
-	s.content_margin_top = 26
-	s.content_margin_bottom = 20
+	s.content_margin_left = 12 if small else 20
+	s.content_margin_right = 12 if small else 20
+	s.content_margin_top = 12 if small else 26
+	s.content_margin_bottom = 12 if small else 20
 	p.add_theme_stylebox_override("panel", s)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
@@ -1513,20 +1527,20 @@ func _option(o: Dictionary, w := 250) -> Control:
 	if o.has("image") and ResourceLoader.exists(o.image):
 		var im := TextureRect.new()
 		im.texture = load(o.image)
-		im.custom_minimum_size = Vector2(110, 110)
+		im.custom_minimum_size = Vector2(56, 56) if small else Vector2(110, 110)
 		im.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		im.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		im.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.add_child(im)
 	else:
-		var g := _shadowed(_label(o.get("glyph", "✦"), 64, col.lightened(0.2), title_f), 8)
+		var g := _shadowed(_label(o.get("glyph", "✦"), 34 if small else 64, col.lightened(0.2), title_f), 8)
 		g.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		v.add_child(g)
-	var t := _label(o.title, 24, INK, title_f)
+	var t := _label(o.title, 15 if small else 24, INK, title_f)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(t)
-	var d := _label(o.get("text", ""), 15, DIM)
+	var d := _label(o.get("text", ""), 12 if small else 15, DIM)
 	d.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(d)

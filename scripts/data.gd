@@ -30,9 +30,24 @@ const FOES := {
 	"sentinelle": {"name": "Sentinelle", "hp": 28, "speed": 3, "move": 2, "jump": 2, "dmg": 10, "range": [1, 1], "ai": "melee", "armor": 4, "passives": ["contre"]},
 	"wisp": {"name": "Feu follet", "hp": 6, "speed": 9, "move": 5, "jump": 9, "dmg": 9, "range": [1, 1], "ai": "bomb", "fly": true},
 	"gardien": {"name": "Le Gardien des ruines", "hp": 120, "speed": 3, "move": 2, "jump": 3, "dmg": 13, "range": [1, 1], "ai": "boss", "armor": 3, "passives": ["contre"]},
-	"chaman": {"name": "Chaman de braise", "hp": 12, "speed": 5, "move": 3, "jump": 2, "dmg": 3, "range": [2, 4], "ai": "healer", "heal": 6},
+	"chaman": {"name": "Chaman de braise", "arme": "magie", "hp": 12, "speed": 5, "move": 3, "jump": 2, "dmg": 3, "range": [2, 4], "ai": "healer", "heal": 6},
 	"carapace": {"name": "Carapace", "hp": 20, "speed": 2, "move": 2, "jump": 1, "dmg": 7, "range": [1, 1], "ai": "melee", "armor": 8, "heavy": true},
 	"rodeur": {"name": "Rôdeur", "hp": 13, "speed": 8, "move": 5, "jump": 4, "dmg": 7, "range": [1, 1], "ai": "assassin", "passives": ["reflexe"]},
+	# la Compagnie noyée : une armée engloutie par l'Écluse
+	"lancier": {"name": "Lancier noyé", "hp": 18, "speed": 5, "move": 3, "jump": 2, "dmg": 7, "range": [1, 2], "ai": "melee", "arme": "perforant", "passives": ["contre"]},
+	"cavalier": {"name": "Cavalier des berges", "hp": 20, "speed": 7, "move": 6, "jump": 1, "dmg": 8, "range": [1, 1], "ai": "canto", "arme": "tranchant"},
+	"vouivre": {"name": "Vouivre", "hp": 22, "speed": 6, "move": 6, "jump": 9, "dmg": 9, "range": [1, 1], "ai": "melee", "arme": "contondant", "fly": true},
+	"mage": {"name": "Mage de la Marée", "hp": 12, "speed": 5, "move": 3, "jump": 2, "dmg": 7, "range": [1, 3], "ai": "ranged", "arme": "magie"},
+	"bretteur": {"name": "Bretteur", "hp": 15, "speed": 8, "move": 4, "jump": 3, "dmg": 6, "range": [1, 1], "ai": "assassin", "arme": "tranchant", "crit": 0.3, "passives": ["reflexe"]},
+	"danseuse": {"name": "Danseuse des brumes", "hp": 12, "speed": 6, "move": 4, "jump": 3, "dmg": 3, "range": [1, 1], "ai": "dancer", "arme": "tranchant"},
+	"capitaine": {"name": "Capitaine noyé", "hp": 40, "speed": 4, "move": 3, "jump": 2, "dmg": 10, "range": [1, 1], "ai": "commander", "arme": "contondant", "armor": 3},
+	"baliste": {"name": "Baliste", "hp": 18, "speed": 3, "move": 0, "jump": 0, "dmg": 10, "range": [3, 8], "ai": "ranged", "arme": "perforant", "heavy": true},
+	# bêtes des Hauts-Fonds
+	"crabe": {"name": "Crabe des écluses", "hp": 24, "speed": 3, "move": 3, "jump": 1, "dmg": 7, "range": [1, 1], "ai": "melee", "armor": 4, "heavy": true, "shove": 1},
+	"crapaud": {"name": "Crapaud-gouffre", "hp": 18, "speed": 4, "move": 2, "jump": 3, "dmg": 6, "range": [2, 4], "ai": "puller"},
+	"harpie": {"name": "Harpie des brumes", "hp": 11, "speed": 9, "move": 6, "jump": 9, "dmg": 6, "range": [1, 1], "ai": "canto", "fly": true},
+	# structure : ne bouge pas, n'attaque pas, invoque à chaque tour. À abattre vite.
+	"obelisque": {"name": "Obélisque d'appel", "hp": 30, "speed": 2, "move": 0, "jump": 0, "dmg": 0, "range": [0, 0], "ai": "spawner", "heavy": true, "structure": true},
 }
 
 # Ce que chaque ennemi demande au joueur (affiché au survol).
@@ -45,6 +60,18 @@ const FOE_TIPS := {
 	"chaman": "Soigne ses alliés. Cible prioritaire.",
 	"carapace": "8 d'armure par tour. Coule d'un coup s'il tombe à l'eau.",
 	"rodeur": "Rapide, vise les plus faibles, esquive un coup sur quatre.",
+	"lancier": "Frappe à deux cases et riposte au contact. Le frapper de loin.",
+	"cavalier": "Frappe puis se replie (Canto). Le coincer contre l'eau.",
+	"vouivre": "Vole au-dessus de tout. Les tirs lui font ×1,5.",
+	"mage": "Sa magie ignore l'armure. Fragile : aller le chercher.",
+	"bretteur": "Esquive un coup sur quatre, 30 % de coups critiques (×2).",
+	"danseuse": "Fait rejouer un allié qui a déjà agi. À abattre en premier.",
+	"capitaine": "Tient sa position ; ses soldats à 2 cases frappent +2. Le tuer désorganise tout.",
+	"baliste": "Immobile, tire de 3 à 8 cases. Se coller à elle.",
+	"crabe": "4 d'armure par tour, repousse d'une case à chaque pince. Coule s'il tombe à l'eau.",
+	"crapaud": "Sa langue attire un héros jusqu'à lui depuis 4 cases, puis mord.",
+	"harpie": "Vole, frappe puis s'enfuit. Les tirs lui font ×1,5.",
+	"obelisque": "Invoque une créature à chaque tour. Isolé, loin des siens : foncer dessus.",
 }
 
 # kind : atk | skill | move. target : foe (défaut pour atk) | self | ally | tile | line
@@ -227,6 +254,12 @@ const TILES := {
 	"elan": {"name": "Rune d'élan", "glyph": "↯", "col": Color("#ffd23a"), "text": "Un héros qui y commence son tour rapporte +1 énergie."},
 	"portail": {"name": "Portail jumeau", "glyph": "◎", "col": Color("#c77dff"), "text": "Finir son déplacement dessus mène au portail jumeau, s'il est libre."},
 	"ronces": {"name": "Ronces", "glyph": "✳", "col": Color("#c98a4a"), "text": "4 dégâts à qui s'y arrête ou y est poussé."},
+	# terrains : se couvrir, se retrancher, éviter la braise
+	"fourre": {"name": "Fourré", "glyph": "♣", "col": Color("#4fb86a"), "text": "Qui s'y tient reçoit 30 % de dégâts en moins."},
+	"fort": {"name": "Fort en ruine", "glyph": "♜", "col": Color("#c9b27a"), "text": "Au début du tour de qui s'y tient : soigne 3 et +3 armure."},
+	"lave": {"name": "Faille de braise", "glyph": "♨", "col": Color("#ff6a1a"), "text": "5 dégâts à qui s'y arrête, y est poussé ou y commence son tour."},
+	"autel": {"name": "Autel des vœux", "glyph": "✧", "col": Color("#9fd8ff"), "text": "Un héros qui y commence son tour pioche 1 carte de plus."},
+	"glyphe": {"name": "Glyphe instable", "glyph": "✺", "col": Color("#e05aff"), "text": "Explose en croix (6 dégâts) quand son compte à rebours tombe à 0, puis se recharge."},
 }
 # Anciens (esprit Slay the Spire 2) : au seuil de chaque étage, un bienfait parmi trois.
 const ANCIENTS := {
@@ -333,11 +366,20 @@ const TRAITS := {
 }
 
 const ENCOUNTERS := {
-	1: [["husk", "guetteur", "wisp"], ["guetteur", "husk", "chaman"], ["husk", "carapace", "guetteur"], ["rodeur", "husk", "wisp"]],
-	2: [["husk", "guetteur", "guetteur", "wisp", "chaman"], ["sentinelle", "husk", "husk", "rodeur"], ["carapace", "carapace", "guetteur", "wisp"], ["rodeur", "rodeur", "chaman", "guetteur"]],
-	3: [["sentinelle", "guetteur", "guetteur", "chaman", "husk"], ["carapace", "sentinelle", "wisp", "wisp", "rodeur"], ["rodeur", "rodeur", "guetteur", "carapace", "chaman"]],
+	1: [["husk", "guetteur", "wisp"], ["guetteur", "husk", "chaman"], ["husk", "carapace", "guetteur"], ["rodeur", "husk", "wisp"],
+		["lancier", "lancier", "mage"], ["bretteur", "husk", "guetteur"], ["cavalier", "lancier", "husk"],
+		["crabe", "husk", "guetteur"], ["obelisque", "husk", "guetteur"], ["harpie", "harpie", "crabe"]],
+	2: [["husk", "guetteur", "guetteur", "wisp", "chaman"], ["sentinelle", "husk", "husk", "rodeur"], ["carapace", "carapace", "guetteur", "wisp"], ["rodeur", "rodeur", "chaman", "guetteur"],
+		["cavalier", "lancier", "mage", "danseuse"], ["vouivre", "guetteur", "bretteur", "husk"], ["baliste", "lancier", "lancier", "chaman"], ["vouivre", "vouivre", "mage"],
+		["crapaud", "crabe", "harpie", "harpie"], ["obelisque", "lancier", "mage", "husk"], ["harpie", "harpie", "harpie", "crapaud"]],
+	3: [["sentinelle", "guetteur", "guetteur", "chaman", "husk"], ["carapace", "sentinelle", "wisp", "wisp", "rodeur"], ["rodeur", "rodeur", "guetteur", "carapace", "chaman"],
+		["cavalier", "cavalier", "lancier", "mage", "danseuse"], ["vouivre", "vouivre", "baliste", "bretteur"], ["baliste", "baliste", "lancier", "sentinelle", "mage"],
+		["obelisque", "crabe", "crapaud", "vouivre", "mage"], ["harpie", "harpie", "vouivre", "crapaud", "crabe"], ["obelisque", "obelisque", "lancier", "bretteur"]],
 }
 const ELITES := {1: ["sentinelle", "guetteur", "chaman", "wisp"], 2: ["sentinelle", "carapace", "rodeur", "guetteur", "chaman"]}
+# élites de la Compagnie noyée : un Capitaine et sa garde, tirés une fois sur deux
+const ELITES_NOYES := {1: ["capitaine", "lancier", "mage", "danseuse"], 2: ["capitaine", "cavalier", "lancier", "bretteur", "danseuse"],
+	3: ["capitaine", "vouivre", "baliste", "lancier", "mage", "danseuse"]}
 const BOSS := ["gardien", "chaman", "husk", "husk", "guetteur"]
 
 const ROOMS := {

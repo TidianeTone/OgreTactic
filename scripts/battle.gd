@@ -10,6 +10,10 @@ const EMBER := Color(1.0, 0.55, 0.22)
 const DMG_COL := Color(1.0, 0.93, 0.7)
 
 var main: Node3D
+var danger := false         # zone de danger : tout ce que les ennemis menacent
+var _extra_move := {}       # héros qui ont déjà payé leur course (3 mana) ce tour
+var glyph_t := {}           # glyphe instable -> tours avant l'explosion
+var glyph_lbl := {}
 var orienting := false      # fin du tour à la FFT : le héros choisit où il regarde
 var _orient_from := Vector2i.ZERO
 var _orient_mark: Label3D    # flèche dorée sur la case regardée, visible à travers le décor
@@ -148,6 +152,9 @@ func start(hs: Array, foe_ids: Array, deck_ref: Array, relics_ref: Array) -> voi
 	for i in foe_ids.size():
 		var u := spawn_foe(foe_ids[i], fc[i])
 		u.face(center - u.cell)
+	for f in foes:
+		if f.data.get("structure", false):
+			_isolate(f)
 	var pool: Array = foes.filter(func(f): return f.key != "gardien")
 	for i in mini(champions, pool.size()):
 		var f: Unit = pool[rng.randi_range(0, pool.size() - 1)]
@@ -209,6 +216,27 @@ func spawn_foe(id: String, c: Vector2i) -> Unit:
 	u.place(c, board)
 	foes.append(u)
 	return u
+
+
+func _isolate(f: Unit) -> void:
+	## Une structure se place loin des autres ennemis, à 6-11 cases des héros : il faut aller la chercher.
+	var best := f.cell
+	var bs := -INF
+	for c in board.walkable_cells():
+		if unit_at(c) != null or board.props.has(c):
+			continue
+		var dh := _hero_dist(c)
+		if dh < 6 or dh > 11:
+			continue
+		var df := 99
+		for o in foes:
+			if o != f:
+				df = mini(df, dist(o.cell, c))
+		var s := df * 2.0 - absi(dh - 8)
+		if s > bs:
+			bs = s
+			best = c
+	f.place(best, board)
 
 
 func alive_heroes() -> Array:
@@ -335,6 +363,12 @@ func _remove_prop(c: Vector2i) -> void:
 		tw.tween_callback(node.queue_free)
 
 
+func _open_chest(h: Unit, c: Vector2i) -> void:
+	_remove_prop(c)
+	Fx.burst(main, board.world(c) + Vector3(0, 0.5, 0), Color(1.0, 0.85, 0.4), 50, 3.0, 6.0)
+	main.open_chest(h)
+
+
 func interact(h: Unit, c: Vector2i) -> void:
 	var k: String = board.props[c]
 	busy = true
@@ -342,9 +376,10 @@ func interact(h: Unit, c: Vector2i) -> void:
 	await h.cast()
 	match k:
 		"coffre":
-			_remove_prop(c)
-			Fx.burst(main, board.world(c) + Vector3(0, 0.5, 0), Color(1.0, 0.85, 0.4), 50, 3.0, 6.0)
-			main.open_chest(h)
+			_open_chest(h, c)
+			busy = false
+			changed.emit()
+			return  # ouvrir un coffre au contact est gratuit : le déplacement reste
 		"levier":
 			board.props[c] = "levier_ok"
 			if prop_nodes.has(c) and prop_nodes[c].has_meta("mark"):
@@ -412,6 +447,8 @@ func _next_round() -> void:
 			return
 	if turn == 3 and mods.has("renforts"):
 		_reinforce()
+	if turn > 1:
+		await _glyphs()
 	order = alive_heroes() + alive_foes()
 	order.sort_custom(func(a, b): return _init_key(a) > _init_key(b))
 	for u in order.duplicate():
@@ -517,7 +554,9 @@ func _hero_turn(h: Unit) -> void:
 	hand = pl.keep
 	pl.keep = []
 	_start_draw = true
-	draw(hand_size + (1 if has("grimoire") else 0) + ((1 + int(power_val.get("dnb", 0))) if h.key == "tidiane" and powers.has("dnb") else 0))
+	draw(hand_size + (1 if has("grimoire") else 0) + ((1 + int(power_val.get("dnb", 0))) if h.key == "tidiane" and powers.has("dnb") else 0)
+		+ (1 if tiles.get(h.cell, "") == "autel" else 0))
+	_extra_move.erase(h)
 	_start_draw = false
 	first_free = has("sablier")
 	_first_turn[h] = true
@@ -753,19 +792,41 @@ func click(c: Vector2i) -> void:
 		return
 	var pk: String = board.props.get(c, "")
 	if pk in ["coffre", "levier"] and selected:
-		if selected.moved:
-			main.ui.toast("%s a déjà utilisé son déplacement." % selected.nm)
-		elif dist(selected.cell, c) == 1 and absi(board.h[selected.cell] - board.h[c]) <= 2:
+		var near := dist(selected.cell, c) == 1 and absi(board.h[selected.cell] - board.h[c]) <= 2
+		if near and (pk == "coffre" or not selected.moved):
 			interact(selected, c)
+		elif not selected.moved:
+			# le héros y va tout seul : la case libre la plus proche au contact, puis il ouvre
+			var R := reach(selected)
+			var best = null
+			for cell in R.cells:
+				if dist(cell, c) == 1 and absi(board.h[cell] - board.h[c]) <= 2 and (best == null or R.dist[cell] < R.dist[best]):
+					best = cell
+			if best == null:
+				main.ui.toast("Trop loin : frappez le coffre avec une attaque, ou approchez-vous.")
+				return
+			busy = true
+			var mover := selected
+			await mover.walk(path_to(R.prev, best), board)
+			mover.moved = true
+			await _landed(mover)
+			busy = false
+			if mover.alive:
+				interact(mover, c)
 		else:
-			main.ui.toast("Placez un héros à côté pour l'utiliser.")
+			main.ui.toast("Frappez le coffre avec une attaque pour l'ouvrir." if pk == "coffre" else "%s a déjà utilisé son déplacement." % selected.nm)
 		return
-	if selected and not selected.moved:
+	var sprint := can_sprint(selected)
+	if selected and (not selected.moved or sprint):
 		var R := reach(selected)
 		if R.cells.has(c) and c != selected.cell:
 			busy = true
 			changed.emit()
 			var mover := selected  # la sélection peut changer pendant la marche
+			if sprint:
+				energy -= 3
+				_extra_move[mover] = true
+				Fx.number(main, mover.position + Vector3(0, 1.1, 0), "Course · 3 mana", GOLD_FX)
 			var path := path_to(R.prev, c)
 			await mover.walk(path, board)
 			mover.moved = true
@@ -778,6 +839,11 @@ func click(c: Vector2i) -> void:
 			changed.emit()
 			_after_action()
 			return
+
+
+func can_sprint(u: Unit) -> bool:
+	## Course : un héros qui a déjà bougé peut repartir une fois pour 3 mana.
+	return u != null and u == active and u.moved and energy >= 3 and not _extra_move.has(u) and u.root <= 0
 
 
 func toggle_inspect(u: Unit) -> void:
@@ -919,7 +985,7 @@ func card_targets(c: Dictionary, h: Unit) -> Array:
 		_:
 			var cells: Array = [] if c.get("detonate", false) else alive_foes().map(func(f): return f.cell)
 			for pc in board.props:
-				if board.props[pc] in (BOOM if c.get("detonate", false) else BOOM + ["pilier"]):
+				if board.props[pc] in (BOOM if c.get("detonate", false) else BOOM + ["pilier", "coffre"]):
 					cells.append(pc)
 			for t in cells:
 				var dd := dist(h.cell, t)
@@ -1266,7 +1332,10 @@ func resolve(c: Dictionary, h: Unit, t: Vector2i) -> void:
 			await Fx.bolt(main, h.position, board.world(t), col.lightened(0.3))
 		else:
 			await h.lunge(board.world(t))
-		await trigger_prop(t, _dir(h.cell, t))
+		if board.props.get(t, "") == "coffre":
+			_open_chest(h, t)  # un coup suffit à faire sauter le couvercle
+		else:
+			await trigger_prop(t, _dir(h.cell, t))
 
 
 func attack(h: Unit, f: Unit, c: Dictionary) -> void:
@@ -1529,7 +1598,24 @@ func calc(att: Unit, tgt: Unit, base: int, c := {}) -> Dictionary:
 	if c.get("execute", false) and tgt.hp * 2 < tgt.max_hp:
 		mult *= 2.0
 		notes.append("exécution ×2")
+	if ranged and tgt.fly:
+		mult *= 1.5
+		notes.append("tir sur volant ×1.5")
+	if tiles.get(tgt.cell, "") == "fourre":
+		mult *= 0.7
+		notes.append("fourré ×0.7")
+	# soutien : un allié au contact
+	if att.side == "hero" and alive_heroes().any(func(a): return a != att and dist(a.cell, att.cell) == 1):
+		flat += 2
+		notes.append("soutien +2")
+	if tgt.side == "hero" and alive_heroes().any(func(a): return a != tgt and dist(a.cell, tgt.cell) == 1):
+		flat -= 2
+		notes.append("soutien −2")
+	if att.side == "foe" and att.key != "capitaine" and alive_foes().any(func(o): return o.key == "capitaine" and dist(o.cell, att.cell) <= 2):
+		flat += 2
+		notes.append("ordre du capitaine +2")
 	return {"dmg": maxi(0, int(round(base * mult)) + flat), "notes": notes}
+
 
 
 func damage(u: Unit, amount: int, src: Unit = null, show := true, ranged := false) -> void:
@@ -1812,6 +1898,16 @@ func _intent(f: Unit) -> String:
 			return "† %d" % dmg
 		"boss":
 			return "☖ Appel" if (f.turns + 1) % 3 == 0 else "⚔ %d" % dmg
+		"canto":
+			return "⚔ %d ↩" % dmg
+		"dancer":
+			return "♪ Danse"
+		"spawner":
+			return "✺ Appel"
+		"puller":
+			return "⤶ %d" % dmg
+		"commander":
+			return "⚑ %d" % dmg
 	return "⚔ %d" % dmg
 
 
@@ -1838,6 +1934,15 @@ func foe_act(f: Unit) -> void:
 		f.root -= 1
 		Fx.number(main, f.position + Vector3(0, 0.5, 0), "⛓", Color(0.8, 0.9, 1.0))
 	var R := reach(f) if not rooted else {"prev": {f.cell: f.cell}, "cells": {f.cell: true}, "dist": {f.cell: 0}}
+	if ai == "dancer":
+		await _dance(f, R)
+		return
+	if ai == "spawner":
+		await _summon(f)
+		return
+	if ai == "commander" and not alive_heroes().any(func(h): return dist(h.cell, f.cell) <= 4):
+		Fx.number(main, f.position + Vector3(0, 1.1, 0), "Tient la position", Color(0.6, 0.95, 0.9))
+		return  # il garde sa position : il attend qu'on vienne
 	if ai == "healer":
 		var w := _wounded_ally(f)
 		if w:
@@ -1884,6 +1989,10 @@ func foe_act(f: Unit) -> void:
 				continue
 			var dmg: int = calc(f, h, f.atk()).dmg
 			var s: float = dmg * 10.0 - R.dist[cell] * 0.5
+			if tiles.get(cell, "") in ["lave", "ronces", "glyphe"]:
+				s -= 40  # il évite les pièges du terrain
+			elif tiles.get(cell, "") in ["fourre", "fort"]:
+				s += 12
 			if dmg >= h.hp + h.block:
 				s += 60
 			if ai == "ranged" or ai == "healer":
@@ -1900,6 +2009,8 @@ func foe_act(f: Unit) -> void:
 			await _foe_walk(f, path_to(R.prev, best_cell))
 		if f.alive and can_hit(f, f.cell, best_t):
 			await foe_strike(f, best_t)
+		if ai == "canto" and f.alive and not over:
+			await _canto(f)
 		return
 	# approche : la case la plus proche d'un héros (le plus faible pour l'assassin)
 	var targets: Array = [taunter] if taunter else live
@@ -1923,6 +2034,86 @@ func foe_act(f: Unit) -> void:
 			return
 
 
+func _summon(f: Unit) -> void:
+	## L'obélisque appelle une créature à côté de lui (8 ennemis au plus).
+	if alive_foes().size() >= 8:
+		return
+	var free: Array = Board.DIRS.map(func(d): return f.cell + d).filter(func(c): return board.walkable(c) and unit_at(c) == null and not board.props.has(c))
+	if free.is_empty():
+		return
+	var id: String = ["husk", "wisp", "harpie"][f.turns % (2 if floor_bonus() < 1 else 3)]
+	await f.cast()
+	var u := spawn_foe(id, free[randi() % free.size()])
+	u.face(u.cell - f.cell)
+	Fx.burst(main, u.position + Vector3(0, 0.6, 0), Data.TILES.glyphe.col, 40, 3.0, 5.0)
+	Fx.number(main, f.position + Vector3(0, 2.2, 0), "Appel : %s" % u.nm, Data.TILES.glyphe.col, true)
+	await wait(0.4)
+
+
+func floor_bonus() -> int:
+	return champions  # 0 au premier étage, 1 au deuxième...
+
+
+func _canto(f: Unit) -> void:
+	## Canto : le cavalier frappe puis se replie loin des héros.
+	var R2 := reach(f)
+	var go := f.cell
+	var gs := -INF
+	for cell in R2.cells:
+		if R2.dist.get(cell, 99) > 3 or tiles.get(cell, "") in ["lave", "ronces"]:
+			continue
+		var s := 0.0
+		for h in alive_heroes():
+			s += minf(dist(cell, h.cell), 5)
+		if s > gs:
+			gs = s
+			go = cell
+	if go != f.cell:
+		Fx.number(main, f.position + Vector3(0, 1.1, 0), "Canto", Color(0.6, 0.95, 0.9))
+		await _foe_walk(f, path_to(R2.prev, go))
+
+
+func _dance(f: Unit, R: Dictionary) -> void:
+	## La Danseuse fait rejouer un allié qui a déjà agi ce round ; sinon elle se tient à l'abri.
+	var done: Array = order.slice(0, qi).filter(func(o): return is_instance_valid(o) and o.alive and o.side == "foe" and o.data.ai != "dancer")
+	done.sort_custom(func(a, b): return a.atk() > b.atk())
+	for ally in done:
+		var spot = null
+		var sd := 999
+		for cell in R.cells:
+			if dist(cell, ally.cell) == 1 and R.dist[cell] < sd and not tiles.get(cell, "") in ["lave", "ronces"]:
+				sd = R.dist[cell]
+				spot = cell
+		if spot == null:
+			continue
+		if spot != f.cell:
+			await _foe_walk(f, path_to(R.prev, spot))
+		if not f.alive:
+			return
+		f.face(ally.cell - f.cell)
+		await f.cast()
+		Fx.burst(main, ally.position + Vector3(0, 0.8, 0), Color(0.4, 1.0, 0.9), 40, 3.0)
+		Fx.number(main, ally.position + Vector3(0, 1.3, 0), "Danse : rejoue !", Color(0.5, 1.0, 0.9), true)
+		await wait(0.3)
+		await foe_act(ally)
+		return
+	# personne à faire danser : rester loin des héros, près des siens
+	var go := f.cell
+	var gs := -INF
+	for cell in R.cells:
+		var s := 0.0
+		for h in alive_heroes():
+			s += minf(dist(cell, h.cell), 6)
+		for o in alive_foes():
+			if o != f and dist(o.cell, cell) <= 2:
+				s += 2
+		if s > gs:
+			gs = s
+			go = cell
+	if go != f.cell:
+		await _foe_walk(f, path_to(R.prev, go))
+
+
 func foe_strike(f: Unit, h: Unit) -> void:
 	f.face(h.cell - f.cell)
 	var ai: String = f.data.ai
@@ -1942,14 +2133,33 @@ func foe_strike(f: Unit, h: Unit) -> void:
 		await Fx.bolt(main, f.position, h.position, EMBER)
 	else:
 		await f.lunge(h.position)
+	if ai == "puller" and dist(f.cell, h.cell) > 1:
+		# la langue du crapaud ramène sa proie au contact
+		Fx.number(main, h.position + Vector3(0, 1.0, 0), "Happé !", Color(0.9, 0.4, 0.5), true)
+		await push(h, _dir(h.cell, f.cell), dist(f.cell, h.cell) - 1)
+		if not h.alive:
+			return
 	f.struck_hero = true
-	damage(h, calc(f, h, f.atk()).dmg, f, true, ranged)
+	var dmg: int = calc(f, h, f.atk()).dmg
+	if randf() < float(f.data.get("crit", 0.0)):
+		dmg *= 2
+		Fx.number(main, h.position + Vector3(0, 1.1, 0), "Critique !", Color(1.0, 0.9, 0.3), true)
+		main.shake(0.4)
+	if f.data.get("arme", "") == "magie" and f.data.ai != "healer":
+		var keep := h.block  # la magie passe sous l'armure
+		h.block = 0
+		damage(h, dmg, f, true, ranged)
+		h.block = keep
+	else:
+		damage(h, dmg, f, true, ranged)
 	if ai == "boss":
 		main.shake(0.5)
 		for d in Board.DIRS:
 			var o := unit_at(h.cell + d)
 			if o and o.side == "hero":
 				damage(o, 4, f)
+	if f.data.get("shove", 0) > 0 and h.alive and f.alive:
+		await push(h, _dir(f.cell, h.cell), int(f.data.shove))
 
 
 # ------------------------------------------------------------------ surbrillance
@@ -2011,10 +2221,11 @@ func refresh_highlight(hover) -> void:
 				for d in Board.DIRS:
 					if board._in(hover + d):
 						cells[hover + d] = Color(1.0, 0.6, 0.2, 0.9)
-		elif selected and selected.alive and not selected.moved:
+		elif selected and selected.alive and (not selected.moved or can_sprint(selected)):
+			var sp := selected.moved
 			for t in reach(selected).cells:
 				if t != selected.cell:
-					cells[t] = Color(0.4, 0.68, 1.0, 0.75)
+					cells[t] = Color(0.85, 0.6, 1.0, 0.45) if sp else Color(0.4, 0.68, 1.0, 0.75)
 			for pc in board.props:
 				if board.props[pc] in ["coffre", "levier"] and dist(pc, selected.cell) == 1:
 					cells[pc] = Color(1.0, 0.85, 0.35, 0.95)
@@ -2025,6 +2236,10 @@ func refresh_highlight(hover) -> void:
 		if card_sel < 0 and tool_sel < 0 and look and look.side == "foe":
 			for t in reach(look).cells:
 				cells[t] = Color(1.0, 0.45, 0.2, 0.6)
+	if danger:
+		for t in threat_cells():
+			if not cells.has(t):
+				cells[t] = Color(1.0, 0.25, 0.2, 0.34)
 	if hover != null:
 		cells[hover] = Color(1, 1, 1, 0.45) if not cells.has(hover) else Color(cells[hover].lightened(0.45), maxf(cells[hover].a, 0.6))
 	for f in foes:
@@ -2036,6 +2251,24 @@ func refresh_highlight(hover) -> void:
 		if nd.has_meta("mark"):
 			nd.get_meta("mark").visible = alt or pc == hover or cells.has(pc)
 	board.highlight(cells)
+
+
+func threat_cells() -> Dictionary:
+	## Toutes les cases qu'un ennemi peut frapper ce tour (déplacement + portée).
+	var out := {}
+	for f in alive_foes():
+		if f.data.ai in ["dancer", "spawner"]:
+			continue
+		var r: Array = f.data.range
+		var from: Dictionary = reach(f).cells if f.root <= 0 else {f.cell: true}
+		for c in from:
+			for dx in range(-r[1], r[1] + 1):
+				var w: int = r[1] - absi(dx)
+				for dz in range(-w, w + 1):
+					var t: Vector2i = c + Vector2i(dx, dz)
+					if absi(dx) + absi(dz) >= r[0] and board._in(t) and board.kind[t] != "tower":
+						out[t] = true
+	return out
 
 
 func predict(u: Unit, hover) -> Dictionary:
@@ -2141,6 +2374,8 @@ func sheet(u: Unit) -> String:
 	var arm := int(u.data.get("armor", 0)) + u.extra_armor
 	if arm > 0:
 		L.append("Armure +%d à chaque tour" % arm)
+	if u.data.get("arme", "") == "magie":
+		L.append("Magie : ses coups passent sous l'armure.")
 	L.append("Prochaine action : %s" % intent(u))
 	L.append(_intent_text(u))
 	if u.tool != "":
@@ -2171,6 +2406,16 @@ func _intent_text(f: Unit) -> String:
 			return "Fond sur le héros le plus faible : %d dégâts." % dmg
 		"boss":
 			return "Frappe %d au contact ; appelle des renforts tous les 3 tours." % dmg
+		"canto":
+			return "Frappe %d au contact, puis se replie jusqu'à 3 cases (Canto)." % dmg
+		"dancer":
+			return "Fait rejouer un allié qui a déjà agi ce round."
+		"spawner":
+			return "Invoque une créature à côté de lui à chacun de ses tours."
+		"puller":
+			return "Attire un héros jusqu'à lui depuis %d cases, puis mord : %d dégâts." % [rg[1], dmg]
+		"commander":
+			return "Attend qu'un héros approche à 4 cases, puis frappe %d. Ses soldats à 2 cases frappent +2." % dmg
 	return ""
 
 
@@ -2854,7 +3099,9 @@ func _place_tiles() -> void:
 		free[i] = free[j]
 		free[j] = tmp
 	var kinds: Array = Data.TILES.keys()
-	var want := 3 + int(board.dim >= 16)
+	glyph_t.clear()
+	glyph_lbl.clear()
+	var want := 4 + board.dim / 8
 	for c: Vector2i in free:
 		if want <= 0:
 			break
@@ -2921,6 +3168,34 @@ func _make_tile(c: Vector2i, k: String) -> void:
 	l3.rotation.x = -PI * 0.5
 	l3.position.y = 0.02
 	node.add_child(l3)
+	# un peu de volume pour les terrains : buisson, murets, braises, compte à rebours
+	var deco: String = {"fourre": "bush_green_0", "fort": "rubble", "autel": "crystal_0"}.get(k, "")
+	if deco != "":
+		var md := Board.mesh_of(deco)
+		for part in ["mesh", "glow"]:
+			if md[part] == null:
+				continue
+			var dm := MeshInstance3D.new()
+			dm.mesh = md[part]
+			dm.material_override = Board.material_for(deco, part == "glow")
+			dm.scale = Vector3.ONE * (0.8 if k == "fourre" else 0.6)
+			node.add_child(dm)
+	if k == "glyphe":
+		glyph_t[c] = 3
+		var cd := Label3D.new()
+		cd.text = "3"
+		cd.font = Fx.title_font()
+		cd.font_size = 110
+		cd.pixel_size = 0.006
+		cd.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		cd.no_depth_test = true
+		cd.render_priority = 10
+		cd.modulate = col.lightened(0.4)
+		cd.outline_size = 18
+		cd.outline_modulate = Color(0.05, 0.02, 0.08, 0.9)
+		cd.position.y = 1.1
+		node.add_child(cd)
+		glyph_lbl[c] = cd
 	var tw := l3.create_tween().set_loops()
 	tw.tween_property(l3, "modulate:a", 0.45, 1.1).set_trans(Tween.TRANS_SINE)
 	tw.tween_property(l3, "modulate:a", 1.0, 1.1).set_trans(Tween.TRANS_SINE)
@@ -2930,8 +3205,31 @@ func _make_tile(c: Vector2i, k: String) -> void:
 	gl.omni_range = 1.6
 	gl.position.y = 0.4
 	node.add_child(gl)
+	if k == "lave":
+		gl.light_energy = 2.2  # la faille rougeoie
+		gl.omni_range = 2.2
 	units_root.add_child(node)
 	tile_nodes.append(node)
+
+
+func _glyphs() -> void:
+	## Les glyphes instables comptent à rebours et explosent en croix.
+	for c in glyph_t.keys():
+		glyph_t[c] -= 1
+		if glyph_t[c] <= 0:
+			glyph_t[c] = 3
+			Fx.number(main, board.world(c) + Vector3(0, 1.0, 0), "Glyphe !", Data.TILES.glyphe.col, true)
+			Fx.burst(main, board.world(c) + Vector3(0, 0.5, 0), Data.TILES.glyphe.col, 60, 4.0)
+			main.shake(0.35)
+			for d in [Vector2i.ZERO] + Board.DIRS:
+				var u := unit_at(c + d)
+				if u:
+					damage(u, 6)
+			await wait(0.3)
+		if glyph_lbl.has(c) and is_instance_valid(glyph_lbl[c]):
+			glyph_lbl[c].text = str(glyph_t[c])
+	if over:
+		return
 
 
 func _tile_turn(u: Unit) -> void:
@@ -2939,6 +3237,13 @@ func _tile_turn(u: Unit) -> void:
 	if not u.alive:
 		return
 	match tiles.get(u.cell, ""):
+		"fort":
+			if u.hp < u.max_hp:
+				heal(u, 3)
+			gain_block(u, 3)
+		"lave":
+			Fx.number(main, u.position + Vector3(0, 0.5, 0), "Braise", Color(1.0, 0.5, 0.2))
+			damage(u, 5)
 		"source":
 			if u.hp < u.max_hp:
 				heal(u, 4)
@@ -2958,6 +3263,10 @@ func _landed(u: Unit) -> void:
 	if k == "ronces":
 		Fx.number(main, u.position + Vector3(0, 0.5, 0), "Ronces", Color(0.85, 0.6, 0.35))
 		damage(u, 4)
+	elif k == "lave":
+		Fx.number(main, u.position + Vector3(0, 0.5, 0), "Braise", Color(1.0, 0.5, 0.2))
+		Fx.burst(main, u.position + Vector3(0, 0.3, 0), EMBER, 30, 2.5)
+		damage(u, 5)
 	elif k == "portail" and twins.has(u.cell) and unit_at(twins[u.cell]) == null:
 		var to: Vector2i = twins[u.cell]
 		Fx.burst(main, u.position + Vector3(0, 0.6, 0), Data.TILES.portail.col, 30, 2.5)
