@@ -256,6 +256,8 @@ func gear_dmg() -> int:
 func apply_gear() -> void:
 	## Recalcule les stats dérivées de l'équipement ; les PV suivent le nouveau maximum.
 	move = base_move + int(has_p("deplacement"))
+	if side == "hero":
+		speed = int(data.get("speed", 5)) + (3 if trait_id == "vif" else 0)
 	jump = base_jump + 2 * int(has_p("saut"))
 	var old := max_hp
 	max_hp = base_hp

@@ -790,7 +790,12 @@ func _hero_turn(h: Unit) -> void:
 	played = 0
 	voices.clear()
 	energy = 3 + (1 if not _first_turn.has(h) and has("ambre") else 0) + int(bonus.get(h, 0)) \
-		+ (1 if h.key == "tidiane" and powers.has("obsession") else 0)
+		+ (1 if h.key == "tidiane" and powers.has("obsession") else 0) \
+		+ (1 if not _first_turn.has(h) and h.trait_id == "matinal" else 0) + (1 if h.trait_id == "sang_chaud" and h.hp * 2 < h.max_hp else 0)
+	if not _first_turn.has(h) and h.trait_id == "costaud":
+		gain_block(h, 6)
+	if h.trait_id == "lourdaud":
+		gain_block(h, 4)
 	bonus.erase(h)
 	_tile_turn(h)
 	_power_ticks(h)
@@ -819,7 +824,7 @@ func _hero_turn(h: Unit) -> void:
 		if cu > 0:
 			ci["chg"] = mini(int(ci.get("chg", 0)) + cu, 3 * cu)
 	_start_draw = true
-	draw(hand_size + (1 if has("grimoire") else 0) + ((1 + int(power_val.get("dnb", 0))) if h.key == "tidiane" and powers.has("dnb") else 0)
+	draw(hand_size + (1 if has("grimoire") else 0) + (1 if h.trait_id == "insomniaque" else 0) + ((1 + int(power_val.get("dnb", 0))) if h.key == "tidiane" and powers.has("dnb") else 0)
 		+ (1 if tiles.get(h.cell, "") == "autel" else 0))
 	_extra_move.erase(h)
 	_start_draw = false
@@ -1214,6 +1219,8 @@ func card_range(c: Dictionary, h: Unit) -> Vector2i:
 	var hi: int = r[1]
 	if hi > 1 and h.trait_id == "myope":
 		hi -= 1
+	if hi > 1 and h.trait_id == "lynx":
+		hi += 1
 	if hi > 2 and mods.has("brume") and not powers.has("aelis"):
 		hi -= 1
 	if hi > 1 and h.has_p("concentration"):
@@ -1980,6 +1987,10 @@ func calc(att: Unit, tgt: Unit, base: int, c := {}) -> Dictionary:
 		flat += 3
 	if att.trait_id == "myope" and ranged:
 		flat += 2
+	if att.trait_id == "bagarreur" and not ranged:
+		flat += 2
+	if att.trait_id == "fragile":
+		flat += 3
 	if not ranged and att.has_p("arme_plus"):
 		flat += 2
 	if att.has_p("deux_mains") and not att.struck:
@@ -2020,7 +2031,7 @@ func damage(u: Unit, amount: int, src: Unit = null, show := true, ranged := fals
 	if not u.alive:
 		return
 	# réactions d'esquive
-	if src and ((not ranged and u.has_p("reflexe") and randf() < 0.25) or (ranged and u.has_p("parade") and randf() < 0.5)):
+	if src and ((not ranged and u.has_p("reflexe") and randf() < 0.25) or (ranged and u.has_p("parade") and randf() < 0.5) or (u.trait_id == "chanceux" and randf() < 0.2)):
 		Fx.number(main, u.position, "Esquive", Color(0.8, 0.95, 1.0))
 		u.dodge()
 		return

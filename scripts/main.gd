@@ -624,16 +624,23 @@ func title_place(d: int) -> String:
 	return Data.BIOMES[title_bi].name
 
 
-func _make_party(keys: Array = party) -> void:
-	for u in heroes:
-		u.queue_free()
-	heroes.clear()
+var rolled_traits: Array = []  # tirés par la roulette avant la création de l'escouade
+func _roll_traits() -> Array:
 	var traits := Data.TRAITS.keys()
 	for i in range(traits.size() - 1, 0, -1):
 		var j := rng.randi_range(0, i)
 		var t = traits[i]
 		traits[i] = traits[j]
 		traits[j] = t
+	return traits
+
+
+func _make_party(keys: Array = party) -> void:
+	for u in heroes:
+		u.queue_free()
+	heroes.clear()
+	var traits: Array = rolled_traits if rolled_traits.size() >= keys.size() else _roll_traits()
+	rolled_traits = []
 	var i := 0
 	for k in keys:
 		var u := Unit.new()
@@ -648,6 +655,14 @@ func _make_party(keys: Array = party) -> void:
 				u.base_move += 1
 			"colosse":
 				u.base_hp += 8
+				u.base_move -= 1
+			"insomniaque":
+				u.base_hp -= 4
+			"fragile":
+				u.base_hp -= 6
+			"grimpeur":
+				u.base_jump += 2
+			"lourdaud":
 				u.base_move -= 1
 		u.base_hp = int(round(u.base_hp * Data.DIFFICULTY[difficulty].hp * (0.85 if pacts.has("sang") else 1.0)))
 		u.max_hp = u.base_hp
@@ -667,6 +682,8 @@ func new_run() -> void:
 	mode = await _pick_mode()
 	difficulty = await _pick_difficulty()
 	party = await _draft()
+	rolled_traits = _roll_traits()
+	await ui.trait_roulette(party, rolled_traits)
 	pacts = await _pick_pacts()
 	tuto = false
 	_start_run()
@@ -720,6 +737,8 @@ func _tutorial() -> void:
 	difficulty = 0
 	pacts = []
 	party = ["garde", "lame", "oracle"]
+	rolled_traits = _roll_traits()
+	await ui.trait_roulette(party, rolled_traits)
 	_start_run()
 	await ui.choose("INITIATION", "Une descente éclair pour découvrir le multiclasse", [
 		{"title": "Trois combats", "glyph": "⚔", "text": "Deux escarmouches, puis une élite. Ennemis mous, soins généreux.", "color": Color("#8fd0a0")},
@@ -1078,7 +1097,7 @@ func open_chest(h: Unit) -> void:
 
 
 func _rewards(type: String) -> void:
-	var g := int((rng.randi_range(18, 28) + (30 if type == "elite" else 0)) * (1.0 + 0.25 * pacts.size()) * (1.5 if next_mods.size() > 0 else 1.0) * (1.25 if relics.has("bourse") else 1.0))
+	var g := int((rng.randi_range(18, 28) + (30 if type == "elite" else 0)) * (1.0 + 0.25 * pacts.size()) * (1.15 if heroes.any(func(h): return h.trait_id == "radin") else 1.0) * (1.5 if next_mods.size() > 0 else 1.0) * (1.25 if relics.has("bourse") else 1.0))
 	gold += g
 	ui.set_gold(gold)
 	if type == "elite" or rng.randf() < 0.4:
@@ -2437,6 +2456,14 @@ func _uitest() -> void:
 	await _frames(30)
 	_shot(dir, "escouade")
 	ui.picked.emit(-1)
+	await _frames(10)
+	var ro := func(): await ui.trait_roulette(party, _roll_traits())
+	ro.call()
+	await _frames(40)
+	_shot(dir, "roulette_tourne")
+	await _frames(200)
+	_shot(dir, "roulette")
+	ui.picked.emit(0)
 	await _frames(10)
 	var pk := func(): await _pick_pacts()
 	pk.call()

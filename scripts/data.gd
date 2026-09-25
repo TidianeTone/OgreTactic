@@ -497,6 +497,18 @@ const TRAITS := {
 	"nageur": {"name": "Nageur", "text": "Insensible à la noyade."},
 	"myope": {"name": "Myope", "text": "Portée à distance -1, dégâts +2."},
 	"beni": {"name": "Béni", "text": "Soins reçus +50 %."},
+	"matinal": {"name": "Matinal", "text": "+1 énergie à son premier tour de chaque combat."},
+	"insomniaque": {"name": "Insomniaque", "text": "Pioche 1 carte de plus, PV max -4."},
+	"costaud": {"name": "Costaud", "text": "Commence chaque combat avec 6 d'armure."},
+	"bagarreur": {"name": "Bagarreur", "text": "+2 aux attaques au contact."},
+	"lynx": {"name": "Œil de lynx", "text": "Portée des attaques à distance +1."},
+	"fragile": {"name": "Fragile", "text": "+3 à toutes ses attaques, PV max -6."},
+	"grimpeur": {"name": "Grimpeur", "text": "Saut +2."},
+	"lourdaud": {"name": "Lourdaud", "text": "Déplacement -1, +4 armure au début de son tour."},
+	"chanceux": {"name": "Chanceux", "text": "20 % d'esquiver une attaque."},
+	"sang_chaud": {"name": "Sang chaud", "text": "+1 énergie à son tour sous la moitié de ses PV."},
+	"radin": {"name": "Radin", "text": "L'or gagné en combat +15 %."},
+	"vif": {"name": "Vif", "text": "Vitesse +3 : joue plus tôt dans le round."},
 }
 
 const ENCOUNTERS := {

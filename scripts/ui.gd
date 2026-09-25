@@ -2300,3 +2300,116 @@ func equipment_screen(heroes: Array, bag: Array) -> Dictionary:
 	await picked
 	_close_overlay()
 	return _eq_act
+
+
+# ------------------------------------------------------------------ roulette des traits
+
+func trait_roulette(keys: Array, traits: Array) -> void:
+	## Chaque héros fait défiler les traits comme un rouleau de machine à sous ; ils s'arrêtent l'un après l'autre.
+	_close_overlay()
+	last_n = 1
+	overlay = Control.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 100
+	root.add_child(overlay)
+	var dim := ColorRect.new()
+	dim.color = Color(0.03, 0.03, 0.04, dim_alpha)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(dim)
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 22)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(box)
+	var tl := _shadowed(_label("TRAITS", 44, INK, wide_f), 10)
+	tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(tl)
+	var sl := _shadowed(_label("Chacun arrive avec son caractère : un don, un défaut, parfois les deux", 16, GOLD), 6)
+	sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(sl)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 28)
+	box.add_child(row)
+	const ROW_H := 56.0
+	var all: Array = Data.TRAITS.keys()
+	var done := [0]
+	for hi in keys.size():
+		var k: String = keys[hi]
+		var col: Color = Data.CLASS_COLOR[k]
+		var p := PanelContainer.new()
+		var ps := sb(Color(0.08, 0.07, 0.075, 0.94), col, 14, 2, 12)
+		ps.content_margin_left = 18
+		ps.content_margin_right = 18
+		ps.content_margin_top = 16
+		ps.content_margin_bottom = 16
+		p.add_theme_stylebox_override("panel", ps)
+		p.custom_minimum_size = Vector2(300, 0)
+		row.add_child(p)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 10)
+		p.add_child(v)
+		var por := TextureRect.new()
+		por.texture = load("res://assets/art/portrait_%s.png" % k)
+		por.custom_minimum_size = Vector2(96, 96)
+		por.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		por.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		v.add_child(por)
+		var nm := _label(Data.HEROES[k].name, 24, col.lightened(0.35), title_f)
+		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(nm)
+		# la fenêtre du rouleau : une ligne visible, bordée d'or
+		var win := Panel.new()
+		win.custom_minimum_size = Vector2(260, ROW_H)
+		win.clip_contents = true
+		win.add_theme_stylebox_override("panel", sb(Color(0.03, 0.025, 0.03, 1.0), GOLD.darkened(0.2), 8, 2, 0))
+		v.add_child(win)
+		var strip := VBoxContainer.new()
+		strip.add_theme_constant_override("separation", 0)
+		win.add_child(strip)
+		var n := 22 + hi * 7
+		var seq: Array = []
+		for j in n:
+			seq.append(all[(j * 7 + hi * 3) % all.size()])
+		seq.append(traits[hi])
+		for t in seq:
+			var l := _label(Data.TRAITS[t].name, 24, INK, Fx.goth("pirataone"))
+			l.custom_minimum_size = Vector2(260, ROW_H)
+			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			strip.add_child(l)
+		var txt := _label(" ", 15, DIM)
+		txt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		txt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		txt.custom_minimum_size = Vector2(260, 44)
+		v.add_child(txt)
+		var tw := create_tween()
+		tw.tween_property(strip, "position:y", -ROW_H * n, 1.4 + 0.6 * hi).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
+		var last: Label = strip.get_child(n)
+		var t_id: String = traits[hi]
+		tw.tween_callback(func():
+			last.add_theme_color_override("font_color", GOLD.lightened(0.2))
+			txt.text = Data.TRAITS[t_id].text
+			txt.add_theme_color_override("font_color", INK)
+			var pop := create_tween()
+			win.pivot_offset = win.size / 2
+			pop.tween_property(win, "scale", Vector2.ONE * 1.1, 0.08)
+			pop.tween_property(win, "scale", Vector2.ONE, 0.15)
+			done[0] += 1)
+	var go := Button.new()
+	go.text = "Continuer"
+	go.add_theme_font_override("font", title_f)
+	go.add_theme_font_size_override("font_size", 20)
+	go.add_theme_color_override("font_color", INK)
+	go.add_theme_stylebox_override("normal", sb(Color(0.1, 0.09, 0.1, 0.94), GOLD.darkened(0.2), 10, 2, 8))
+	go.add_theme_stylebox_override("hover", sb(Color(0.2, 0.16, 0.1, 0.96), GOLD, 10, 2, 8))
+	go.custom_minimum_size = Vector2(260, 50)
+	go.pressed.connect(func():
+		if done[0] >= keys.size():
+			picked.emit(0))
+	var gc := CenterContainer.new()
+	gc.add_child(go)
+	box.add_child(gc)
+	await picked
+	_close_overlay()
