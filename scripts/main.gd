@@ -80,6 +80,7 @@ var _tap_drag := 0.0       # chemin parcouru par le doigt depuis qu'il s'est pos
 var music_vol := 0.6        # 0 à 1, réglé dans le menu Échap et gardé dans user://reglages.cfg
 var library := {}           # cartes découvertes, gardées dans user://bibliotheque.cfg
 var _lib_dirty := false
+var pending_cards: Array = []  # cartes gagnées en combat (porteurs, coffres), offertes après
 var tuto := false  # run d'initiation : points de job ×3, ni sauvegarde ni carte d'étage
 var voc_intro_done := false  # l'explication de la vocation déjà montrée pendant cette run
 
@@ -875,6 +876,16 @@ func _loop() -> void:
 			fmap = []
 
 
+func _flush_cards() -> void:
+	## Les cartes gagnées en route : on la prend ou on la laisse (un paquet trop gros se dilue).
+	while pending_cards.size() > 0:
+		var id: String = pending_cards.pop_front()
+		var i := await ui.choose("CARTE TROUVÉE", "Un porteur, un vol ou un coffre : ajoutez-la au paquet (%d cartes) ou laissez-la" % deck.size(),
+			[{"card": {"id": id, "lvl": 1}, "tag": Data.HEROES[Data.CARDS[id].owner].name if Data.CARDS.has(id) else ""}], true, "La laisser")
+		if i >= 0:
+			deck.append({"id": id, "lvl": 1})
+
+
 func _post_fight(type: String) -> void:
 	fights += 1
 	for h in heroes:
@@ -889,6 +900,7 @@ func _post_fight(type: String) -> void:
 		for h in heroes:
 			await _gain_pj(h, 2 if type == "elite" else 1)
 		await _rewards(type)
+	await _flush_cards()
 	for k in battle.pending_relics:
 		await _relic_pick("DÉCOUPE", "Le trophée d'une grande chasse")
 	battle.pending_relics = 0
@@ -1099,6 +1111,10 @@ func _gain_item(id: String, h: Unit = null) -> void:
 
 func open_chest(h: Unit) -> void:
 	var g := 0
+	if rng.randf() < 0.15:
+		pending_cards.append(_card_roll(2))
+		Fx.number(self, h.position + Vector3(0, 1.0, 0), "Une carte !", Color(1.0, 0.85, 0.4))
+		ui.toast("Le coffre cachait une carte.")
 	if h.has_p("chasseur"):
 		g += 25
 	if rng.randf() < 0.35:
@@ -2459,7 +2475,9 @@ func _uitest() -> void:
 	heroes[0].equip = {"arme": "epee_ecluse", "armure": "brigandine_noyee", "bottes": "bottes_vase", "bijou": "croc_brochet"}
 	heroes[0].apply_gear()
 	heroes[1].voc = "oracle"
+	args["porteur"] = "marque"
 	battle.start(heroes, Data.ENCOUNTERS[1][0], deck, relics)
+	args.erase("porteur")
 	target = _units_center()
 	_snap_cam()
 	await _frames(90)
@@ -2478,6 +2496,12 @@ func _uitest() -> void:
 	ui.hero_sheet(heroes[0])
 	await _frames(20)
 	_shot(dir, "fiche_heros")
+	var carrier: Array = battle.foes.filter(func(f): return f.card_id != "")
+	if carrier.size() > 0:
+		hover = carrier[0].cell
+		refresh_hover()
+		await _frames(10)
+		_shot(dir, "porteur")
 	ui.sheet_layer.queue_free()
 	ui.sheet_layer = null
 	print("ennemis équipés : ", battle.foes.map(func(f): return "%s %s" % [f.nm, f.equip.values().filter(func(x): return x != "")]))
@@ -2554,6 +2578,13 @@ func _uitest() -> void:
 	rw.call()
 	await _frames(30)
 	_shot(dir, "butin2")
+	ui.picked.emit(-1)
+	await _frames(10)
+	pending_cards = ["c_signal_meute"]
+	var fc := func(): await _flush_cards()
+	fc.call()
+	await _frames(30)
+	_shot(dir, "carte_trouvee")
 	ui.picked.emit(-1)
 	await _frames(10)
 	var ap := func(): await _confirm_upgrade({"id": "charge", "lvl": 2}, {"id": "charge", "lvl": 3})
@@ -3033,6 +3064,7 @@ func _adv_event(k: int) -> void:
 			if r.node:
 				r.node.queue_free()
 			open_chest(heroes[0])
+			await _flush_cards()
 			_explore_hud()
 		"marchand":
 			r.done = true  # un seul passage : l'étal ne se regarnit pas

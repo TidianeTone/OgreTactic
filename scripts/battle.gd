@@ -136,9 +136,11 @@ func start(hs: Array, foe_ids: Array, deck_ref: Array, relics_ref: Array) -> voi
 	heroes = hs
 	deck = deck_ref
 	relics = relics_ref
-	for f in foes:
-		f.queue_free()
+	for f in foes + _gone:
+		if is_instance_valid(f):
+			f.queue_free()
 	foes.clear()
+	_gone.clear()
 	over = false
 	turn = 0
 	card_sel = -1
@@ -221,6 +223,14 @@ func start(hs: Array, foe_ids: Array, deck_ref: Array, relics_ref: Array) -> voi
 		var f: Unit = pool[rng.randi_range(0, pool.size() - 1)]
 		pool.erase(f)
 		f.make_champion(Data.AFFIXES.keys()[rng.randi_range(0, Data.AFFIXES.size() - 1)])
+	var carriers: Array = foes.filter(func(f): return f.key != "gardien" and not f.data.get("structure", false))
+	if carriers.size() > 0 and (rng.randf() < 0.3 or main.args.has("porteur")) and not main.tuto:
+		var cf: Unit = carriers[rng.randi_range(0, carriers.size() - 1)]
+		cf.card_id = main._card_roll(2)
+		cf.card_cond = Data.CARD_CONDS.keys()[rng.randi_range(0, Data.CARD_CONDS.size() - 1)]
+		if Data.CARD_CONDS.has(str(main.args.get("porteur", ""))):
+			cf.card_cond = main.args.porteur  # test : -- --porteur=fuite
+		_card_mark(cf)
 	var gear_rate: float = clampf(0.08 * (main.fights - 1), 0.0, 0.45) if main.fights >= 2 else 0.0
 	for f in foes:
 		if f.key != "gardien" and not f.data.get("structure", false) and rng.randf() < gear_rate:
@@ -1964,6 +1974,75 @@ func _dir(a: Vector2i, b: Vector2i) -> Vector2i:
 
 # ------------------------------------------------------------------ dégâts
 
+var _gone: Array = []  # fuyards échappés, cachés jusqu'au combat suivant
+var _cause := ""  # comment l'unité qui tombe a été achevée : "eau", "piege" (défis des porteurs de carte)
+
+
+func _card_mark(f: Unit) -> void:
+	## Au-dessus du porteur : une carte dorée qui tourne doucement.
+	var l3 := Label3D.new()
+	l3.name = "CardMark"
+	l3.text = "🃏"
+	l3.font = Fx.goth("pirataone")
+	l3.font_size = 90
+	l3.pixel_size = 0.005
+	l3.modulate = Color(1.0, 0.82, 0.35)
+	l3.outline_size = 14
+	l3.outline_modulate = Color(0.1, 0.05, 0.02, 0.9)
+	l3.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l3.position.y = 2.1
+	f.add_child(l3)
+	var tw := l3.create_tween().set_loops()
+	tw.tween_property(l3, "position:y", 2.3, 0.8).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(l3, "position:y", 2.1, 0.8).set_trans(Tween.TRANS_SINE)
+
+
+func _card_won(f: Unit, how: String) -> void:
+	if f.card_id == "":
+		return
+	main.pending_cards.append(f.card_id)
+	Fx.number(main, f.position + Vector3(0, 1.8, 0), "%s : %s" % [how, Data.def(f.card_id).name], GOLD_FX, true)
+	log_add("🃏 %s — %s" % [how, Data.def(f.card_id).name])
+	f.card_id = ""
+	if f.has_node("CardMark"):
+		f.get_node("CardMark").queue_free()
+
+
+func _flee(f: Unit) -> void:
+	## Le fuyard s'éloigne des héros ; au 3e tour il disparaît avec sa carte.
+	f.flee_n += 1
+	if f.flee_n >= 3 and f.card_id != "":
+		Fx.number(main, f.position + Vector3(0, 1.3, 0), "S'enfuit !", Color(0.8, 0.8, 0.9), true)
+		log_add("%s s'enfuit avec sa carte" % f.nm)
+		main.ui.toast("%s s'est échappé avec %s." % [f.nm, Data.def(f.card_id).name])
+		f.card_id = ""
+		foes.erase(f)
+		f.alive = false
+		var tw := f.create_tween()
+		tw.tween_property(f, "scale", Vector3.ONE * 0.01, 0.4)
+		tw.tween_callback(func(): f.visible = false)
+		_gone.append(f)  # libéré au prochain combat : son tour est encore en cours
+		await wait(0.5)
+		check_end()
+		return
+	var R := reach(f) if f.root <= 0 else {"prev": {f.cell: f.cell}, "cells": {f.cell: true}, "dist": {f.cell: 0}}
+	var hs := alive_heroes()
+	var best: Vector2i = f.cell
+	var best_d := -1
+	for c in R.cells:
+		if unit_at(c) != null and c != f.cell:
+			continue
+		var dmin := 99
+		for h in hs:
+			dmin = mini(dmin, dist(c, h.cell))
+		if dmin > best_d:
+			best_d = dmin
+			best = c
+	if best != f.cell:
+		await _foe_walk(f, path_to(R.prev, best))
+	Fx.number(main, f.position + Vector3(0, 1.3, 0), "Fuit · %d" % (3 - f.flee_n), Color(1.0, 0.85, 0.5))
+
+
 func _equip_foe(f: Unit) -> void:
 	## Une pièce (jamais une arme de classe), rareté selon l'étage ; elle se voit sur la fiche et se vole.
 	var rar := 1 + int(rng.randf() < 0.15 * main.floor_i) + int(main.floor_i >= 3 and rng.randf() < 0.2)
@@ -2181,6 +2260,12 @@ func kill(u: Unit, src: Unit = null) -> void:
 	u.hp = 0
 	u.die()
 	Fx.burst(main, u.position + Vector3(0, 0.5, 0), EMBER, 40, 3.5)
+	if u.side == "foe" and u.card_id != "":
+		var ok: bool = {"fuite": true, "vite": turn <= 2, "eau": _cause == "eau", "piege": _cause == "piege", "marque": u.mark > 0}.get(u.card_cond, false)
+		if ok:
+			_card_won(u, "Carte gagnée")
+		else:
+			Fx.number(main, u.position + Vector3(0, 1.8, 0), "Carte perdue", Color(0.7, 0.7, 0.75))
 	if u.side == "foe" and src and src.side != "foe" and src.has_p("charogne"):
 		gain_block(src, 4)
 	if u.side == "foe":
@@ -2313,11 +2398,15 @@ func _push_steps(u: Unit, d: Vector2i, n: int) -> void:
 			main.shake(0.2)
 			if u.data.get("heavy", false):
 				Fx.number(main, u.position, "Coulé", Color(0.6, 0.85, 1.0), true)
+				_cause = "eau"
 				kill(u)
+				_cause = ""
 				return
 			if u.trait_id != "nageur" and not u.has_p("flotte"):
 				Fx.number(main, u.position, "Noyade", Color(0.6, 0.85, 1.0))
+				_cause = "eau"
 				damage(u, 8 + (6 if has("cloche") and u.side == "foe" else 0))
+				_cause = ""
 			if u.alive:
 				var free := _nearest_free(nx)
 				u.cell = free
@@ -2434,6 +2523,9 @@ func foe_act(f: Unit) -> void:
 			u.face(f.cell - u.cell)
 			Fx.burst(main, u.position + Vector3(0, 0.5, 0), EMBER, 30, 2.0, 6.0)
 		await wait(0.5)
+		return
+	if f.card_cond == "fuite" and f.card_id != "":
+		await _flee(f)
 		return
 	if f.tool != "":
 		await _foe_tool(f)  # l'objet ne coûte pas son action
@@ -2886,6 +2978,9 @@ func sheet(u: Unit) -> String:
 	var arm := int(u.data.get("armor", 0)) + u.extra_armor
 	if arm > 0:
 		L.append("Armure +%d à chaque tour" % arm)
+	if u.card_id != "":
+		var left := (" Encore %d tour(s)." % (3 - u.flee_n)) if u.card_cond == "fuite" else ""
+		L.append("🃏 %s — garde %s. %s%s" % [Data.CARD_CONDS[u.card_cond].name, Data.def(u.card_id).name, Data.CARD_CONDS[u.card_cond].text, left])
 	for sl in u.equip:
 		if u.equip[sl] != "":
 			L.append("⚙ Équipé : %s — %s" % [Data.ITEMS[u.equip[sl]].name, Data.item_text(u.equip[sl]).split("\n")[1]])
@@ -3051,7 +3146,9 @@ func _spring(f: Unit) -> void:
 				f.root = maxi(f.root, 1)
 				if powers.has("instinct"):
 					f.mark = maxi(f.mark, 2)
+				_cause = "piege"
 				damage(f, td + plus + (6 + int(power_val.get("instinct", 0)) if powers.has("instinct") else 0))
+				_cause = ""
 			"mine":
 				f.mark = maxi(f.mark, 2)
 				_explode(cell, td + plus)
@@ -3478,6 +3575,12 @@ func _add_bricole(h: Unit, n: int) -> void:
 
 func _steal(h: Unit, f: Unit) -> bool:
 	## Voler rapporte toujours : l'objet porté, sinon ce qui traîne dans ses poches ; besace pleine, on revend.
+	if f.card_id != "":
+		_card_won(f, "Carte volée")
+		stolen_turn += 1
+		_fourgue(h, true)
+		changed.emit()
+		return true
 	for sl in f.equip:
 		if f.tool == "" and f.equip[sl] != "":
 			var gid: String = f.equip[sl]
@@ -3689,7 +3792,8 @@ func _smoke_tick() -> void:
 
 func _place_tiles() -> void:
 	for n in tile_nodes:
-		n.queue_free()
+		if is_instance_valid(n):
+			n.queue_free()
 	tile_nodes.clear()
 	tiles.clear()
 	twins.clear()

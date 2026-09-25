@@ -440,6 +440,15 @@ const PACTS := {
 	"brume": {"name": "Brume éternelle", "text": "Portée des attaques à distance -1 dans tous les combats."},
 	"champion": {"name": "Champions", "text": "Un champion de plus dans chaque combat."},
 }
+# Porteurs de carte : un ennemi par combat, parfois, garde une carte. On la gagne en remplissant la condition,
+# ou en la volant. Le fuyard, lui, s'échappe au bout de 3 tours.
+const CARD_CONDS := {
+	"fuite": {"name": "Fuyard", "text": "Il fuit et s'échappe au bout de 3 tours avec sa carte. Abattez-le avant."},
+	"vite": {"name": "Défi : éclair", "text": "Abattez-le avant la fin du round 2 pour gagner sa carte."},
+	"eau": {"name": "Défi : noyade", "text": "Faites-le tomber à l'eau pour l'achever et gagner sa carte."},
+	"piege": {"name": "Défi : collet", "text": "Achevez-le avec un piège pour gagner sa carte."},
+	"marque": {"name": "Défi : curée", "text": "Achevez-le pendant qu'il est Marqué pour gagner sa carte."},
+}
 const RARITY_COL := {1: Color("#a79d8b"), 2: Color("#6fb0e0"), 3: Color("#ffcf5a"), 4: Color("#ff8a3d")}
 const RARITY_NAME := {1: "Commune", 2: "Peu commune", 3: "Rare", 4: "Légendaire"}
 

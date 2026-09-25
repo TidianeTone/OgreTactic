@@ -2572,7 +2572,7 @@ func trait_roulette(keys: Array, traits: Array) -> void:
 		txt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		txt.custom_minimum_size = Vector2(260, 44)
 		v.add_child(txt)
-		var tw := create_tween()
+		var tw := strip.create_tween()  # meurt avec l'écran si on le ferme avant l'arrêt
 		tw.tween_property(strip, "position:y", -ROW_H * n, 1.4 + 0.6 * hi).set_trans(Tween.TRANS_QUART).set_ease(Tween.EASE_OUT)
 		var last: Label = strip.get_child(n)
 		var t_id: String = traits[hi]
@@ -2580,7 +2580,7 @@ func trait_roulette(keys: Array, traits: Array) -> void:
 			last.add_theme_color_override("font_color", GOLD.lightened(0.2))
 			txt.text = Data.TRAITS[t_id].text
 			txt.add_theme_color_override("font_color", INK)
-			var pop := create_tween()
+			var pop := win.create_tween()
 			win.pivot_offset = win.size / 2
 			pop.tween_property(win, "scale", Vector2.ONE * 1.1, 0.08)
 			pop.tween_property(win, "scale", Vector2.ONE, 0.15)

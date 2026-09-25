@@ -223,11 +223,11 @@ def item_rows(slot):
         out += "<div class='it'><img src='%s'><div><b>%s</b> <span class='r%d'>%s</span><br>%s</div></div>" % (img, E(it["name"]), it["rarity"], ["", "commun", "peu commun", "rare"][it["rarity"]], fmt(it["text"]))
     return out
 chap("L'arsenal : équipement et besace")
-page("<div class='kicker'>Chapitre 6</div><h2>L'arsenal</h2><p class='lede'>Deux emplacements par héros : une <b>arme</b> propre à sa classe et un <b>talisman</b>. On les trouve dans les coffres, chez le marchand et sur les élites ; le sac garde ce qui n'est pas porté.</p><h3>Armes</h3><div class='items'>" + item_rows("arme") + "</div>", title="Arsenal")
+page("<div class='kicker'>Chapitre 6</div><h2>L'arsenal</h2><p class='lede'>Quatre emplacements par héros : une <b>arme</b> propre à sa classe, une <b>armure</b>, des <b>bottes</b> et un <b>bijou</b>. On les trouve dans les coffres, chez le marchand et sur les élites ; à partir du 3e combat, certains ennemis en portent une pièce (rarement lâchée, mais volable). Le sac garde ce qui n'est pas porté.</p><h3>Armes</h3><div class='items'>" + item_rows("arme") + "</div>", title="Arsenal")
 tools = "".join("<div class='it'><img src='img/tool_%s.png'><div><b>%s</b><br>%s%s</div></div>" % (k, E(t["name"]), E(t["text"]), ("<br><i>Porté par un ennemi : il %s.</i>" % E(t["foe_ai"])) if t.get("foe_ai") else "") for k, t in D["tools"].items())
 pas = "".join("<tr><td><b>%s</b></td><td>%s</td></tr>" % (E(p["name"]), E(p["text"])) for p in D["passives"].values())
 tr = "".join("<tr><td><b>%s</b></td><td>%s</td></tr>" % (E(p["name"]), E(p["text"])) for p in D["traits"].values())
-page("<h3>Talismans</h3><div class='items'>" + item_rows("talisman") + "</div><h3>La besace : objets à usage unique</h3><p>Sans mana, utilisés par le héros sélectionné. Les ennemis en portent aussi : volez-les, ou ils les lâchent en tombant.</p><div class='items'>" + tools + "</div>", title="Arsenal")
+page("<h3>Armures</h3><div class='items'>" + item_rows("armure") + "</div><h3>Bottes</h3><div class='items'>" + item_rows("bottes") + "</div><h3>Bijoux</h3><div class='items'>" + item_rows("bijou") + "</div><h3>La besace : objets à usage unique</h3><p>Sans mana, utilisés par le héros sélectionné. Les ennemis en portent aussi : volez-les, ou ils les lâchent en tombant.</p><div class='items'>" + tools + "</div>", title="Arsenal")
 page("<div class='cols2'><div><h3>Capacités d'équipement</h3><table class='t small'>" + pas + "</table></div><div><h3>Traits de héros</h3><p>Tirés au hasard en début de run.</p><table class='t small'>" + tr + "</table></div></div>", title="Arsenal")
 
 # ------------------------------------------------------------------ reliques, anciens, pactes
