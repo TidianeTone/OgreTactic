@@ -66,32 +66,32 @@ def folio(n, title):
 
 
 pages = []
+N_CLS = sum(1 for c in CARDS if len(c["cls"]) == 1)
+N_GLD = sum(1 for c in CARDS if len(c["cls"]) == 2)
+CHAP = {}
+
+
+def chap(name):
+    CHAP[name] = len(pages) + 1  # +1 : le sommaire est inséré après la couverture
 
 
 def page(body, cls="", title=""):
-    pages.append("<section class='page %s'>%s%s</section>" % (cls, body, folio(len(pages) + 1, title)))
+    pages.append("<section class='page %s'>%s%s</section>" % (cls, body, folio(len(pages) + 2, title)))  # +1 : le sommaire, inséré à la fin
 
 
 # ------------------------------------------------------------------ couverture
 pages.append("""<section class='page cover'><img class='bg' src='img/cover.jpg'><div class='veil'></div>
 <div class='ct'><div class='kick'>Guide officiel</div><h1>TONERTACTIC</h1><div class='sub'>Les ruines de l'Écluse</div>
-<ul><li>Les 8 classes et leurs 87 cartes, niveau par niveau</li><li>Les 28 guildes multiclasses et leurs 168 cartes, légendaires comprises</li>
+<ul><li>Les 8 classes, leurs trois routes et leurs """ + str(N_CLS) + """ cartes, niveau par niveau</li><li>Les 28 guildes multiclasses et leurs """ + str(N_GLD) + """ cartes, légendaires comprises</li>
 <li>Bestiaire complet : 20 ennemis, leur IA et comment les battre</li><li>Équipement, objets, reliques, Anciens, pactes, terrains</li>
-<li>Stratégies de run, du premier étage au Gardien</li></ul></div>
+<li>Événements, compagnons, marchand et haltes</li><li>Stratégies de run, du premier étage au Gardien</li></ul></div>
 <div class='edition'>Édition du 25 septembre 2026</div></section>""")
 
 # ------------------------------------------------------------------ sommaire
-toc = [("Bienvenue dans l'Écluse", 3), ("Les règles du combat", 4), ("Les cartes", 6), ("Les héros", 8), ("Vocations et guildes", 25),
-       ("L'arsenal : équipement et besace", 42), ("Reliques, Anciens et pactes", 44), ("Bestiaire", 46), ("Terrains et environnement", 52),
-       ("La run, salle par salle", 54), ("Stratégies d'expert", 55)]
-page("<div class='kicker'>Sommaire</div><h2>Ce que contient ce guide</h2><div class='toc'>" +
-     "".join("<div><span>%s</span><span></span></div>" % E(t) for t, p in toc) +
-     "</div><div class='box tip'><h4>Comment lire les cartes</h4><p>Chaque carte est présentée avec son illustration, son coût (pastille dorée), "
-     "son type, sa rareté et ses <b>trois niveaux</b>. Les niveaux II et III s'obtiennent à la forge (marchand, sanctuaire) ou en fusionnant deux doubles. "
-     "Les mots en gras sont des <b class='trig'>déclencheurs</b> : un bonus quand leur condition tient.</p></div>"
-     "<img class='wide' src='img/titre.jpg'>", title="Sommaire")
+
 
 # ------------------------------------------------------------------ bienvenue
+chap("Bienvenue dans l'Écluse")
 page("""<div class='kicker'>Chapitre 1</div><h2>Bienvenue dans l'Écluse</h2>
 <p class='lede'>TonerTactic est un roguelike tactique à cartes : l'esprit de Final Fantasy Tactics et de Disgaea sur le terrain, la structure de Slay the Spire dans le paquet.
 Trois héros descendent trois étages de ruines inondées jusqu'au Gardien de l'Écluse. Chaque mort est définitive ; chaque run est différente.</p>
@@ -106,6 +106,7 @@ La <b>bibliothèque</b> garde toutes les cartes découvertes, d'une partie à l'
 <img class='wide' src='img/carte.jpg'><p class='cap'>La carte d'un étage en mode Descente : 7 salles, deux marchands, un sanctuaire, un gardien.</p>""", title="Chapitre 1")
 
 # ------------------------------------------------------------------ combat
+chap("Les règles du combat")
 page("""<div class='kicker'>Chapitre 2</div><h2>Les règles du combat</h2>
 <div class='cols2'><div><h3>L'initiative</h3><p>Chaque round, héros et ennemis jouent un par un, <b>du plus rapide au plus lent</b> (à égalité, les héros d'abord). La frise en haut de l'écran montre l'ordre et l'intention de chaque ennemi.</p>
 <h3>Le tour d'un héros</h3><ul><li><b>3 mana</b> et une main de <b>3 cartes</b> tirées de son propre paquet.</li><li>Un <b>déplacement</b> (sa valeur de déplacement, limité par le saut en hauteur).</li>
@@ -138,15 +139,18 @@ page("""<h2>États, positions et éléments du décor</h2><div class='cols2'><di
 # ------------------------------------------------------------------ cartes : mécanique
 trig_rows = "".join("<tr><td><b class='trig'>%s</b></td><td>%s</td></tr>" % (E(v["name"]), E(v["text"])) for v in D["triggers"].values())
 kw_rows = "".join("<tr><td><b>%s</b></td><td>%s</td></tr>" % (E(k), E(v)) for k, v in D["keywords"].items())
-page("""<div class='kicker'>Chapitre 3</div><h2>Les cartes</h2><p class='lede'>255 cartes : 87 de classe (communes, peu communes, rares) et 168 de guilde (dont 28 légendaires).
+chap("Les cartes")
+page("""<div class='kicker'>Chapitre 3</div><h2>Les cartes</h2><p class='lede'>""" + str(N_CLS + N_GLD) + """ cartes : """ + str(N_CLS) + """ de classe (communes, peu communes, rares) et """ + str(N_GLD) + """ de guilde (dont 28 légendaires).
 Chaque héros joue son propre paquet. Une carte gagnée rejoint le paquet de son héros.</p>
 <div class='cols2'><div><h3>Rareté et butin</h3><p>Après chaque combat : de l'or, parfois un objet, et <b>trois cartes au choix</b> (communes 60 %, peu communes 30 %, rares 10 % ; les élites garantissent mieux).
 Un héros qui a sa vocation ajoute une <b>case bonus</b> : une carte de guilde ou de vocation qui ne prend la place d'aucune autre.</p>
 <h3>Trois niveaux</h3><p>Chaque niveau change vraiment la carte : plus de dégâts, un coût réduit, un effet nouveau. On monte de niveau à la <b>forge</b> (marchand 35 or, sanctuaire)
 ou en <b>fusionnant deux doubles</b> depuis la carte de l'étage. Les cartes de départ ne fusionnent pas.</p>
+<h3>Trois routes par classe</h3><p>Chaque classe a trois archétypes ; le butin propose des cartes de routes différentes et affiche leur nom sous la carte.</p>
 <h3>Déclencheurs</h3><table class='t'>""" + trig_rows + """</table></div><div><h3>Mots-clés</h3><table class='t small'>""" + kw_rows + "</table></div></div>", title="Chapitre 3")
 
 # ------------------------------------------------------------------ héros
+chap("Les héros et leurs routes")
 for k in ORDER:
     h = HEROES[k]
     cards = [c for c in CARDS if c["cls"] == [k]]
@@ -154,18 +158,23 @@ for k in ORDER:
     head = ("<div class='hero' style='--c1:#%s'><img src='img/portrait_%s.png'><div><div class='kicker'>Les héros</div><h2>%s</h2><div class='htitle'>%s</div>"
             "<div class='stats'><span>PV <b>%d</b></span><span>Vitesse <b>%d</b></span><span>Déplacement <b>%d</b></span><span>Saut <b>%d</b></span></div>"
             "<p>%s</p><p class='role'>%s</p></div></div>") % (h["color"], k, E(h["name"]), E(h["title"]), h["hp"], h["speed"], h["move"], h["jump"], E(h["role"]), E(ROLE_TIPS[k]))
+    routes = "".join("<div class='box'><h4>%s</h4><p>%s</p><p class='x'>%s</p></div>" % (E(r[0]), E(r[1]), E(", ".join(c["name"] for c in cards if c.get("arch") == r[0])))
+                     for r in D.get("archetypes", {}).get(k, []))
     first = cards[:6]
     page(head + "<div class='grid'>" + "".join(card_block(c) for c in first) + "</div>", title=h["name"])
+    if routes:
+        page("<h3 class='cont'>%s · trois routes</h3><div class='routes'>%s</div>" % (E(h["name"]), routes), title=h["name"])
     rest = cards[6:]
     for i in range(0, len(rest), 10):
         page("<h3 class='cont'>%s · suite</h3><div class='grid'>" % E(h["name"]) + "".join(card_block(c) for c in rest[i:i + 10]) + "</div>", title=h["name"])
 
 # ------------------------------------------------------------------ vocations et guildes
+chap("Vocations et guildes")
 page("""<div class='kicker'>Chapitre 5</div><h2>Vocations et guildes</h2><p class='lede'>Comme dans Final Fantasy Tactics, chaque héros gagne des <b>points de job</b> (1 par combat, 2 par élite).
-Avec assez de points, il choisit une <b>vocation</b> : une deuxième classe. La paire forme une <b>guilde</b>, avec sa règle et ses six cartes.</p>
-<div class='cols2'><div><table class='t'><tr><th>Maîtrise</th><th>Points</th><th>Ce qui s'ouvre</th></tr><tr><td>II</td><td>3</td><td>La vocation : commune et peu commune de la guilde, cartes de la classe apprise</td></tr>
-<tr><td>III</td><td>7</td><td>Les trois rares de la guilde</td></tr><tr><td>IV</td><td>11</td><td>La légendaire, proposée une fois dans la case bonus</td></tr></table>
-<p>La vocation se voit sur le héros : il porte l'insigne de la classe apprise (le pavois du Garde, le baril de l'Artificier...).
+Avec assez de points, il choisit une <b>vocation</b> : une deuxième classe. La paire forme une <b>guilde</b>, avec sa règle et ses onze cartes.</p>
+<div class='cols2'><div><table class='t'><tr><th>Maîtrise</th><th>Points</th><th>Ce qui s'ouvre</th></tr><tr><td>II</td><td>3</td><td>La vocation : communes et peu communes de la guilde, cartes de la classe apprise</td></tr>
+<tr><td>III</td><td>7</td><td>Les rares de la guilde</td></tr><tr><td>IV</td><td>11</td><td>La légendaire, proposée une fois dans la case bonus</td></tr></table>
+<p>La vocation se voit sur le héros : le bas de sa tenue et sa ceinture prennent la couleur de la classe apprise, et il en porte la coiffe (cimier, bandeau rouge, chapeau pointu, lunettes, chapeau de paille, plume, masque, capuche).
 Le <b>Blason écartelé</b> donne une deuxième vocation, le <b>Sceau de guilde</b> ouvre les rares dès la maîtrise II, la <b>Médaille du duo</b> réduit leur coût.</p></div>
 <div><img src='img/guilde.jpg' class='wide'><p class='cap'>La guilde se dévoile : ce qui n'est pas encore ouvert reste face cachée.</p></div></div>""", title="Chapitre 5")
 rows = ""
@@ -178,11 +187,15 @@ for g in D["guilds"]:
     gc.sort(key=lambda c: c["rar"])
     pass
 pairs = [D["guilds"][i:i + 1] for i in range(len(D["guilds"]))]
+NEWG = set(D.get("new_guild_cards", []))
+extra_g = []
 buf = ""
 count = 0
 for g in D["guilds"]:
-    gc = sorted([c for c in CARDS if len(c["cls"]) == 2 and sorted(c["cls"]) == sorted([g[0], g[1]])], key=lambda c: c["rar"])
+    gc = sorted([c for c in CARDS if len(c["cls"]) == 2 and sorted(c["cls"]) == sorted([g[0], g[1]])], key=lambda c: (c["id"] in NEWG, c["rar"]))
     leg = [c for c in gc if c["rar"] == 4][0]
+    extra_g.append((g, [c for c in gc if c["id"] in NEWG]))
+    gc = [c for c in gc if c["id"] not in NEWG]
     block = ("<div class='banner'><img src='img/leg/%s.jpg'><div class='bt'><div class='kicker'>Guilde · %s + %s</div><h2>%s</h2><p>« %s »</p><p class='bl'>Légendaire : <b>%s</b></p></div></div>"
              "<div class='grid g6'>%s</div>") % (leg["id"], E(HEROES[g[0]]["name"]), E(HEROES[g[1]]["name"]), E(g[2]), E(g[3]), E(leg["name"]), "".join(card_block(c) for c in gc))
     buf += block
@@ -190,6 +203,14 @@ for g in D["guilds"]:
     if count % 1 == 0:
         page(buf, "guildp", title="Guildes")
         buf = ""
+
+for i in range(0, len(extra_g), 2):
+    body = ""
+    for g, cs in extra_g[i:i + 2]:
+        if cs:
+            body += "<h3 class='cont'>%s · nouvelles cartes</h3><div class='grid'>%s</div>" % (E(g[2]), "".join(card_block(c) for c in cs))
+    if body:
+        page(body, title="Guildes")
 
 # ------------------------------------------------------------------ arsenal
 items = D["items"]
@@ -201,6 +222,7 @@ def item_rows(slot):
         img = "img/gear_%s.png" % it["icon"]
         out += "<div class='it'><img src='%s'><div><b>%s</b> <span class='r%d'>%s</span><br>%s</div></div>" % (img, E(it["name"]), it["rarity"], ["", "commun", "peu commun", "rare"][it["rarity"]], fmt(it["text"]))
     return out
+chap("L'arsenal : équipement et besace")
 page("<div class='kicker'>Chapitre 6</div><h2>L'arsenal</h2><p class='lede'>Deux emplacements par héros : une <b>arme</b> propre à sa classe et un <b>talisman</b>. On les trouve dans les coffres, chez le marchand et sur les élites ; le sac garde ce qui n'est pas porté.</p><h3>Armes</h3><div class='items'>" + item_rows("arme") + "</div>", title="Arsenal")
 tools = "".join("<div class='it'><img src='img/tool_%s.png'><div><b>%s</b><br>%s%s</div></div>" % (k, E(t["name"]), E(t["text"]), ("<br><i>Porté par un ennemi : il %s.</i>" % E(t["foe_ai"])) if t.get("foe_ai") else "") for k, t in D["tools"].items())
 pas = "".join("<tr><td><b>%s</b></td><td>%s</td></tr>" % (E(p["name"]), E(p["text"])) for p in D["passives"].values())
@@ -210,6 +232,7 @@ page("<div class='cols2'><div><h3>Capacités d'équipement</h3><table class='t s
 
 # ------------------------------------------------------------------ reliques, anciens, pactes
 rel = "".join("<div class='it'><img src='img/relic_%s.png' onerror=\"this.style.visibility='hidden'\"><div><b>%s</b><br>%s</div></div>" % (k, E(r["name"]), E(r["text"])) for k, r in D["relics"].items())
+chap("Reliques, Anciens et pactes")
 page("<div class='kicker'>Chapitre 7</div><h2>Reliques</h2><p class='lede'>Des effets permanents pour toute la run : au reliquaire, sur les élites, chez les Anciens.</p><div class='items'>" + rel + "</div>", title="Reliques")
 anc = "".join("<div class='box'><h4>%s %s</h4><p><i>%s</i> · « %s »</p><p>%s</p></div>" % (E(a["glyph"]), E(a["name"]), E(a["title"]), E(a["line"]),
               " · ".join("<b>%s</b> : %s" % (E(D["boons"][b]["name"]), E(D["boons"][b]["text"])) for b in a["boons"])) for a in D["ancients"].values())
@@ -226,6 +249,7 @@ fac = [("Les Moussus des ruines", ["husk", "guetteur", "sentinelle", "wisp", "ch
         "Une armée engloutie qui se bat encore comme une armée : lanciers en ligne, cavaliers qui harcèlent, une danseuse qui relance, un capitaine qui commande."),
        ("Les bêtes des Hauts-Fonds et l'Obélisque", ["crabe", "crapaud", "harpie", "obelisque"],
         "Des créatures qui déplacent les héros, et une structure qui invoque sans fin tant qu'on ne l'abat pas.")]
+chap("Bestiaire")
 for title, ids, intro in fac:
     blocks = ""
     for id in ids:
@@ -255,21 +279,37 @@ page("<h2>Champions et rencontres</h2><div class='cols2'><div><h3>Champions</h3>
 
 # ------------------------------------------------------------------ terrains
 tl = "".join("<tr><td><b style='color:#%s'>%s %s</b></td><td>%s</td></tr>" % (t["col"], E(t["glyph"]), E(t["name"]), E(t["text"])) for t in D["tiles"].values())
+chap("Terrains et environnement")
 page("<div class='kicker'>Chapitre 9</div><h2>Terrains et environnement</h2><div class='cols2'><div><table class='t'>" + tl +
      "</table><p>Les runes et terrains profitent à tout le monde : un ennemi sur un fort se soigne, un ennemi poussé dans la braise brûle. Les ennemis évitent la braise, les ronces et les glyphes.</p></div>"
-     "<div><img src='img/terrain.jpg' class='wide'><p class='cap'>Arènes de 16 à 20 cases : plateformes larges, ponts de deux cases, hauteurs.</p></div></div>"
+     "<div><img src='img/terrain.jpg' class='wide'><p class='cap'>Arènes de 18 à 22 cases : plateformes larges, ponts de deux cases, hauteurs. Les cases spéciales brillent d'un cadre à leur couleur.</p></div></div>"
      "<h3>Les 12 biomes</h3><p>" + " · ".join(E(b) for b in D["biomes"]) + "</p><img src='img/biomes2.jpg' class='wide'>", title="Terrains")
 
 # ------------------------------------------------------------------ la run
+chap("La run, salle par salle")
 page("""<div class='kicker'>Chapitre 10</div><h2>La run, salle par salle</h2><div class='cols2'><div><table class='t'><tr><th>Salle</th><th>Ce qu'on y gagne</th></tr>
 <tr><td>Combat</td><td>Or, 3 cartes au choix (+ case bonus), parfois un objet, 1 point de job</td></tr><tr><td>Élite</td><td>Plus d'or, carte meilleure, équipement, relique, 2 points de job</td></tr>
-<tr><td>Marchand</td><td>Étal de 6 cartes (dont une soldée et une de guilde), 3 équipements, 2 objets, soins (35), épuration (40), forge (35). Un seul passage.</td></tr>
-<tr><td>Sanctuaire</td><td>Soigner le groupe ou forger une carte</td></tr><tr><td>Reliquaire</td><td>Une relique parmi trois</td></tr>
-<tr><td>Salles « ? » (Aventure)</td><td>Événements : cage, statue, fontaine...</td></tr><tr><td>Gardien / Boss</td><td>Fin d'étage ; le Gardien de l'Écluse au 3e</td></tr></table>
+<tr><td>Marchand</td><td>Un étal sous auvent et son marchand. 6 cartes (dont une soldée et une de guilde), 3 équipements, 2 objets. Soins (35), épuration (50, +25 à chaque fois dans la run), forge (35) : une fois chacun, puis « fait ✓ ».</td></tr>
+<tr><td>Halte</td><td>Fontaine, kiosque et feu de camp : soigner le groupe, forger ou fusionner</td></tr><tr><td>Reliquaire</td><td>Une relique parmi trois</td></tr>
+<tr><td>Salles « ? »</td><td>Vingt événements (Passeur, duel d'honneur, coffre-mimique, autel de Grixis, bête blessée...). Descente et Aventure.</td></tr><tr><td>Gardien / Boss</td><td>Fin d'étage ; le Gardien de l'Écluse au 3e</td></tr></table>
 <p>Prix de l'étal : ~50 or (commune), ~75 (peu commune), ~150 (rare), +25 pour une carte de guilde. Équipement : 45 / 75 / 110 selon la rareté.</p></div>
 <div><img src='img/marchand.jpg' class='wide'><p class='cap'>Le marchand : cartes en haut, équipement, objets et services en dessous.</p><img src='img/donjon.jpg' class='wide'><p class='cap'>Le mode Aventure : fiches des héros, équipement, paquet et fusion (I, P, F).</p></div></div>""", title="La run")
 
+# ------------------------------------------------------------------ événements et compagnons
+comp = "".join("<div class='box'><h4><img class='ico' src='img/comp_%s.png'> %s</h4><p>%s · %d PV</p></div>" % (k, E(c["name"]), E(c["text"]), c["hp"]) for k, c in D.get("companions", {}).items())
+page("""<h2>Événements et compagnons</h2><div class='cols2'><div><h3>Les salles « ? »</h3><p>Un choix, un prix, comme dans Slay the Spire ; des figures qui reviennent, comme dans Hades. Chaque événement ne se voit qu'une fois par run.</p>
+<table class='t small'><tr><td><b>Le Passeur</b></td><td>une relique contre 90 or, ou un souvenir (une carte) laissé dans sa barque</td></tr>
+<tr><td><b>Duel d'honneur</b></td><td>un combat d'élite Enragé contre une relique et une rare, ou 2 points de job en saluant</td></tr>
+<tr><td><b>Miroir noyé</b></td><td>copier une carte, chaque héros perd 4 PV</td></tr><tr><td><b>Tout ou rien</b></td><td>miser 50 or, ou miser une carte : deux niveaux ou rien</td></tr>
+<tr><td><b>La Bibliothécaire aveugle</b></td><td>une carte devient une carte du même héros, une rareté au-dessus</td></tr><tr><td><b>Maître d'armes errant</b></td><td>4 points de job, ou son arme (−3 PV max)</td></tr>
+<tr><td><b>Bête blessée</b></td><td>la soigner : elle devient un compagnon (rare)</td></tr><tr><td><b>Épave de la Compagnie</b></td><td>équipement et or, mais des renforts au prochain combat</td></tr>
+<tr><td><b>Cercle de glyphes</b></td><td>sacrifier une carte : une autre gagne deux niveaux</td></tr><tr><td><b>Rave engloutie</b></td><td>soin de 25 %, ou 35 or et un carnet</td></tr>
+<tr><td><b>Autel de Grixis</b></td><td>bleu : deux cartes +1 niveau · rouge : une rare contre 5 PV · noir : une relique contre 8 PV max</td></tr>
+<tr><td><b>Un coffre, seul</b></td><td>relique ou mimique</td></tr></table></div>
+<div><h3>Compagnons</h3><p>Des bêtes des Hauts-Fonds apprivoisées. Elles jouent seules à leur vitesse, du côté des héros, et se relèvent à chaque combat. Une seule à la fois.</p>""" + comp + """</div></div>""", title="La run")
+
 # ------------------------------------------------------------------ stratégies
+chap("Stratégies d'expert")
 page("""<div class='kicker'>Chapitre 11</div><h2>Stratégies d'expert</h2><div class='cols2'><div>
 <div class='box tip'><h4>1. Finir son tour protégé</h4><p>Touche D avant chaque fin de tour. Un héros hors de la zone rouge, dos à un mur ou à un allié, ne prend rien.</p></div>
 <div class='box tip'><h4>2. Le soutien est gratuit</h4><p>+2 aux coups et −2 aux dégâts reçus pour un allié au contact : avancez en binômes, surtout contre les assassins.</p></div>
@@ -289,7 +329,19 @@ page("""<h2>Commandes</h2><table class='t'><tr><td>Clic</td><td>héros, carte, c
 <img src='img/biblio2.jpg' class='wide'><p class='cap'>La bibliothèque : toutes les cartes découvertes, rangées par classe et par guilde.</p>
 <p class='fine'>TonerTactic, créé par Tidiane avec Claude. Icônes : game-icons.net (Lorc, Delapouite et al., CC BY 3.0). Illustrations de cartes : rendus Blender et peintures générées (KIE).</p>""", title="Annexe")
 
-css = open(os.path.join(HERE, "guide.css"), encoding="utf8").read()
+toc_page = ("<section class='page'><div class='kicker'>Sommaire</div><h2>Ce que contient ce guide</h2><div class='toc'>" +
+            "".join("<div><span>%s</span><span>%d</span></div>" % (E(t), p + 1) for t, p in CHAP.items()) +
+            "</div><div class='box tip'><h4>Comment lire les cartes</h4><p>Chaque carte est présentée avec son illustration, son coût (pastille dorée), "
+            "son type, sa rareté et ses <b>trois niveaux</b>. Les niveaux II et III s'obtiennent à la forge (marchand, halte) ou en fusionnant deux doubles. "
+            "Les mots en gras sont des <b class='trig'>déclencheurs</b> : un bonus quand leur condition tient.</p></div>"
+            "<img class='wide' src='img/titre.jpg'>" + folio(2, "Sommaire") + "</section>")
+pages.insert(1, toc_page)
+css = open(os.path.join(HERE, "guide.css"), encoding="utf8").read() + """
+.routes { display: grid; grid-template-columns: 1fr; gap: 4mm; margin-top: 4mm; }
+.routes .box h4 { font-size: 13pt; }
+.toc > div { display: flex; justify-content: space-between; }
+.ico { width: 7mm; height: 7mm; vertical-align: middle; image-rendering: pixelated; }
+"""
 doc = "<!doctype html><html lang='fr'><head><meta charset='utf-8'><title>Guide officiel TonerTactic</title><link rel='preconnect' href='https://fonts.googleapis.com'>" \
       "<link href='https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Lato:wght@400;700&display=swap' rel='stylesheet'>" \
       "<style>" + css + "</style></head><body>" + "".join(pages) + "</body></html>"

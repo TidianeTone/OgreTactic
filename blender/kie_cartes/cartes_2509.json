@@ -1,0 +1,1102 @@
+[
+{
+"id": "c_ancrage",
+"scene": "{garde} drives a huge tower shield into wet flagstones like a lock gate, an iron anchor chain coiled around his boots, a {foe} blade sparking off the shield",
+"g": -1
+},
+{
+"id": "c_ouvrir",
+"scene": "{garde} slams his shield upward into a {foe}'s guard, knocking its weapon arm wide open, a glowing crack appearing on the {foe}'s back",
+"g": -1
+},
+{
+"id": "c_represailles",
+"scene": "{garde} catches a {foe} strike on his shield and answers instantly with a brutal pommel blow to its face, sparks flying",
+"g": -1
+},
+{
+"id": "c_epaule",
+"scene": "{garde} rams his shoulder and shield into a {foe}, sending it crashing into another {foe} against a mossy stone wall, debris flying",
+"g": -1
+},
+{
+"id": "c_ecailles",
+"scene": "{garde} stands motionless at a flooded sluice gate while barnacle-like steel scales grow over his armor, {foe} hesitating in front of him",
+"g": -1
+},
+{
+"id": "c_interposition",
+"scene": "{garde} and an ally swap places in a burst of lock-water spray, {garde} landing shield-first between the ally and a charging {foe}",
+"g": -1
+},
+{
+"id": "c_remous",
+"scene": "{garde} surges through knee-deep water behind a stumbling, knocked-back {foe}, hammer raised like a breaking wave",
+"g": -1
+},
+{
+"id": "c_lacher",
+"scene": "{garde} slams his shield into the ground, a circular shockwave of water hurling several {foe} outward into walls and the canal",
+"g": -1
+},
+{
+"id": "c_contrepoids",
+"scene": "{garde} swings a lock-gate counterweight on a chain in a wide arc, his armor plates glowing and cracking off as the iron block crushes a {foe}",
+"g": -1
+},
+{
+"id": "c_vindicte",
+"scene": "{garde} braced alone in a corridor as several {foe} strike his shield, each attacker recoiling with a glowing mark of retribution on its back",
+"g": -1
+},
+{
+"id": "c_feinte",
+"scene": "{lame} fakes a lunge with a flick of her cloak, the {foe} turning the wrong way and exposing its back, a ghostly afterimage of {lame} in the air",
+"g": -1
+},
+{
+"id": "c_aiguille",
+"scene": "{lame} flicks a thin black needle from between her fingers into the neck of a {foe}, green venom veins spreading",
+"g": -1
+},
+{
+"id": "c_coupe_jarret",
+"scene": "{lame} slides low past a {foe} and slices the back of its knee, the {foe} collapsing onto one leg, dagger dripping green",
+"g": -1
+},
+{
+"id": "c_kunai",
+"scene": "{lame} throws a fan of three kunai in one motion, blades trailing faint red lines toward a {foe}",
+"g": -1
+},
+{
+"id": "c_aller_retour",
+"scene": "{lame} blinks behind a {foe} in a smear of shadow, slashes, and is already reappearing at her starting spot, two shadow silhouettes marking the trip",
+"g": -1
+},
+{
+"id": "c_mue",
+"scene": "{lame} slips out of her own shed shadow-skin as a {foe} blade cuts through the empty husk, {lame} already coiled behind it",
+"g": -1
+},
+{
+"id": "c_maceration",
+"scene": "{lame} crouches over a steaming vial, pouring bubbling black venom over her twin daggers while a poisoned {foe} convulses nearby",
+"g": -1
+},
+{
+"id": "c_ceinture",
+"scene": "{lame} snaps open a leather bandolier across her chest, a dozen kunai flipping into her fingers as a {foe} approaches",
+"g": -1
+},
+{
+"id": "c_seve_noire",
+"scene": "{lame} kneels and plunges her dagger into the ground as black sap leaps from a dying {foe} to the next {foe}, green veins crawling up its legs",
+"g": -1
+},
+{
+"id": "c_sillage",
+"scene": "{lame} arrives in a chain of fading shadow afterimages, each one a previous blink, her kunai volley landing on a {foe} at the end of the trail",
+"g": -1
+},
+{
+"id": "c_pas_braise",
+"scene": "{oracle} points a staff at a cracked stone tile that splits open into a glowing ember fissure, {foe} stopping short in front of the burning crack",
+"g": -1
+},
+{
+"id": "c_tison",
+"scene": "{oracle} flicks a burning ember from their fingertips across the battlefield at {foe} who stands on a glowing rune tile",
+"g": -1
+},
+{
+"id": "c_palimpseste",
+"scene": "{oracle} pulls a half-burnt page out of drifting ashes; faint older writing glows under the new ink while {foe} watches from a distance",
+"g": -1
+},
+{
+"id": "c_ondee",
+"scene": "{oracle} calls down a shimmering rain over a fully healed ally knight; the excess water surges into a crashing wave that slams into {foe}",
+"g": -1
+},
+{
+"id": "c_eruption",
+"scene": "{oracle} slams their staff down as a column of magma bursts from a rune tile in a cross shape, engulfing several {foe}",
+"g": -1
+},
+{
+"id": "c_scelle",
+"scene": "{oracle} chains {foe} to a burning fissure with coils of glowing cinder that wrap around its legs",
+"g": -1
+},
+{
+"id": "c_reminiscence",
+"scene": "{oracle} closes their eyes as a ghostly ember-outlined copy of a spent spell card reforms in their open palm, {foe} in the background",
+"g": -1
+},
+{
+"id": "c_reflux",
+"scene": "{oracle} pulls back a tide with both hands, then releases it; the wave hurls {foe} backward toward deep water while spray heals a nearby ally",
+"g": -1
+},
+{
+"id": "c_phenix",
+"scene": "{oracle} releases a folded paper bird that bursts into a blazing phoenix, trailing burning pages as it dives toward {foe}",
+"g": -1
+},
+{
+"id": "c_maree_haute",
+"scene": "{oracle} stands atop a stone pier as a giant glowing tide rises behind the party, overflowing and crashing down onto a line of {foe}",
+"g": -1
+},
+{
+"id": "c_trainee",
+"scene": "{artificier} rolls a powder keg into place and pours a glittering trail of black powder toward it, luring {foe} closer",
+"g": -1
+},
+{
+"id": "c_poudre_recup",
+"scene": "{artificier} crouches beside a smoking crater, scooping leftover black powder into a pouch with a grin, {foe} staggering in the smoke",
+"g": -1
+},
+{
+"id": "c_tourelle_fortune",
+"scene": "{artificier} hammers the last bolt into a crude turret built from scrap planks and a small cannon, which swivels toward {foe}",
+"g": -1
+},
+{
+"id": "c_rafale_rivets",
+"scene": "{artificier} braces a smoking rivet gun against their hip and unleashes a rapid spray of glowing rivets into {foe}",
+"g": -1
+},
+{
+"id": "c_brulot",
+"scene": "{artificier} hurls a burning bottle through thick black smoke left by exploded kegs, the flames blooming on {foe}",
+"g": -1
+},
+{
+"id": "c_demolition",
+"scene": "{artificier} slaps a sputtering bundle of dynamite onto the armor of {foe} and dives away as the fuse hisses",
+"g": -1
+},
+{
+"id": "c_ressort",
+"scene": "{artificier} winds a giant spring-loaded piston turret that punches {foe} backward toward the edge of a canal",
+"g": -1
+},
+{
+"id": "c_decharge",
+"scene": "{artificier} vents a hissing boiler strapped to their back; a crackling arc of steam-lightning leaps from {foe} to {foe}",
+"g": -1
+},
+{
+"id": "c_bombarde",
+"scene": "{artificier} ratchets a massive bronze siege bombard into position on a stone rampart, its barrel glowing hotter with each shot at {foe}",
+"g": -1
+},
+{
+"id": "c_salve",
+"scene": "{artificier} yanks a lever on a battery of three mortars; glowing shells arc high over the battlefield and rain down on a cluster of {foe}",
+"g": -1
+},
+{
+"id": "c_gifle_maree",
+"scene": "{moine} delivers two lightning-fast open-palm slaps to {foe}, water droplets spraying from each impact, motion lines",
+"g": -1
+},
+{
+"id": "c_pas_chasse",
+"scene": "{moine} leaps across three tiles in a long crane-like arc and lands fist-first on {foe}",
+"g": -1
+},
+{
+"id": "c_vol_heron",
+"scene": "{moine} vaults high over {foe} like a heron taking flight, twisting mid-air to strike the back of its neck",
+"g": -1
+},
+{
+"id": "c_paume_ouverte",
+"scene": "{moine} stands calm with one open palm extended toward {foe}, a translucent ripple of water ready to redirect an incoming blow",
+"g": -1
+},
+{
+"id": "c_vague_fond",
+"scene": "{moine} slams both palms into the ground, a ring-shaped tidal shockwave bursting outward and knocking back several {foe} around him",
+"g": -1
+},
+{
+"id": "c_garde_tigre",
+"scene": "{moine} in a low tiger stance, forearms raised, a faint jade armor shimmer forming over his skin as {foe} approaches",
+"g": -1
+},
+{
+"id": "c_pique_cormoran",
+"scene": "{moine} drops from above onto {foe} with a diving axe-kick, black cormorant feathers of wind trailing behind him",
+"g": -1
+},
+{
+"id": "c_contre_ressac",
+"scene": "{moine} catches the arm of {foe} mid-swing and counters with a palm strike to the chest, a wave of green healing mist flowing back into him",
+"g": -1
+},
+{
+"id": "c_danse_grue",
+"scene": "{moine} dancing on one leg across stepping stones, afterimages of cranes forming in his wake as jade plates settle on his shoulders, {foe} confused",
+"g": -1
+},
+{
+"id": "c_second_souffle",
+"scene": "{moine} kneeling, bloodied, as a glowing jade breath rises from his mouth and he surges up into a three-strike flurry against {foe}",
+"g": -1
+},
+{
+"id": "c_tir_rabat",
+"scene": "{trappeur} fires a weighted arrow at {foe} while a steel jaw trap unfolds on the ground just behind the enemy",
+"g": -1
+},
+{
+"id": "c_coup_crosse",
+"scene": "{trappeur} slamming the stock of a crossbow into the jaw of {foe}, knocking it back while hopping away",
+"g": -1
+},
+{
+"id": "c_tir_affut",
+"scene": "{trappeur} lying perfectly still on a rocky ledge, bow fully drawn, aiming down at a distant {foe}",
+"g": -1
+},
+{
+"id": "c_trace_sang",
+"scene": "{trappeur} kneeling to touch fresh blood on the ground, then flicking a small red-feathered dart at a wounded {foe}",
+"g": -1
+},
+{
+"id": "c_appeau",
+"scene": "{trappeur} crouched behind reeds blowing a carved wooden bird call, several {foe} turning and stepping toward a hidden trap",
+"g": -1
+},
+{
+"id": "c_nasse",
+"scene": "{trappeur} laying a woven reed fish-trap snare on a muddy riverbank tile, a stolen trinket glinting inside, {foe} nearby",
+"g": -1
+},
+{
+"id": "c_nid_guet",
+"scene": "{trappeur} settled in a camouflaged hide of branches atop a stone pillar, scanning the marsh for {foe}",
+"g": -1
+},
+{
+"id": "c_signal_meute",
+"scene": "{trappeur} whistling sharply and pointing at {foe} while an ally figure blurs into position behind the enemy",
+"g": -1
+},
+{
+"id": "c_carreau_silure",
+"scene": "{trappeur} firing a massive black catfish-bone bolt from a heavy crossbow that punches clean through the armor of a distant {foe} and into the one behind",
+"g": -1
+},
+{
+"id": "c_curee",
+"scene": "{trappeur} blowing a hunting horn over a fallen {foe} as steel jaws snap shut on the spot where it fell, the next {foe} stepping toward it",
+"g": -1
+},
+{
+"id": "c_contretemps",
+"scene": "{tidiane} taps a steady rhythm on a small hand drum, glowing sound rings pulsing outward, {foe} watching warily at a distance",
+"g": -1
+},
+{
+"id": "c_saignee",
+"scene": "{tidiane} draws a crimson ink line across own palm, the blood arcs into a blade that slashes {foe}",
+"g": -1
+},
+{
+"id": "c_ligne_claire",
+"scene": "{tidiane} traces one precise blue ink stroke in the air with a stylus, the line shoots forward and pins {foe}",
+"g": -1
+},
+{
+"id": "c_coup_de_sang",
+"scene": "{tidiane} roars with red fury, punching {foe} in the jaw right after an ally was struck nearby",
+"g": -1
+},
+{
+"id": "c_drop",
+"scene": "{tidiane} leaps high as bass waves explode around, slamming down onto {foe} in a shockwave of sound",
+"g": -1
+},
+{
+"id": "c_boucle",
+"scene": "{tidiane} spins a glowing vinyl loop, a discarded card rises from it back into hand, {foe} in the background",
+"g": -1
+},
+{
+"id": "c_rancoeur",
+"scene": "{tidiane} with dark violet aura clenches a fist, a shadow tendril strikes {foe} and siphons a thread of life back",
+"g": -1
+},
+{
+"id": "c_trinite",
+"scene": "{tidiane} stands inside a triangle of blue, red and black flames, raising both hands as the three lights merge, {foe} recoiling",
+"g": -1
+},
+{
+"id": "c_metronome",
+"scene": "{tidiane} sets a large brass metronome ticking at 174 on a stone ledge, pendulum trailing blue light, {foe} approaching",
+"g": -1
+},
+{
+"id": "c_catharsis",
+"scene": "{tidiane} wounded and kneeling, erupts upward in a storm of red light, a huge overhead blow crushing {foe}",
+"g": -1
+},
+{
+"id": "c_brocante",
+"scene": "{receleur} rummages through an overflowing satchel of trinkets, pulling out a plank as a shield, {foe} advancing",
+"g": -1
+},
+{
+"id": "c_revente",
+"scene": "{receleur} flips a stolen trinket to a shadowy figure, catching a gold coin mid-air, {foe} glaring nearby",
+"g": -1
+},
+{
+"id": "c_tire_laine",
+"scene": "{receleur} slips a hand into {foe}'s coat while jabbing a short knife, pocketing a pouch with a grin",
+"g": -1
+},
+{
+"id": "c_casse_tout",
+"scene": "{receleur} smashes a clay jar full of scrap against {foe}, shards and bolts flying everywhere",
+"g": -1
+},
+{
+"id": "c_bonneteau",
+"scene": "{receleur} yanks a hooked cord, snatching a bag from {foe} and dragging them stumbling forward across the tiles",
+"g": -1
+},
+{
+"id": "c_feu_de_joie",
+"scene": "{receleur} tosses broken junk into a roaring bonfire at their feet, flames bursting outward onto surrounding {foe}",
+"g": -1
+},
+{
+"id": "c_inventaire",
+"scene": "{receleur} hurls an item from an open ledger-satchel at distant {foe}, a trail of trinkets following the throw",
+"g": -1
+},
+{
+"id": "c_marchandage",
+"scene": "{receleur} haggles over a crate, duplicating a shiny vial with sleight of hand while pocketing coins, {foe} lurking behind",
+"g": -1
+},
+{
+"id": "c_fourgue",
+"scene": "{receleur} in a hooded coat counts stolen goods at a hidden stall, green warmth radiating to allies, {foe} robbed and furious",
+"g": -1
+},
+{
+"id": "c_benne",
+"scene": "{receleur} tips an entire dumpster of scrap metal onto {foe}, gears and pipes crashing down",
+"g": -1
+},
+{
+"id": "g_crochet_garde",
+"scene": "{garde} hooks {foe}'s shield aside with a gauntlet while {lame} crouches ready behind it",
+"g": 0
+},
+{
+"id": "g_pied_ferme",
+"scene": "{lame} stands perfectly still behind {garde}'s planted shield, blade reversed, waiting for {foe} to step in",
+"g": 0
+},
+{
+"id": "g_epine_riposte",
+"scene": "{lame} slips a poisoned thorn into {foe}'s arm while {garde} still holds the dented shield from its blow",
+"g": 0
+},
+{
+"id": "g_couvre_moi",
+"scene": "{garde} plants the shield and roars at {foe} while {lame} tosses a fan of kunai over the garde's shoulder",
+"g": 0
+},
+{
+"id": "g_herse",
+"scene": "{garde} slams {foe} into a stone wall with a portcullis-like shield while {lame} leaps from the shadows toward its back",
+"g": 0
+},
+{
+"id": "g_onction",
+"scene": "{oracle} anoints {garde}'s brow with glowing tidewater, the light hardening into plates of armor on the garde's shoulders",
+"g": 1
+},
+{
+"id": "g_digue",
+"scene": "{garde} drives {foe} back like a breaking wave against a lock gate while {oracle} channels the spray into healing mist",
+"g": 1
+},
+{
+"id": "g_parvis",
+"scene": "{oracle} traces a glowing sigil under {garde}'s feet as the garde bangs a shield to taunt {foe}",
+"g": 1
+},
+{
+"id": "g_relique_airain",
+"scene": "{oracle} lifts a bronze reliquary from which a ghostly copy of a spent spell rises, {garde} kneeling in its glow",
+"g": 1
+},
+{
+"id": "g_communion",
+"scene": "{garde} presses a gauntlet to {oracle}'s chest, the garde's armor plates dissolving into a stream of light that flows into the oracle",
+"g": 1
+},
+{
+"id": "g_contre_mine",
+"scene": "{garde} braces behind a shield studded with fuses as {artificier} tamps powder into a hidden mine at the garde's feet",
+"g": 2
+},
+{
+"id": "g_tourelle_rempart",
+"scene": "{artificier} bolts a small cannon onto the rampart beside {garde}, who taunts {foe} from behind a tower shield",
+"g": 2
+},
+{
+"id": "g_chaudiere_blindee",
+"scene": "{artificier} feeds coal into a boiler strapped to {garde}'s back, steam hissing out as iron plates lock over the garde",
+"g": 2
+},
+{
+"id": "g_eclat_pavois",
+"scene": "{garde} detonates the powder-lined shield in a ring of shrapnel, {artificier} ducking behind a crate as {foe} are blown back",
+"g": 2
+},
+{
+"id": "g_belier_vapeur",
+"scene": "{garde} rams {foe} with a steam-powered piston shield built by {artificier}, the foe sliding toward the canal edge",
+"g": 2
+},
+{
+"id": "g_poing_bouclier",
+"scene": "{moine} punches twice through {foe}'s guard, each blow leaving iron scales forming on the fist, {garde} nodding approval",
+"g": 3
+},
+{
+"id": "g_saut_rempart",
+"scene": "{garde} vaults clean over {foe} with shield raised, {moine} mid-air alongside in a crane stance",
+"g": 3
+},
+{
+"id": "g_souffle_fer",
+"scene": "{moine} exhales a ring of steam while deflecting {foe}'s blade, cracked but standing, {garde} shoulder to shoulder",
+"g": 3
+},
+{
+"id": "g_danse_rempart",
+"scene": "{moine} dashes across the flagstones and shoulder-checks {foe} into a pillar, {garde} catching the rebound",
+"g": 3
+},
+{
+"id": "g_dernier_rempart",
+"scene": "{garde}, bloodied and kneeling, drives the shield rim into {foe} with a final roar while {moine} steadies the garde's back",
+"g": 3
+},
+{
+"id": "g_cloture",
+"scene": "{trappeur} snaps a jaw trap onto the ground just as {garde} shield-bashes {foe} backward into it",
+"g": 4
+},
+{
+"id": "g_mirador",
+"scene": "{trappeur} crouches on a wooden watchtower with a crossbow while {garde} stands planted at its base, both unmoving",
+"g": 4
+},
+{
+"id": "g_sonner_hallali",
+"scene": "{garde} blows a brass hunting horn and points at {foe} while {trappeur} nocks a flare-bright arrow",
+"g": 4
+},
+{
+"id": "g_piquets",
+"scene": "{garde} and {trappeur} hammer sharpened stakes into the mud in a half-circle, {foe} already snared in one",
+"g": 4
+},
+{
+"id": "g_battue_curee",
+"scene": "{garde} drives a marked {foe} backward with the shield rim toward {trappeur}'s waiting spear line",
+"g": 4
+},
+{
+"id": "g_cicatrice",
+"scene": "{tidiane} traces an old scar with a thumb before striking {foe}, {garde} beside, both battered but unbroken",
+"g": 5
+},
+{
+"id": "g_mur_du_son",
+"scene": "{tidiane} slams a palm down as a shockwave of bass forms a translucent wall in front of {garde}",
+"g": 5
+},
+{
+"id": "g_serment_trois",
+"scene": "{tidiane} raises three glowing sigils, blue red and black, above {garde} who steps forward to taunt {foe}",
+"g": 5
+},
+{
+"id": "g_carapace",
+"scene": "{garde}'s old wounds glow and harden into bone-like plates, {tidiane} channelling the pain into armor with a clenched fist",
+"g": 5
+},
+{
+"id": "g_revanche",
+"scene": "{tidiane} lunges with fury at {foe} who just struck {garde}, eyes blazing red",
+"g": 5
+},
+{
+"id": "g_controle",
+"scene": "{garde} blocks {foe} with a raised palm like a customs officer while {receleur} deftly lifts a pouch from its belt",
+"g": 6
+},
+{
+"id": "g_saisie_cons",
+"scene": "{receleur} stacks seized crates into a barricade around {garde}, who stands firm behind the pile",
+"g": 6
+},
+{
+"id": "g_colis_piege",
+"scene": "{receleur} hurls a wrapped package at {foe} and {garde} follows through with a shield shove into a crate stack",
+"g": 6
+},
+{
+"id": "g_pot_de_vin",
+"scene": "{receleur} slips a heavy coin purse into {foe}'s claw while {garde} looms behind and strikes through the opened guard",
+"g": 6
+},
+{
+"id": "g_barriere",
+"scene": "{garde} lowers a striped toll barrier across a dock while {receleur} tallies confiscated goods, {foe} fuming at the gate",
+"g": 6
+},
+{
+"id": "g_chuchotis",
+"scene": "{oracle} whispers over an open book as ink letters peel off the page as tiny blades; {lame} catches one and flicks it into {foe}",
+"g": 7
+},
+{
+"id": "g_encre_venin",
+"scene": "{lame} dips a dagger into a black inkwell held open by {oracle}, the ink trailing like venom as the blade strikes {foe}",
+"g": 7
+},
+{
+"id": "g_confidence",
+"scene": "{oracle} leans to whisper a secret into the ear of {foe}, who turns its head, exposing its back to {lame} crouched in shadow",
+"g": 7
+},
+{
+"id": "g_fiel",
+"scene": "{oracle} kneels on a glowing rune crack and pours green bile into it; the rune flares under {foe} while {lame} coats a blade in the fumes",
+"g": 7
+},
+{
+"id": "g_marginalia",
+"scene": "{oracle} scribbles in the margins of a book while the doodles become kunai that {lame} pulls straight off the page, {foe} looming ahead",
+"g": 7
+},
+{
+"id": "g_colis",
+"scene": "{lame} slips a small ticking parcel into the belt of {foe} from behind while {artificier} winks and holds a lit match",
+"g": 8
+},
+{
+"id": "g_fiole_acide",
+"scene": "{artificier} tosses a bubbling glass flask to {lame}, who smashes it against the back of {foe} in a burst of green fumes",
+"g": 8
+},
+{
+"id": "g_guet_apens",
+"scene": "{artificier} bolts a small crossbow turret behind a crate while {lame} vanishes into the shadows, both waiting for {foe} to walk past",
+"g": 8
+},
+{
+"id": "g_colis_retour",
+"scene": "{lame} blinks behind {foe}, slaps a smoking charge on its back and blinks away as {artificier} counts down on their fingers",
+"g": 8
+},
+{
+"id": "g_cartouchiere",
+"scene": "{artificier} fills a bandolier with glowing kunai straight from a steaming boiler valve and throws it to {lame}, who fans them toward {foe}",
+"g": 8
+},
+{
+"id": "g_vent_arriere",
+"scene": "{moine} rides a gust of wind across the field, landing behind {foe} next to {lame} whose blade is already drawn",
+"g": 9
+},
+{
+"id": "g_zephyr",
+"scene": "{lame} and {moine} spin back to back in a spiral of wind, twin blades and palm strikes landing twice on {foe}",
+"g": 9
+},
+{
+"id": "g_feuille_morte",
+"scene": "{moine} drifts like a falling leaf between the strikes of {foe} while {lame} lands softly on a branch above",
+"g": 9
+},
+{
+"id": "g_chasse_croise",
+"scene": "{lame} and {moine} swap places in a double swirl of wind and leaves, crossing paths right in front of a confused {foe}",
+"g": 9
+},
+{
+"id": "g_oeil_cyclone",
+"scene": "{moine} stands calm at the center of a spinning tornado of blades conjured by {lame}, several {foe} thrown back around them",
+"g": 9
+},
+{
+"id": "g_mise_a_prix",
+"scene": "{trappeur} nails a wanted poster of {foe} to a tree while {lame} draws a red chalk X on its back",
+"g": 10
+},
+{
+"id": "g_tir_fiel",
+"scene": "{trappeur} stands perfectly still on a rock, aiming a bolt dipped in venom by {lame} at a distant {foe}",
+"g": 10
+},
+{
+"id": "g_hamecon",
+"scene": "{trappeur} yanks a hooked line wrapped around {foe}, dragging it toward {lame} who waits with a spinning kunai",
+"g": 10
+},
+{
+"id": "g_tableau_chasse",
+"scene": "{trappeur} and {lame} stand before a board pinned with portraits of several {foe}, each struck with a red X",
+"g": 10
+},
+{
+"id": "g_affut_ombre",
+"scene": "{trappeur} lies prone on a high ledge aiming a long crossbow at the exposed back of {foe}, which {lame} has just spun around",
+"g": 10
+},
+{
+"id": "g_frame_trap",
+"scene": "{tidiane} throws a quick feint jab at {foe}, freezing it mid-guard while {lame} slides behind it, rhythm lines pulsing in the air",
+"g": 11
+},
+{
+"id": "g_option_select",
+"scene": "{tidiane} studies a floating grid of glowing frame data while {lame} waits in stance behind {foe}, both options branching in light",
+"g": 11
+},
+{
+"id": "g_chip",
+"scene": "{tidiane} and {lame} trade tiny cuts with {foe}, a slow green health bar draining above it like a fighting-game chip meter",
+"g": 11
+},
+{
+"id": "g_rage_art",
+"scene": "{tidiane} glows red and flickers behind {foe} in a burst of crimson aura, {lame} mirroring the motion, a massive slash crossing its back",
+"g": 11
+},
+{
+"id": "g_punish_drop",
+"scene": "{tidiane} blocks a wild swing from {foe}, a 174 bpm waveform flashing, then drops a crushing counter while {lame} watches the opening",
+"g": 11
+},
+{
+"id": "g_poche_trouee",
+"scene": "{receleur} slashes open the coin pouch of {foe}, spilling glinting coins, while {lame} steps into its blind spot",
+"g": 12
+},
+{
+"id": "g_lancer_fiel",
+"scene": "{receleur} hurls a stolen vial that {lame} slices open mid-air, splashing venom across {foe}",
+"g": 12
+},
+{
+"id": "g_receler_kunai",
+"scene": "{receleur} slides a trinket across a dockside crate to a shady buyer and gets a bundle of kunai in return, tossing them to {lame}",
+"g": 12
+},
+{
+"id": "g_detrousseur",
+"scene": "{lame} appears behind {foe} and plucks a key from its belt while {receleur} juggles broken trinkets, each one sparking into the strike",
+"g": 12
+},
+{
+"id": "g_arsenal_poches",
+"scene": "{receleur} opens a coat lined with dozens of hidden pockets, each hiding a kunai that {lame} draws one by one toward {foe}",
+"g": 12
+},
+{
+"id": "g_tison_bleu",
+"scene": "{artificier} rakes glowing slag out of a burst barrel and {oracle} seals it into the ground as a blue-hot fissure before {foe}",
+"g": 13
+},
+{
+"id": "g_coulee",
+"scene": "{artificier} tips a crucible of molten metal that {oracle} guides with a gesture into a cross-shaped flood of lava around {foe}",
+"g": 13
+},
+{
+"id": "g_vapeur",
+"scene": "{artificier} opens a pressure valve and warm steam envelops a wounded ally while {oracle} bends the overflow into a scalding jet at {foe}",
+"g": 13
+},
+{
+"id": "g_chaudron_memoire",
+"scene": "{oracle} stirs a bubbling cauldron where glowing pages resurface, while {artificier} stokes the fire beneath with every last lump of coal",
+"g": 13
+},
+{
+"id": "g_fonderie",
+"scene": "{artificier} detonates a row of powder barrels and {oracle} raises both hands as each crater cools into a glowing lava fissure around {foe}",
+"g": 13
+},
+{
+"id": "g_souffle_court",
+"scene": "{moine} exhales a warm spiral of breath while jabbing {foe} with an open palm, {oracle} behind him still glowing from a healing rune",
+"g": 14
+},
+{
+"id": "g_aigrette",
+"scene": "{moine} vaults over {foe} like a white egret taking flight and strikes its back, a ribbon of water light flowing to {oracle} nearby",
+"g": 14
+},
+{
+"id": "g_source_int",
+"scene": "{oracle} traces a glowing spring rune on the flagstones as {moine} lands beside it in meditation stance, {foe} approaching",
+"g": 14
+},
+{
+"id": "g_onde_poing",
+"scene": "{moine} lands a final palm strike on {foe} that sends a tidal ring outward, the wave washing over {oracle} and crashing into a second enemy",
+"g": 14
+},
+{
+"id": "g_respiration",
+"scene": "{moine} breathes in a circle of mist that condenses into a spear of water striking {foe}, {oracle} chanting beside him",
+"g": 14
+},
+{
+"id": "g_vigie",
+"scene": "{trappeur} crouched motionless on a ledge with a spyglass while {oracle} draws a faint violet omen sigil on the ground below, {foe} walking toward it",
+"g": 15
+},
+{
+"id": "g_augure_faille",
+"scene": "{trappeur} looses an arrow at {foe} standing on a cracked ember rift, {oracle} pointing at the glowing fissure",
+"g": 15
+},
+{
+"id": "g_trait_prophetique",
+"scene": "{trappeur} fires a long shot at {foe} while {oracle} sees a ghostly snare already forming on the ground behind the target",
+"g": 15
+},
+{
+"id": "g_songe_affut",
+"scene": "{oracle} dreams with closed eyes beside {trappeur} lying still in tall grass, a translucent copy of an arrow drawing itself toward {foe}",
+"g": 15
+},
+{
+"id": "g_presage_plomb",
+"scene": "{oracle} draws a violet omen sigil beneath {foe} while {trappeur} waits with a weighted net, the enemy unaware of the mark under its feet",
+"g": 15
+},
+{
+"id": "g_page_arrachee",
+"scene": "{tidiane} tears a page from a burning journal and hurls it like a blade at {foe}, {oracle} catching the ashes",
+"g": 16
+},
+{
+"id": "g_refrain",
+"scene": "{tidiane} loops a glowing musical phrase in the air while {oracle} rewrites a vanished card from ash, {foe} staggering to the beat",
+"g": 16
+},
+{
+"id": "g_consolation",
+"scene": "{tidiane} lays a hand on {oracle}'s shoulder as blue light overflows and splashes into {foe}",
+"g": 16
+},
+{
+"id": "g_encre_sang",
+"scene": "{tidiane}, wounded, writes a red stroke in the air that slashes {foe}, the ink turning into healing light over {oracle}",
+"g": 16
+},
+{
+"id": "g_chapitre_final",
+"scene": "{tidiane} slams shut a massive journal as every torn page swirls into a vortex that crushes {foe}, {oracle} reading the last line",
+"g": 16
+},
+{
+"id": "g_tesson",
+"scene": "{receleur} flings a glowing shard of a broken relic at {foe} standing on a rune, {oracle} igniting the fragment mid-air",
+"g": 17
+},
+{
+"id": "g_main_seve",
+"scene": "{receleur} snatches a vial from {foe}'s belt with a sap-green hand while {oracle} makes the stolen potion glow",
+"g": 17
+},
+{
+"id": "g_catalogue",
+"scene": "{oracle} flips through a ledger of curiosities while {receleur} arranges items on a table like a shield wall, {foe} lurking",
+"g": 17
+},
+{
+"id": "g_loupe",
+"scene": "{receleur} peers through an ornate magnifying lens at a potion that splits into two glowing twins, {oracle} amplifying the light, {foe} recoiling",
+"g": 17
+},
+{
+"id": "g_obus_brocante",
+"scene": "{oracle} hurls a burning bundle of junk that {receleur} packed, exploding in a cross of embers over {foe}",
+"g": 17
+},
+{
+"id": "g_mitraille_poings",
+"scene": "{moine} unleashes a blur of piston-driven fists powered by {artificier}'s smoking gauntlet at {foe}",
+"g": 18
+},
+{
+"id": "g_saut_meche",
+"scene": "{moine} leaps through a trail of sparks onto {foe} while {artificier} lights the barrel beside it",
+"g": 18
+},
+{
+"id": "g_cuirasse_meche",
+"scene": "{artificier} straps a sputtering fuse-lined breastplate onto {moine}, who is already mid-combo against a ring of {foe}",
+"g": 18
+},
+{
+"id": "g_peau_poudre",
+"scene": "{moine} stands calmly inside a barrel explosion, soot-covered skin glowing, while {artificier} grins and {foe} is blown away",
+"g": 18
+},
+{
+"id": "g_cent_meches",
+"scene": "{moine} spins in a storm of fists each trailing a lit fuse, {artificier} feeding him powder, several {foe} surrounding him",
+"g": 18
+},
+{
+"id": "g_tir_meche",
+"scene": "{trappeur} fires a smoking bolt at {foe} as {artificier} arms a snare that springs up behind it",
+"g": 19
+},
+{
+"id": "g_poste_tir",
+"scene": "{trappeur} lies prone behind a sandbagged gun nest {artificier} built, a heavy rifle aimed at distant {foe}",
+"g": 19
+},
+{
+"id": "g_tourelle_appeau",
+"scene": "{artificier} sets a clanking turret that whistles like a bird call while {trappeur} hides snares around it, {foe} drawn toward the noise",
+"g": 19
+},
+{
+"id": "g_mortier_brousse",
+"scene": "{artificier} fires a squat mortar from the bushes while {trappeur} watches {foe} stumble into a snapping trap",
+"g": 19
+},
+{
+"id": "g_semis_fer",
+"scene": "{trappeur} scatters iron caltrops and snares in a ring around himself, {artificier} tossing more from a crate, {foe} hesitating at the edge",
+"g": 19
+},
+{
+"id": "g_cadence",
+"scene": "{tidiane} taps a rhythm with a drumstick on a powder keg that {artificier} just placed at her feet, sound waves pulsing toward {foe}",
+"g": 20
+},
+{
+"id": "g_etincelle_sang",
+"scene": "{tidiane} cuts her palm and flicks a blood spark that ignites the barrel {artificier} set beside {foe}",
+"g": 20
+},
+{
+"id": "g_montee",
+"scene": "{tidiane} cranks a glowing tempo dial on {artificier}'s boiler, pressure gauges spinning into the red as {foe} watches",
+"g": 20
+},
+{
+"id": "g_reglage",
+"scene": "{tidiane} fine-tunes a turret's sights with a jeweler's screwdriver while {artificier} holds the blueprint, the turret swiveling toward {foe}",
+"g": 20
+},
+{
+"id": "g_rouages",
+"scene": "{tidiane} lets blood drip into the gears of a turret {artificier} is assembling, its barrel glowing red and aiming at {foe}",
+"g": 20
+},
+{
+"id": "g_ferraille_volee",
+"scene": "{artificier} and {receleur} side by side on a scrapyard dock, {receleur} hurling a rusty lantern at {foe} while {artificier} lights a fuse behind, sparks and bolts flying",
+"g": 21
+},
+{
+"id": "g_recuperation",
+"scene": "{artificier} blows a barrel from a safe distance while {receleur} catches a fresh little keg rolling out of the smoke, {foe} reeling",
+"g": 21
+},
+{
+"id": "g_pieces_detachees",
+"scene": "{receleur} hands spare gears from a sack to {artificier}, who bolts them onto a turret already firing at {foe}",
+"g": 21
+},
+{
+"id": "g_gueulard",
+"scene": "{artificier} and {receleur} shoving scrap into a roaring iron furnace mouth that belches a jet of fire at {foe}",
+"g": 21
+},
+{
+"id": "g_meche_volee",
+"scene": "{receleur} slipping a pouch off {foe}'s belt while {artificier} sticks a sputtering charge on its back",
+"g": 21
+},
+{
+"id": "g_morsure_loutre",
+"scene": "{moine} landing twin rapid strikes on {foe} tangled in {trappeur}'s snare line on a muddy riverbank",
+"g": 22
+},
+{
+"id": "g_martin_pecheur",
+"scene": "{moine} diving from a riverside rock onto {foe} as {trappeur} pulls a rope taut around its legs",
+"g": 22
+},
+{
+"id": "g_peche_main",
+"scene": "{moine} standing still on one leg in shallow water, palm raised to deflect {foe}'s strike, {trappeur} crouched in the reeds behind",
+"g": 22
+},
+{
+"id": "g_planter_projeter",
+"scene": "{trappeur} slamming a spiked trap into the mud as {moine} palm-strikes {foe} backwards onto it",
+"g": 22
+},
+{
+"id": "g_arracher",
+"scene": "{moine} tearing {foe} free from {trappeur}'s ropes with a brutal uppercut, frayed cords snapping",
+"g": 22
+},
+{
+"id": "g_pression",
+"scene": "{moine} and {tidiane} trading rapid jabs on {foe} in a wooden dojo, sound waves pulsing to a beat",
+"g": 23
+},
+{
+"id": "g_tech_rage",
+"scene": "{tidiane} wreathed in a thin red aura chaining into a flurry beside {moine}, both pressing {foe} against the dojo wall",
+"g": 23
+},
+{
+"id": "g_waveland",
+"scene": "{tidiane} sliding across a polished dojo floor in a blur of afterimages, {moine} already in stance beside {foe}",
+"g": 23
+},
+{
+"id": "g_jongle",
+"scene": "{moine} launching {foe} into the air while {tidiane} follows with a string of aerial kicks, glowing beat markers counting each hit",
+"g": 23
+},
+{
+"id": "g_heat_smash",
+"scene": "{tidiane} bleeding and wreathed in red aura unleashing a devastating strike on {foe}, {moine} bracing behind",
+"g": 23
+},
+{
+"id": "g_tour_passe",
+"scene": "{moine} flicking two quick slaps at {foe} while {receleur} palms a coin behind its back at a fairground stall",
+"g": 24
+},
+{
+"id": "g_cracheur",
+"scene": "{receleur} tossing a flask to {moine}, who spits a ring of fire at the {foe} surrounding them under fair lanterns",
+"g": 24
+},
+{
+"id": "g_salto",
+"scene": "{moine} somersaulting over a market cart with {receleur}'s overstuffed satchels, {foe} grasping at empty air",
+"g": 24
+},
+{
+"id": "g_diabolo",
+"scene": "{moine} kicking a spinning bomb at {foe} on a string, {receleur} juggling the next item in line",
+"g": 24
+},
+{
+"id": "g_esquive_foire",
+"scene": "{receleur} bowing theatrically as {foe}'s blow passes through a puff of confetti, {moine} grinning behind with a freshly made trinket",
+"g": 24
+},
+{
+"id": "g_guetter",
+"scene": "{trappeur} crouched still on a cliff ledge aiming at {foe}, {tidiane} tapping a slow rhythm beside, headphones on",
+"g": 25
+},
+{
+"id": "g_saignee_traque",
+"scene": "{tidiane} wounded, pointing at {foe} with a bloodied blade as {trappeur} tags it with a glowing mark",
+"g": 25
+},
+{
+"id": "g_delock",
+"scene": "{tidiane} studying {foe}'s movements as ghostly frame-by-frame silhouettes, {trappeur} motionless in the grass beside her",
+"g": 25
+},
+{
+"id": "g_taille_chargee",
+"scene": "{tidiane} holding a massive greatsword overhead crackling with gathered energy, {trappeur} pinning {foe} in place with a net",
+"g": 25
+},
+{
+"id": "g_drop_fenetre",
+"scene": "{tidiane} dropping a thunderous strike on {foe} from a ridge, {trappeur} signaling the opening as ropes pin the enemy",
+"g": 25
+},
+{
+"id": "g_depecer",
+"scene": "{trappeur} finishing a fallen {foe} with a skinning knife while {receleur} holds open a sack for the spoils",
+"g": 26
+},
+{
+"id": "g_piege_camelote",
+"scene": "{receleur} stuffing trinkets into a jaw trap that {trappeur} buries in leaf litter, {foe} sniffing nearby",
+"g": 26
+},
+{
+"id": "g_plomb_chasse",
+"scene": "{trappeur} aiming a crossbow from a hide piled with {receleur}'s loot sacks, a snare springing up behind {foe}",
+"g": 26
+},
+{
+"id": "g_rancon",
+"scene": "{trappeur} holding a snared {foe} down while {receleur} rifles through its pouches and pockets a ransom note",
+"g": 26
+},
+{
+"id": "g_machoire",
+"scene": "{trappeur} snapping a steel jaw trap shut on {foe}'s leg, {receleur} tossing broken scrap into its gears",
+"g": 26
+},
+{
+"id": "g_partage",
+"scene": "{receleur} lifting a purse from {foe} and splitting coins with {tidiane} under a black-and-blue neon sign",
+"g": 27
+},
+{
+"id": "g_surin",
+"scene": "{tidiane} lunging with a short blade into {foe} while {receleur} snatches its trinket in the same motion",
+"g": 27
+},
+{
+"id": "g_casse_rythme",
+"scene": "{tidiane} smashing a vase in time with a pounding bassline while {receleur} catches the gold pieces spilling out",
+"g": 27
+},
+{
+"id": "g_le_plan",
+"scene": "{tidiane} and {receleur} leaning over a heist blueprint spread on a crate, stolen goods piled around, {foe} guards drawn as chess pieces",
+"g": 27
+},
+{
+"id": "g_magot",
+"scene": "{tidiane} swinging a sack of gold like a flail into {foe}, {receleur} cheering amid flying coins and shattered crates",
+"g": 27
+}
+]

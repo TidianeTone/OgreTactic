@@ -17,7 +17,7 @@ func _init() -> void:
 			var c := Data.card({"id": id, "lvl": L, "h": h})
 			lv.append({"text": Data.card_text(c), "cost": c.cost})
 		cards.append({"id": id, "name": d.name, "cls": Data.classes_of(id), "rar": d.get("rar", 1), "kind": d.kind,
-			"range": d.get("range", []), "target": d.get("target", "foe"), "lv": lv, "starter": Data.STARTER.get(h, []).has(id)})
+			"range": d.get("range", []), "target": d.get("target", "foe"), "lv": lv, "starter": Data.STARTER.get(h, []).has(id), "arch": d.get("arch", "")})
 	var items := {}
 	for id in Data.ITEMS:
 		items[id] = {"name": Data.ITEMS[id].name, "slot": Data.ITEMS[id].slot, "owner": Data.ITEMS[id].owner, "rarity": Data.ITEMS[id].rarity,
@@ -44,6 +44,8 @@ func _init() -> void:
 		"passives": Data.PASSIVES, "traits": Data.TRAITS, "triggers": Data.TRIGGERS, "keywords": Data.KEYWORDS, "pacts": Data.PACTS,
 		"modifiers": Data.MODIFIERS, "affixes": Data.AFFIXES, "ancients": ancients, "boons": Data.BOONS, "guilds": guilds,
 		"difficulty": Data.DIFFICULTY, "mastery": Data.MASTERY, "biomes": Data.BIOMES.map(func(b): return b.name),
+		"archetypes": Data.ARCHETYPES, "companions": Data.COMPANIONS,
+		"new_guild_cards": Guildes.CARDS.keys().filter(func(id): return Guildes.CARDS[id].has("arch")),
 		"encounters": Data.ENCOUNTERS, "elites": Data.ELITES, "elites_noyes": Data.ELITES_NOYES, "boss": Data.BOSS, "price": Data.PRICE}
 	var f := FileAccess.open(OS.get_cmdline_user_args()[0], FileAccess.WRITE)
 	f.store_string(JSON.stringify(out, "\t"))

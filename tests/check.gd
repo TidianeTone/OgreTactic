@@ -27,12 +27,12 @@ func _init() -> void:
 		if Data.upgrade_diff({"id": id, "lvl": 1}, {"id": id, "lvl": 2}) == "" or Data.upgrade_diff({"id": id, "lvl": 2}, {"id": id, "lvl": 3}) == "":
 			print("palier vide : ", id)
 			fails += 1
-	# multiclasse : 28 guildes, chacune 1 commune, 1 peu commune, 3 rares, 1 légendaire
+	# multiclasse : 28 guildes de 11 cartes
 	for g in Guildes.LIST.size():
 		var n := [0, 0, 0, 0, 0]
 		for id in Guildes.cards_of(g):
 			n[Guildes.CARDS[id].rar] += 1
-		if n != [0, 1, 1, 3, 1]:
+		if n != [0, 2, 3, 5, 1]:  # 6 d'origine + 5 du 25/09 (1 commune, 2 peu communes, 2 rares)
 			print("guilde incomplète : ", Guildes.LIST[g][2], " ", n)
 			fails += 1
 	if Guildes.index("lame", "garde") != 0 or Guildes.index("receleur", "tidiane") != 27:

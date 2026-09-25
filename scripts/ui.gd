@@ -16,6 +16,7 @@ const ICON := {
 }
 
 var main: Node3D
+var dim_alpha := 0.62   # voile des écrans de choix ; plus léger dans les lieux de repos
 var battle: Battle
 var root: Control
 var hud: Control
@@ -795,7 +796,7 @@ func refresh() -> void:
 		var ok: bool = h and h.alive and battle.cost_of(c) <= battle.energy and battle.player_turn
 		_cards[i].modulate = Color.WHITE if ok else Color(0.55, 0.53, 0.5)
 		var orb_l: Label = _cards[i].get_meta("cost")
-		orb_l.text = str(battle.cost_of(c))
+		orb_l.text = "X" if c.has("xcost") else str(battle.cost_of(c))
 		(_cards[i].get_meta("live") as Control).visible = ok and battle.trig_live(c)
 	_sync_tags()
 	main.refresh_hover()
@@ -907,7 +908,7 @@ func make_card(ci: Dictionary) -> Control:
 	var orb := _panel(card, sb(Color("#e8a33c"), Color("#fff0c8"), 17, 2, 4))
 	orb.position = Vector2(-7, -7)
 	orb.size = Vector2(36, 36)
-	var cl := _label(str(c.cost), 20, Color("#2a1606"), title_f)
+	var cl := _label("X" if c.has("xcost") else str(c.cost), 20, Color("#2a1606"), title_f)
 	cl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	cl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -1290,7 +1291,7 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 	var opened := Time.get_ticks_msec()
 	var fresh := func() -> bool: return Time.get_ticks_msec() - opened < 300  # le clic de l'écran précédent ne valide pas celui-ci
 	var dim := ColorRect.new()
-	dim.color = Color(0.03, 0.03, 0.04, 0.62)
+	dim.color = Color(0.03, 0.03, 0.04, dim_alpha)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.add_child(dim)
 	var box := VBoxContainer.new()
@@ -1461,7 +1462,7 @@ func map_screen(title: String, subtitle: String, fmap: Array, step: int, lane: i
 		for i in fmap[k].size():
 			var n: Dictionary = fmap[k][i]
 			var r: Dictionary = Data.ROOMS[n.type]
-			var col: Color = {"elite": Color("#e0583a"), "boss": Color("#ff5a3a"), "sanctuaire": Color("#8fd0a0"), "reliquaire": Color("#d08aff"), "marchand": Color("#ffd27a")}.get(n.type, INK)
+			var col: Color = {"elite": Color("#e0583a"), "boss": Color("#ff5a3a"), "sanctuaire": Color("#8fd0a0"), "reliquaire": Color("#d08aff"), "marchand": Color("#ffd27a"), "mystere": Color("#7fe0c8")}.get(n.type, INK)
 			var open: bool = k == step and nexts.has(i)
 			var done: bool = visited.has(Vector2i(k, i))
 			var b := Button.new()

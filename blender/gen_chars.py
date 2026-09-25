@@ -67,7 +67,14 @@ def cracks(vox, glow, R, n, length, palette=None):
                 p = q
 
 
+HYB = None  # vocation en cours : le héros est exporté en version hybride u_<classe>__<vocation>
+
+
 def unit(name, body, weapon=None, grip=(0, 0, 0), glow=None, wglow=None):
+    fname = "u_" + name
+    if HYB:
+        body, glow = hybrid(name, body, dict(glow or {}), HYB)
+        fname = "u_%s__%s" % (name, HYB)
     objs = [mesh(name + "_body", body, VC)]
     if weapon:
         w = mesh(name + "_weapon", weapon, VC)
@@ -79,7 +86,7 @@ def unit(name, body, weapon=None, grip=(0, 0, 0), glow=None, wglow=None):
             objs.append(wg)
     if glow:
         objs.append(mesh(name + "_glow", glow, VC, ao=False, glow=True))
-    export("u_" + name, objs)
+    export(fname, objs)
 
 
 # ------------------------------------------------------------------ héros (face vers -y)
@@ -1119,16 +1126,189 @@ def vocations():
     voc_piece("receleur", b)
 
 
+def marchand():
+    """Le marchand des ruines : robe ambre et rose, turban sarcelle, barbe blanche, hotte chargée de jarres et d'un tapis."""
+    R = random.Random(71)
+    AMB, AMD, ROS, TUR, TUD = P("#e8a040", "#a86a28", "#c8506a", "#2a9a8a", "#1a6a60")
+    SKIN, BRD, WOOD, GOLD = P("#c98f68", "#eeeae0", "#6a4a32", "#e6b84f")
+    b, g = {}, {}
+    for z in range(0, 18):  # robe évasée
+        rx = 7.6 - z * 0.17
+        ell(b, (0, 0, z), (rx, 5.4 - z * 0.08, 0.6), lambda x, y, zz: ROS if zz < 3 or (abs(x) <= 1 and y < 0) else AMB)
+    ell(b, (0, 0, 13), (6.8, 5.0, 0.9), GOLD)
+    ell(b, (0, -0.4, 17), (6.2, 4.8, 3.6), AMB)  # ventre rond
+    for s in (-1, 1):
+        cap(b, (5.5 * s, -0.5, 19), (6.5 * s, -3, 13), 2.0, AMD)
+        ell(b, (6.4 * s, -3.4, 12.5), (1.5, 1.5, 1.5), SKIN)
+    ell(b, (0, 0, 23.5), (3.9, 3.9, 3.9), SKIN)
+    ell(b, (0, -2.8, 21.5), (3.3, 1.8, 3.0), BRD)  # barbe
+    ell(b, (0, 0.3, 27.5), (5.0, 5.0, 2.8), TUR)  # turban
+    ell(b, (0, 0.3, 29.5), (3.6, 3.6, 2.2), TUD)
+    b[(0, -5, 28)] = GOLD
+    g[(-1, -4, 24)] = lin("#ffd27a")
+    g[(1, -4, 24)] = lin("#ffd27a")
+    for p in list(g):
+        b.pop(p, None)
+    # hotte : cadre de bois, jarres, tapis roulé
+    for z in range(8, 30):
+        for x in (-5, 5):
+            b[(x, 6, z)] = WOOD
+    for x in range(-5, 6):
+        for z in (10, 20, 29):
+            b[(x, 6, z)] = WOOD
+    for jx, jz, jc in ((-2.5, 12, "#b8643a"), (2.5, 13, "#3f8a8a"), (-2, 22, "#c87848"), (2.5, 23, "#d8c098")):
+        ell(b, (jx, 8, jz), (2.2, 2.0, 3.0), lambda x, y, z, c=jc: tone(lin(c), R.uniform(0.85, 1.1)))
+    cap(b, (-7, 8, 31), (7, 8, 31), 1.8, ROS)
+    b = shade(b, R)
+    st, sg = {}, {}
+    for z in range(-12, 22):
+        st[(0, 0, z)] = WOOD
+    for z in range(22, 25):
+        st[(0, -1, z)] = lin("#3a3030")
+    ell(sg, (0, -1, 20), (1.4, 1.4, 1.8), lambda x, y, z: lin("#ffc070"))
+    unit("marchand", b, st, grip=(-7, -3, 12), glow=g, wglow=sg)
+
+
+# ------------------------------------------------------------------ héros hybrides (vocation)
+# La vocation se voit de loin : bas de la tenue et ceinture à la couleur de la classe apprise,
+# plus la coiffe emblématique de cette classe (cimier, bandeau, chapeau pointu, lunettes...).
+
+CLS_HEX = {"garde": "#3d63e0", "lame": "#e0344f", "oracle": "#9b50d8", "artificier": "#22b8a6",
+           "moine": "#6cc24a", "trappeur": "#c9a23a", "tidiane": "#d0409a", "receleur": "#9fb4c2"}
+# centre et rayon de la tête de chaque héros (voxels, face vers -y) ; top = où poser une coiffe
+HEAD = {"garde": ((0, 0, 26.5), 4.6, 31), "lame": ((0, 0.5, 25), 4.4, 30), "oracle": ((0, 0, 23), 4.2, 27),
+        "artificier": ((0, 0, 24.5), 4.3, 30), "moine": ((0, 0, 23.5), 3.9, 28), "trappeur": ((0, 0.3, 24.8), 4.0, 31),
+        "tidiane": ((0, 0.2, 24.3), 3.6, 31), "receleur": ((0, 0.3, 24.5), 3.8, 31)}
+BELT = {"garde": 13, "lame": 12, "oracle": 12, "artificier": 12, "moine": 12, "trappeur": 12, "tidiane": 12, "receleur": 12}
+
+
+def _hsv(c):
+    import colorsys
+    return colorsys.rgb_to_hsv(*[max(0.0, min(1.0, x)) ** (1 / 2.2) for x in c])
+
+
+def _recol(c, to):
+    """Garde la valeur de c, prend la teinte et la saturation de to (couleurs linéaires)."""
+    import colorsys
+    h, s, v = _hsv(to)
+    v0 = _hsv(c)[2]
+    r = colorsys.hsv_to_rgb(h, s, min(1.0, v0 * 0.55 + v * 0.45))
+    return tuple(x ** 2.2 for x in r)
+
+
+def hybrid(name, b, g, voc):
+    R = random.Random(sum(map(ord, name + voc)))
+    bh = _hsv(lin(CLS_HEX[name]))[0]
+    vc = lin(CLS_HEX[voc])
+    b = dict(b)
+    belt = BELT[name]
+    for p, c in list(b.items()):
+        h, s, v = _hsv(c)
+        dh = min(abs(h - bh), 1 - abs(h - bh))
+        if p[2] < belt - 1 and s > 0.3 and dh < 0.08:  # bas de la tenue : couleur de la vocation
+            b[p] = _recol(c, vc)
+        elif belt - 1 <= p[2] <= belt and abs(p[0]) <= 7 and abs(p[1]) <= 6:  # ceinture nouée
+            b[p] = tone(vc, 1.2 if p[2] == belt else 0.85)
+    (cx, cy, cz), r, top = HEAD[name]
+    hat(b, g, voc, (cx, cy, cz), r, top, vc, R)
+    return b, g
+
+
+def hat(b, g, voc, c, r, top, vc, R):
+    cx, cy, cz = c
+    dark = tone(vc, 0.45)
+    light = tuple(min(1.0, x * 1.5) for x in vc)
+    if voc == "garde":  # cimier d'acier et plumet bleu
+        ell(b, (cx, cy, top - 1), (r + 0.4, r + 0.4, 2.4), lambda x, y, z: lin("#d4dbe0") if z < top else lin("#98a4ad"))
+        for i in range(10):
+            t = i / 9
+            p = (0, cy - 2 + t * 7, top + 2 + 3 * math.sin(t * 3))
+            cap(b, p, p, 1.5 - t * 0.5, vc if i % 3 else light)
+    elif voc == "lame":  # bandeau rouge noué, deux pans qui flottent derrière
+        for a in range(40):
+            t = a / 40 * math.tau
+            x, y = cx + math.cos(t) * (r + 0.6), cy + math.sin(t) * (r + 0.6)
+            b[(int(round(x)), int(round(y)), int(cz + 1))] = vc
+            b[(int(round(x)), int(round(y)), int(cz + 2))] = dark if a % 5 == 0 else vc
+        for k in (-1, 1):
+            for i in range(9):
+                b[(int(cx + k * (1 + i * 0.3)), int(cy + r + 1 + i * 0.6), int(cz + 1 - i * 0.7))] = vc if i % 3 else dark
+    elif voc == "oracle":  # grand chapeau pointu violet à bord doré
+        for x in range(-int(r + 4), int(r + 5)):
+            for y in range(-int(r + 4), int(r + 5)):
+                d = x * x + y * y
+                if d <= (r + 4) ** 2:
+                    b[(int(cx + x), int(cy + y), top)] = lin("#e6b84f") if d > (r + 2.6) ** 2 else vc
+        for i in range(12):
+            t = i / 11
+            rr = (r + 0.6) * (1 - t) + 0.6
+            ell(b, (cx, cy + t * t * 6, top + 1 + i), (rr, rr, 0.7), vc if i % 4 else dark)
+        g[(int(cx), int(cy + 6), top + 13)] = lin("#ffd27a")
+    elif voc == "artificier":  # lunettes de cuivre relevées, verres lumineux
+        for x in range(-int(r), int(r) + 1):
+            b[(int(cx + x), int(cy - r + 0.5), int(cz + 2))] = lin("#6a4a30")
+        for k in (-1, 1):
+            ell(b, (cx + k * 2, cy - r - 0.3, cz + 2), (1.4, 0.8, 1.4), lin("#d9a441"))
+            g[(int(cx + k * 2), int(cy - r - 1.5), int(cz + 2))] = lin("#7ff0e0")
+        for z in range(top, top + 3):  # petite cheminée de réservoir sur le crâne
+            b[(int(cx + 2), int(cy + 1), z)] = lin("#4a4d52")
+        g[(int(cx + 2), int(cy + 1), top + 3)] = lin("#ffb347")
+    elif voc == "moine":  # chapeau conique de paille (kasa), cordon vert
+        for i in range(5):
+            rr = r + 4.5 - i * 1.3
+            ell(b, (cx, cy, top + i), (rr, rr, 0.6), lambda x, y, z: tone(lin("#d9c07a"), R.uniform(0.85, 1.1)))
+        for a in range(32):
+            t = a / 32 * math.tau
+            b[(int(round(cx + math.cos(t) * (r + 2.7))), int(round(cy + math.sin(t) * (r + 2.7))), top + 1)] = vc
+    elif voc == "trappeur":  # grande plume ocre plantée sur le côté et collier de crocs
+        for i in range(14):
+            t = i / 13
+            x = cx + r * 0.7 + t * 2
+            z = top - 3 + t * 10
+            for w in range(-1, 2):
+                b[(int(x) + (w if t > 0.2 else 0), int(cy + 1 + t * 2), int(z))] = vc if (i + w) % 3 else light
+        for a in range(14):
+            t = a / 14 * math.pi
+            b[(int(round(cx + math.cos(t) * (r + 0.5))), int(round(cy - math.sin(t) * (r - 1))), int(cz - r + 0.5))] = lin("#f1ede2")
+    elif voc == "tidiane":  # demi-masque de porcelaine et ruban magenta
+        for x in range(-3, 4):
+            for z in range(int(cz), int(cz + 3)):
+                b[(int(cx + x), int(cy - r - 0.6), z)] = lin("#0d0c10") if (abs(x) == 2 and z == int(cz + 1)) else lin("#f4f1ea")
+        for x in (-2, 2):
+            g[(int(cx + x), int(cy - r - 1.6), int(cz + 1))] = lin("#e0483f") if x < 0 else lin("#4aa3d8")
+        for i in range(10):
+            b[(int(cx + 2 + i * 0.3), int(cy + r + i * 0.5), int(cz + 2 - i * 0.6))] = vc
+    elif voc == "receleur":  # capuche gris-bleu rabattue, piécette d'or à l'oreille
+        ell(b, (cx, cy + 0.8, top - 3), (r + 1.2, r + 1.4, 3.4), lambda x, y, z: tone(vc, R.uniform(0.75, 1.0)),
+            keep=lambda x, y, z: not (y < cy - 1 and z < top - 2 and abs(x) < r - 0.5))
+        g[(int(cx - r - 1.5), int(cy), int(cz - 1))] = lin("#e3c46a")
+    for p in g:  # une lueur ne se cache pas dans un voxel opaque
+        b.pop(p, None)
+
+
+def hybrids():
+    global HYB
+    heroes = {"garde": garde, "lame": lame, "oracle": oracle, "artificier": artificier, "moine": moine,
+              "trappeur": trappeur, "tidiane": tidiane, "receleur": receleur}
+    for k, fn in heroes.items():
+        for v in heroes:
+            if v != k:
+                HYB = v
+                fn()
+    HYB = None
+
+
 def build():
     for f in os.listdir(OUT):
         if f.startswith("u_") and f.endswith(".glb"):
             os.remove(os.path.join(OUT, f))
-    garde(); lame(); oracle(); artificier(); moine(); trappeur(); tidiane(); receleur()
+    garde(); lame(); oracle(); artificier(); moine(); trappeur(); tidiane(); receleur(); marchand()
     husk(); guetteur(); sentinelle(); wisp(); gardien()
     chaman(); carapace(); rodeur()
     noyes()
     betes()
     vocations()
+    hybrids()
     print("persos ok")
 
 

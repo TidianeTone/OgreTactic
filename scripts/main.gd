@@ -64,6 +64,7 @@ signal floor_done(result: String)
 static var difficulty := 1   # index dans Data.DIFFICULTY ; retenu d'une run à l'autre
 var pacts: Array = []
 var next_mods: Array = []
+var pending_mods: Array = []  # imposés par un événement au prochain combat
 var fmap: Array = []        # carte de l'étage : étapes -> nœuds {type, arch, obj, links, desc}
 var lane := -1
 var visited: Array = []
@@ -123,6 +124,12 @@ func _ready() -> void:
 		_cardtest.call_deferred()
 	elif args.has("voctest"):
 		_voctest.call_deferred()
+	elif args.has("looktest"):
+		_looktest.call_deferred()
+	elif args.has("haventest"):
+		_haventest.call_deferred()
+	elif args.has("eventtest"):
+		_eventtest.call_deferred()
 	elif args.has("savetest"):
 		_savetest.call_deferred()
 	elif args.has("capture"):
@@ -620,6 +627,10 @@ func new_run() -> void:
 	fmap = []
 	_no_save = false
 	fights = 0
+	purges = 0
+	companion = ""
+	seen_events = []
+	pending_mods = []
 	gold = 40
 	floor_biomes = range(Data.BIOMES.size())
 	for i in range(floor_biomes.size() - 1, 0, -1):
@@ -687,7 +698,7 @@ func _draft() -> Array:
 		for k in left:
 			var d: Dictionary = Data.HEROES[k]
 			opts.append({"title": d.name, "image": "res://assets/art/portrait_%s.png" % k, "color": Data.CLASS_COLOR[k],
-				"text": "%s\n%d PV · dépl. %d\n%s" % [d.title, d.hp, d.move, d.role]})
+				"text": "%s\n%d PV · dépl. %d\n%s\nRoutes : %s" % [d.title, d.hp, d.move, d.role, " · ".join(Data.ARCHETYPES[k].map(func(x): return x[0]))]})
 		var chosen: String = ", ".join(out.map(func(k): return Data.HEROES[k].name))
 		var i := await ui.choose("L'ESCOUADE", "Choisissez trois héros (%d / 3)%s" % [out.size(), ("  ·  " + chosen) if chosen != "" else ""], opts, true, "Compléter au hasard")
 		if i < 0:
@@ -727,6 +738,8 @@ func _loop() -> void:
 			await _sanctuary()
 		elif type == "marchand":
 			await _merchant()
+		elif type == "mystere":
+			await _mystery({"node": null, "arch": next_arch})
 		else:
 			await _relic_pick("Reliquaire", "Une relique parmi trois")
 		step += 1
@@ -789,7 +802,7 @@ func _gen_map() -> void:
 	fmap = []
 	visited = []
 	lane = -1
-	var pool := ["combat", "combat", "combat", "elite", "sanctuaire", "reliquaire"]
+	var pool := ["combat", "combat", "combat", "elite", "sanctuaire", "reliquaire", "mystere", "mystere"]
 	for k in ROOMS_PER_FLOOR:
 		var row: Array = []
 		var last := k == ROOMS_PER_FLOOR - 1
@@ -869,15 +882,15 @@ func _build_room(seed: int, bi: int, size := 14, arch := "", with_props := false
 
 func _fight(type: String, ids_override: Array = []) -> bool:
 	var ids: Array
-	var size := 16 + 2 * rng.randi_range(0, 1)
+	var size := 18 + 2 * rng.randi_range(0, 1)
 	var arch := next_arch
 	match type:
 		"elite":
 			ids = Data.ELITES_NOYES[floor_i] if rng.randf() < 0.5 else Data.ELITES.get(floor_i, Data.ELITES[2])
-			size = 18
+			size = 20
 		"boss":
 			ids = Data.BOSS
-			size = 20
+			size = 22
 		_:
 			var pool: Array = Data.ENCOUNTERS[floor_i]
 			ids = pool[rng.randi_range(0, pool.size() - 1)]
@@ -902,6 +915,10 @@ func _fight(type: String, ids_override: Array = []) -> bool:
 	battle.rng.seed = run_seed + floor_i * 13 + step
 	Battle.foe_mult = Data.DIFFICULTY[difficulty].foe[floor_i - 1]
 	var mods: Array = next_mods.duplicate() if type != "boss" else []
+	for m in pending_mods:
+		if not mods.has(m):
+			mods.append(m)
+	pending_mods.clear()
 	for pk in [["acier", "blindes"], ["rage", "enrages"], ["brume", "brume"]]:
 		if pacts.has(pk[0]) and not mods.has(pk[1]):
 			mods.append(pk[1])
@@ -971,20 +988,27 @@ func open_chest(h: Unit) -> void:
 
 
 func _rewards(type: String) -> void:
-	var g := int((rng.randi_range(18, 28) + (30 if type == "elite" else 0)) * (1.0 + 0.25 * pacts.size()) * (1.5 if next_mods.size() > 0 else 1.0))
+	var g := int((rng.randi_range(18, 28) + (30 if type == "elite" else 0)) * (1.0 + 0.25 * pacts.size()) * (1.5 if next_mods.size() > 0 else 1.0) * (1.25 if relics.has("bourse") else 1.0))
 	gold += g
 	ui.set_gold(gold)
 	if type == "elite" or rng.randf() < 0.4:
 		_gain_tool(_tool_roll(3 if type == "elite" else 2))
 	var opts: Array = []
 	var n := 4 if relics.has("oeil") else 3
+	var tries := 0
 	while opts.size() < n:
 		var id := _card_roll(2 if (type == "elite" or next_mods.size() > 0) and opts.is_empty() else 1)
 		if opts.any(func(o): return o.card.id == id):
 			continue
+		# des archétypes différents à chaque butin : on sent vite qu'une classe a plusieurs routes
+		var ar: String = Data.def(id).get("arch", "")
+		tries += 1
+		if tries < 24 and ar != "" and opts.any(func(o): return Data.def(o.card.id).get("arch", "") == ar and Data.def(o.card.id).get("owner", "") == Data.def(id).get("owner", "")):
+			continue
 		opts.append({"card": {"id": id, "lvl": 2 if type == "elite" and opts.is_empty() else 1}})
 	for o in opts:
-		o["tag"] = Data.HEROES[Data.holder(o.card)].name
+		var ar: String = Data.def(o.card.id).get("arch", "")
+		o["tag"] = Data.HEROES[Data.holder(o.card)].name + (" · " + ar if ar != "" else "")
 	var extra := _bonus_opts()
 	opts.append_array(extra)
 	var sub := "+%d or · ajoutez une carte au paquet (%d cartes)" % [g, deck.size()]
@@ -1169,7 +1193,7 @@ func _save_run() -> void:
 	var d := {"v": 1, "mode": mode, "difficulty": difficulty, "pacts": pacts, "party": party, "floor_i": floor_i, "step": step,
 		"fights": fights, "gold": gold, "floor_biomes": floor_biomes, "bag": bag, "relics": relics, "deck": deck, "besace": besace,
 		"besace_max": besace_max, "voc_intro_done": voc_intro_done, "run_seed": run_seed, "rng": rng.state, "minutes": _minutes(),
-		"fmap": fmap, "lane": lane, "visited": visited, "heroes": []}
+		"fmap": fmap, "lane": lane, "visited": visited, "heroes": [], "purges": purges, "companion": companion, "seen_events": seen_events, "pending_mods": pending_mods}
 	for h in heroes:
 		var hd := {}
 		for k in HERO_KEEP:
@@ -1217,6 +1241,10 @@ func _load_run() -> bool:
 	for k in ["mode", "pacts", "party", "floor_i", "step", "fights", "gold", "floor_biomes", "bag", "relics", "deck",
 			"besace", "besace_max", "voc_intro_done", "run_seed", "fmap", "lane", "visited"]:
 		set(k, d[k])
+	purges = int(d.get("purges", 0))
+	companion = str(d.get("companion", ""))
+	seen_events = d.get("seen_events", [])
+	pending_mods = d.get("pending_mods", [])
 	run_start = Time.get_ticks_msec() - int(d.minutes) * 60000
 	_make_party()
 	for i in heroes.size():
@@ -1241,7 +1269,7 @@ func _load_run() -> bool:
 
 func _testing() -> bool:
 	## Les essais n'écrivent ni dans la bibliothèque ni dans la sauvegarde du joueur.
-	return ["autoplay", "uitest", "advtest", "capture", "cardtest", "voctest"].any(func(k): return args.has(k))
+	return ["autoplay", "uitest", "advtest", "capture", "cardtest", "voctest", "looktest", "haventest", "eventtest"].any(func(k): return args.has(k))
 
 
 func _save_library() -> void:
@@ -1300,9 +1328,186 @@ func _equipment() -> void:
 		u.apply_gear()
 
 
+# ------------------------------------------------------------------ lieux de repos
+
+var haven_root: Node3D
+const MERCHANT_LINES := ["« Tout se revend, même un souvenir. »", "« Assieds-toi, l'eau ne monte pas avant ce soir. »",
+	"« Cette jarre ? Elle a vu trois déluges. »", "« Je fais crédit aux morts, jamais aux vivants. »",
+	"« Les Hauts-Fonds donnent, les Hauts-Fonds reprennent. »"]
+const FIRE_LINES := ["Le feu crépite. Quelqu'un fredonne un vieux break.", "L'eau de la fontaine couvre le bruit du monde.",
+	"On refait les bandages, on raconte la dernière salle.", "Un moment sans initiative ni orientation."]
+
+
+func _haven(kind: String) -> void:
+	## Un lieu calme posé sur l'arène : étal et marchand, ou fontaine, kiosque et feu de camp.
+	_build_room(run_seed + floor_i * (311 if kind == "marchand" else 577) + step, _biome(), 12, "cour")
+	if haven_root:
+		haven_root.queue_free()
+	haven_root = Node3D.new()
+	units_root.add_child(haven_root)
+	var a := _haven_anchor()
+	var p := board.world(a)
+	var fire := a  # ce que l'escouade regarde : l'étal ou le feu
+	if kind == "mystere":
+		_haven_light(p + Vector3(0, 1.4, 0), Color(0.75, 0.8, 1.0), 1.4, 5.0)
+	elif kind == "marchand":
+		_haven_piece("haven_etal", p + Vector3(0.5, 0, 0), 0.0)
+		_haven_piece("haven_jarres", board.world(a + Vector2i(-1, 0)), 0.0)
+		_haven_piece("haven_jarres", board.world(a + Vector2i(-1, -1)), PI * 0.5)
+		_haven_npc("marchand", board.world(a + Vector2i(2, 0)) + Vector3(-0.05, 0, 0.2), -0.5)  # au coin de l'étal, pas sous l'auvent
+		_haven_light(p + Vector3(0.5, 1.6, 0.2), Color(1.0, 0.7, 0.4), 2.2, 5.0)
+		_haven_piece("haven_tapis", board.world(a + Vector2i(0, 2)), 0.0)
+		_haven_piece("haven_tapis", board.world(a + Vector2i(1, 2)), 0.0)
+	else:
+		_haven_piece("haven_fontaine", p + Vector3(0.5, 0, 0.5), 0.0)
+		# le feu : une case dégagée à 2-3 pas de la fontaine, avec de la place autour pour s'asseoir
+		var fs := -INF
+		for c in board.walkable_cells():
+			var dd := Battle.dist(c, a)
+			if dd < 2 or dd > 4 or c in [a + Vector2i(1, 0), a + Vector2i(0, 1), a + Vector2i(1, 1)]:
+				continue
+			var sc := 0.0
+			for d in Battle.RING8:
+				if board.walkable(c + d) and absi(board.h[c + d] - board.h[c]) <= 1:
+					sc += 1.0
+			sc += 0.3 * (c.y - a.y) - absi(board.h[c] - board.h[a])
+			if sc > fs:
+				fs = sc
+				fire = c
+		_haven_piece("haven_feu", board.world(fire), 0.0)
+		var fl := _haven_light(board.world(fire) + Vector3(0, 0.5, 0), Color(1.0, 0.55, 0.25), 3.0, 6.0)
+		var tw := fl.create_tween().set_loops()
+		tw.tween_property(fl, "light_energy", 2.2, 0.35).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(fl, "light_energy", 3.2, 0.5).set_trans(Tween.TRANS_SINE)
+		var wet := _haven_water(a)
+		if wet.x > -50:
+			_haven_piece("haven_kiosque", Vector3(wet.x, Board.WATER_Y - 0.1, wet.y), 0.0)
+	# l'escouade se pose autour : les cases libres les plus proches du point de rendez-vous
+	var meet: Vector2 = Vector2(a) + Vector2(0.0, 1.8) if kind == "marchand" else Vector2(fire) + Vector2(0.3, 0.6)
+	var taken: Array = [a, a + Vector2i(1, 0), a + Vector2i(0, 1), a + Vector2i(1, 1), fire] if kind == "sanctuaire" else [a, a + Vector2i(1, 0), a + Vector2i(-1, 0), a + Vector2i(2, 0)]
+	if kind == "mystere":
+		taken = []
+	var cands: Array = board.walkable_cells().filter(func(c): return not taken.has(c) and absi(board.h[c] - board.h[a]) <= 1)
+	cands.sort_custom(func(x, y): return Vector2(x).distance_to(meet) < Vector2(y).distance_to(meet))
+	if kind == "sanctuaire":  # en cercle autour du feu : à gauche, à droite, derrière
+		var ring: Array = [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(0, 1)].map(func(d): return fire + d).filter(func(c): return cands.has(c))
+		cands = ring + cands.filter(func(c): return not ring.has(c))
+	for i in heroes.size():
+		var c: Vector2i = cands[i] if i < cands.size() else a
+		heroes[i].place(c, board)
+		heroes[i].face(fire - c)
+	target = (p + Vector3(0.5, 0.6, 0.8)) if kind == "marchand" else (p + Vector3(0.5, 0, 0.5) + board.world(fire)) * 0.5 + Vector3(0, 0.5, 0)
+	dist = 13.0
+	pitch = 48.0
+	orbit = true
+	ui.dim_alpha = 0.22
+	if kind == "marchand":
+		ui.banner("Le Marchand", MERCHANT_LINES[rng.randi_range(0, MERCHANT_LINES.size() - 1)])
+	elif kind == "sanctuaire":
+		ui.banner("Halte", FIRE_LINES[rng.randi_range(0, FIRE_LINES.size() - 1)])
+	else:
+		ui.banner("Inconnu", "Quelque chose attend dans la salle")
+	await get_tree().create_timer(1.6).timeout
+
+
+func _haven_end() -> void:
+	orbit = false
+	ui.dim_alpha = 0.62
+	if haven_root:
+		haven_root.queue_free()
+		haven_root = null
+	if mode == "aventure":
+		_show_dungeon()
+
+
+func _haven_anchor() -> Vector2i:
+	## La case la plus plate et la plus centrale : de la place pour l'étal ou la fontaine et l'escouade.
+	var best := Vector2i(board.dim / 2, board.dim / 2)
+	var bs := -INF
+	var mid := Vector2(board.dim / 2.0, board.dim / 2.0)
+	for c in board.walkable_cells():
+		var s := 0.0
+		for dx in range(-2, 4):
+			for dz in range(-1, 4):
+				var n: Vector2i = c + Vector2i(dx, dz)
+				if board.walkable(n) and board.h[n] == board.h[c]:
+					s += 1.0
+				elif dz == -1 and dx in [0, 1]:
+					s -= 20.0  # derrière l'étal, la place du marchand
+		s -= Vector2(c).distance_to(mid) * 0.6
+		if s > bs:
+			bs = s
+			best = c
+	return best
+
+
+func _haven_water(a: Vector2i) -> Vector2i:
+	## Une eau libre à 4-7 cases pour le kiosque (-99 si l'arène n'en a pas).
+	for r in range(5, 9):
+		for c in board.kind.keys():
+			if board.kind[c] == "water" and Battle.dist(c, a) == r:
+				var ok := true
+				for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+					if board.kind.get(c + d, "water") != "water":
+						ok = false
+				if ok:
+					return c
+	return Vector2i(-99, -99)
+
+
+func _haven_piece(key: String, pos: Vector3, rot: float) -> void:
+	var md := Board.mesh_of(key)
+	var node := Node3D.new()
+	for part in ["mesh", "glow"]:
+		if md[part] == null:
+			continue
+		var mi := MeshInstance3D.new()
+		mi.mesh = md[part]
+		mi.material_override = Board.material("glow" if part == "glow" else "prop")
+		node.add_child(mi)
+	node.position = pos
+	node.rotation.y = rot
+	haven_root.add_child(node)
+
+
+func _haven_light(pos: Vector3, col: Color, energy: float, rng_: float) -> OmniLight3D:
+	var l := OmniLight3D.new()
+	l.light_color = col
+	l.light_energy = energy
+	l.omni_range = rng_
+	l.position = pos
+	haven_root.add_child(l)
+	return l
+
+
+func _haven_npc(key: String, pos: Vector3, rot: float) -> void:
+	var inst: Node3D = load("res://assets/u_%s.glb" % key).instantiate()
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		mi.material_override = Board.material("glow_unit" if String(mi.name).ends_with("glow") else "unit")
+	var node := Node3D.new()
+	node.add_child(inst)
+	node.position = pos
+	node.rotation.y = rot
+	haven_root.add_child(node)
+	var tw := inst.create_tween().set_loops()  # il se balance, tranquille
+	tw.tween_property(inst, "rotation:z", 0.05, 1.4).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(inst, "rotation:z", -0.05, 1.4).set_trans(Tween.TRANS_SINE)
+
+
 func _merchant() -> void:
-	if mode != "aventure":
-		_build_room(run_seed + floor_i * 311 + step, _biome(), 12, "cour")
+	await _haven("marchand")
+	await _merchant_shop()
+	_haven_end()
+
+
+var purges := 0  # épurations payées pendant la run : le prix monte (Slay the Spire)
+
+
+func _purge_price() -> int:
+	return 50 + 25 * purges
+
+
+func _merchant_shop() -> void:
 	var stock: Array = []
 	while stock.size() < 3:
 		var id := _roll_item()
@@ -1310,7 +1515,7 @@ func _merchant() -> void:
 			stock.append(id)
 	var shelf := _shelf_stock()
 	var tstock: Array = [_tool_roll(), _tool_roll(3)]
-	var healed := false
+	var done := {}
 	while true:
 		var opts: Array = _shelf_opts(shelf)
 		var nc := opts.size()
@@ -1318,10 +1523,14 @@ func _merchant() -> void:
 			opts.append(_item_opt(id, Data.PRICE[Data.ITEMS[id].rarity]))
 		for id in tstock:
 			opts.append({"title": "%s  ·  %d or" % [Data.TOOLS[id].name, _tool_price(id)], "image": "res://assets/ui/tool_%s.png" % id, "text": "Besace — " + Data.TOOLS[id].text, "color": Color("#7fe0c8")})
-		if not healed:
-			opts.append({"title": "Soins  ·  35 or", "glyph": "✚", "text": "Chaque héros récupère 50 % de ses PV max."})
-		opts.append({"title": "Épurer  ·  40 or", "glyph": "✂", "text": "Retirer une carte du paquet."})
-		opts.append({"title": "Forge  ·  35 or", "glyph": "⚒", "text": "Une carte du paquet gagne un niveau."})
+		# services : un passage chacun par marchand ; déjà fait = coché, avec ce qui a été fait
+		var grey := Color("#8a8478")
+		opts.append({"title": "Soins  ·  fait ✓", "glyph": "✓", "text": "Le groupe a déjà été soigné ici.", "color": grey} if done.has("heal") else
+			{"title": "Soins  ·  35 or", "glyph": "✚", "text": "Chaque héros récupère 50 % de ses PV max."})
+		opts.append({"title": "Épurer  ·  fait ✓", "glyph": "✓", "text": "Déjà épuré ici : %s retirée du paquet." % done.purge, "color": grey} if done.has("purge") else
+			{"title": "Épurer  ·  %d or" % _purge_price(), "glyph": "✂", "text": "Retirer une carte du paquet. Le prix monte à chaque épuration de la run."})
+		opts.append({"title": "Forge  ·  fait ✓", "glyph": "✓", "text": "Déjà forgé ici : %s." % done.forge, "color": grey} if done.has("forge") else
+			{"title": "Forge  ·  35 or", "glyph": "⚒", "text": "Une carte du paquet gagne un niveau."})
 		var i := await ui.choose("MARCHAND", "Vous avez %d or · une carte achetée rejoint le paquet de son héros" % gold, opts, true, "Partir")
 		if i < 0:
 			return
@@ -1356,25 +1565,33 @@ func _merchant() -> void:
 			tstock.remove_at(i - stock.size())
 			_gain_tool(tid)
 		else:
-			var rest: Array = ["heal", "purge", "forge"].filter(func(k): return k != "heal" or not healed)
-			var k: String = rest[i - stock.size() - tstock.size()]
-			var price: int = {"heal": 35, "purge": 40, "forge": 35}[k]
+			var k: String = ["heal", "purge", "forge"][i - stock.size() - tstock.size()]
+			if done.has(k):
+				ui.toast("Déjà fait chez ce marchand.")
+				continue
+			var price: int = {"heal": 35, "purge": _purge_price(), "forge": 35}[k]
 			if gold < price:
 				ui.toast("Pas assez d'or.")
 				continue
 			if k == "heal":
 				for h in heroes:
 					h.hp = mini(h.max_hp, h.hp + h.max_hp / 2)
-				healed = true
+				done.heal = true
 			elif k == "forge":
+				var before: Array = deck.map(func(c): return Data.level(c))
 				if not await _forge("FORGE", "Quelle carte forger ? (+1 niveau)"):
 					continue
+				for q in deck.size():
+					if Data.level(deck[q]) != before[q]:
+						done.forge = "%s au niveau %d" % [Data.def(deck[q].id).name, Data.level(deck[q])]
 			else:
 				var copts: Array = deck.map(func(c): return {"card": c})
 				var j := await ui.choose("ÉPURER", "Quelle carte retirer ?", copts, true)
 				if j < 0:
 					continue
+				done.purge = Data.def(deck[j].id).name
 				deck.remove_at(j)
+				purges += 1
 			gold -= price
 		ui.set_gold(gold)
 
@@ -1471,8 +1688,12 @@ func _add_relic(r: String) -> void:
 
 
 func _sanctuary() -> void:
-	if mode != "aventure":
-		_build_room(run_seed + floor_i * 577 + step, _biome(), 12, "ecluse")
+	await _haven("sanctuaire")
+	await _sanctuary_menu()
+	_haven_end()
+
+
+func _sanctuary_menu() -> void:
 	while true:
 		var i := await ui.choose("SANCTUAIRE", "Une eau calme sous les arches", [
 			{"title": "Se reposer", "glyph": "✚", "text": "Chaque héros récupère 35 % de ses PV max."},
@@ -1587,12 +1808,14 @@ func _capture() -> void:
 			h.voc = args.voc if args.voc != h.key else "lame"
 			h.wear_voc(h.voc)
 	var ids: Array = Data.BOSS if args.has("boss") else (Array(args.foes.split(",")) if args.has("foes") else Data.ENCOUNTERS[floor_i][0])
-	var size := 18 if args.has("boss") else int(args.get("size", "16"))
+	var size := 22 if args.has("boss") else int(args.get("size", "18"))
 	_build_room(run_seed, _biome(), size, "cour" if args.has("boss") else args.get("arch", ""), true)
 	ui.show_hud(true)
 	battle.start(heroes, ids, deck, relics)
 	target = _units_center()
 	battle.hand = Data.starter(party).slice(0, 5)
+	if args.has("hand"):  # --hand=id1,id2 : une main choisie pour la capture
+		battle.hand = Array(args.hand.split(",")).map(func(id): return {"id": id, "lvl": 1, "h": heroes[0].key})
 	battle.changed.emit()
 	await _frames(150)
 	var hero: Unit = heroes[0]
@@ -1679,6 +1902,7 @@ func _autoplay() -> void:
 			if who != "":
 				deck.append({"id": id, "lvl": 2, "h": who})
 	_make_party()
+	companion = str(args.get("companion", ""))  # --companion=crabe : une bête apprivoisée dans chaque combat
 	if party == ["garde", "lame", "oracle"]:
 		heroes[0].equip = {"arme": "masse_os", "talisman": "anneau_bouclier"}
 		heroes[1].equip = {"arme": "kriss", "talisman": "ecaille_eau"}
@@ -1719,6 +1943,82 @@ func _autoplay() -> void:
 	_gain_item("coeur_pierre", heroes[0])
 	open_chest(heroes[1])
 	print("AUTOPLAY OK, %d/%d combats gagnés" % [won, fights_n])
+	get_tree().quit()
+
+
+func _eventtest() -> void:
+	## Chaque nouvel événement, première option (sauf les combats) : capture puis on enchaîne les choix.
+	var dir: String = args.eventtest
+	DirAccess.make_dir_recursive_absolute(dir)
+	party = ["garde", "oracle", "moine"]
+	deck = Data.starter(party)
+	_make_party()
+	gold = 300
+	besace = ["fiole"]
+	for ev in EVENTS_NEW:
+		await _haven("mystere")
+		var done := [false]
+		var f := func():
+			await _event_new(ev, {"arch": "cour"})
+			done[0] = true
+		f.call()
+		await _frames(30)
+		_shot(dir, "ev_" + ev)
+		var n := 0
+		while not done[0] and n < 8:
+			ui.picked.emit({"duel": 1, "mimique": -1}.get(ev, 0))
+			n += 1
+			await _frames(20)
+		print("événement ", ev, " : ", "fini" if done[0] else "BLOQUÉ", " · or ", gold, " · compagnon ", companion, " · paquet ", deck.size())
+		_haven_end()
+	get_tree().quit()
+
+
+func _haventest() -> void:
+	## Captures des lieux de repos : l'étal du marchand, la fontaine et le feu de camp.
+	var dir: String = args.haventest
+	DirAccess.make_dir_recursive_absolute(dir)
+	party = ["garde", "oracle", "moine"]
+	deck = Data.starter(party)
+	_make_party()
+	for k in ["marchand", "sanctuaire"]:
+		for b in [0, 11, 3]:
+			floor_biomes = [b]
+			floor_i = 1
+			await _haven(k)
+			_snap_cam()
+			await _frames(40)
+			_shot(dir, "%s_%d" % [k, b])
+			if b == 0:
+				for h in heroes:
+					h.visible = false
+				dist = 5.0
+				_snap_cam()
+				await _frames(20)
+				_shot(dir, "%s_%d_nu" % [k, b])
+				for h in heroes:
+					h.visible = true
+			_haven_end()
+	get_tree().quit()
+
+
+func _looktest() -> void:
+	## Captures des héros hybrides : chaque classe avec quelques vocations, de près.
+	var dir: String = args.looktest
+	DirAccess.make_dir_recursive_absolute(dir)
+	var ks: Array = Data.HEROES.keys()
+	for k in ks.size():
+		party = [ks[k], ks[k], ks[k]]
+		deck = Data.starter(party)
+		_make_party()
+		_build_room(4242, 0, 12, "cour")
+		for i in heroes.size():
+			heroes[i].wear_voc(ks[(k + 1 + i * 3) % ks.size()])
+		target = _units_center()
+		dist = 7.0
+		_snap_cam()
+		await _frames(30)
+		_shot(dir, "hybride_%s" % ks[k])
 	get_tree().quit()
 
 
@@ -2790,14 +3090,286 @@ func _boon(k: String) -> void:
 				await _gain_pj(h, 3)
 
 
+# ------------------------------------------------------------------ événements (salles « ? »)
+# Inspirés de Slay the Spire (un choix, un prix) et de Hades (des figures qui reviennent, qui parlent).
+
+var seen_events: Array = []   # événements déjà vus pendant la run : on ne les revoit pas
+var companion := ""           # bête apprivoisée qui suit l'escouade (Data.COMPANIONS)
+const EVENTS_NEW := ["passeur", "duel", "miroir", "des", "bibliothecaire", "maitre", "bete", "epave", "glyphes", "rave", "grixis", "mimique"]
+
+
+func _event_fight(r: Dictionary, type: String, mods: Array, ids: Array = []) -> bool:
+	## Un combat surgi d'un événement ; faux si l'escouade tombe (la run s'arrête).
+	if haven_root:
+		haven_root.queue_free()
+		haven_root = null
+	orbit = false
+	ui.dim_alpha = 0.62
+	await get_tree().create_timer(0.6).timeout
+	next_arch = r.get("arch", "cour")
+	next_obj = "kill"
+	next_mods = mods
+	var won: bool = await _fight(type, ids)
+	if not won:
+		if mode == "aventure":
+			floor_done.emit("lost")
+		else:
+			_clear_save()
+			await ui.game_over(false, "Étage %d, tombés sur un événement, %d min." % [floor_i, _minutes()])
+			new_run.call_deferred()
+		return false
+	await _post_fight(type)
+	if mode == "aventure":
+		_show_dungeon()
+	return true
+
+
+func _event_figure(key: String) -> void:
+	## La figure de l'événement, posée devant l'escouade (la bête blessée, le bretteur masqué).
+	if haven_root == null or heroes.is_empty():
+		return
+	var c: Vector2i = heroes[0].cell
+	for d in [Vector2i(0, 2), Vector2i(2, 0), Vector2i(0, -2), Vector2i(-2, 0), Vector2i(1, 1)]:
+		if board.walkable(c + d) and not heroes.any(func(h): return h.cell == c + d):
+			c = c + d
+			break
+	_haven_npc(key, board.world(c), PI)
+	target = (board.world(c) + heroes[0].position) * 0.5 + Vector3(0, 0.6, 0)
+
+
+func _deck_pick(title: String, sub: String, filter := Callable()) -> int:
+	## Une carte du paquet au choix ; renvoie son indice dans le paquet, -1 si on renonce.
+	var idx: Array = range(deck.size()).filter(func(q): return not filter.is_valid() or filter.call(deck[q]))
+	if idx.is_empty():
+		ui.toast("Aucune carte ne convient.")
+		return -1
+	var j := await ui.choose(title, sub, idx.map(func(q): return {"card": deck[q]}), true)
+	return idx[j] if j >= 0 else -1
+
+
+func _event_new(ev: String, r: Dictionary) -> bool:
+	## Renvoie faux si la run s'arrête pendant l'événement.
+	var green := Color("#8fd0a0")
+	var red := Color("#e0583a")
+	var blue := Color("#6fb0e0")
+	match ev:
+		"passeur":
+			var free: Array = Data.RELICS.keys().filter(func(k): return not relics.has(k))
+			if free.is_empty():
+				return true
+			var rel: String = free[rng.randi_range(0, free.size() - 1)]
+			var i := await ui.choose("LE PASSEUR", "Une barque sans rame, une lanterne, une main tendue. « L'obole d'abord. » Vous avez %d or." % gold, [
+				{"title": "%s  ·  90 or" % Data.RELICS[rel].name, "image": "res://assets/ui/relic_%s.png" % rel, "text": Data.RELICS[rel].text},
+				{"title": "Lui confier un souvenir", "glyph": "✂", "text": "Retirer une carte du paquet. Il ne rend jamais la monnaie.", "color": blue},
+			], true, "Rester sur la rive")
+			if i == 0:
+				if gold < 90:
+					ui.toast("« Reviens plus riche. »")
+				else:
+					gold -= 90
+					await _add_relic(rel)
+			elif i == 1:
+				var q := await _deck_pick("LE PASSEUR", "Quelle carte laisser au fond de la barque ?")
+				if q >= 0:
+					deck.remove_at(q)
+		"duel":
+			var big: Unit = heroes.reduce(func(a, b): return a if a.hp >= b.hp else b)
+			_event_figure("bretteur")
+			var i := await ui.choose("DUEL D'HONNEUR", "Un bretteur masqué plante sa lame dans la dalle : « Ton meilleur contre ma garde. » Les siens attendent, enragés.", [
+				{"title": "Relever le défi", "glyph": "⚔", "text": "Combat d'élite, ennemis Enragés (+2 dégâts). Victoire : une relique au choix et une carte rare.", "color": red},
+				{"title": "Saluer et passer", "glyph": "✓", "text": "%s gagne 2 points de job : on apprend aussi en regardant." % big.nm, "color": green},
+			])
+			if i == 0:
+				if not await _event_fight(r, "elite", ["enrages"]):
+					return false
+				await _relic_pick("TROPHÉE DU DUEL", "La garde du bretteur, en souvenir")
+				await _boon("rare")
+			else:
+				await _gain_pj(big, 2)
+		"miroir":
+			var i := await ui.choose("MIROIR NOYÉ", "Sous l'eau, un grand miroir renvoie l'escouade avec un temps de retard.", [
+				{"title": "Y plonger la main", "glyph": "⧉", "text": "Copier une carte du paquet (la copie n'est pas une carte de départ). Chaque héros perd 4 PV.", "color": blue},
+			], true, "Ne pas se regarder")
+			if i == 0:
+				var q := await _deck_pick("MIROIR NOYÉ", "Quelle carte copier ?")
+				if q >= 0:
+					var cp: Dictionary = deck[q].duplicate()
+					cp.erase("st")
+					deck.append(cp)
+					for h in heroes:
+						h.hp = maxi(1, h.hp - 4)
+		"des":
+			var i := await ui.choose("TOUT OU RIEN", "Un joueur aux doigts bandés secoue deux dés d'os. « Zawa... zawa... » Vous avez %d or." % gold, [
+				{"title": "Miser 50 or", "glyph": "⚄", "text": "Une chance sur deux de repartir avec 125 or.", "color": UI.GOLD},
+				{"title": "Miser une carte", "glyph": "⚒", "text": "Une carte au choix : une chance sur deux qu'elle gagne deux niveaux, sinon elle est perdue.", "color": red},
+			], true, "Garder ses billes")
+			if i == 0:
+				if gold < 50:
+					ui.toast("« Pas de mise, pas de frisson. »")
+				else:
+					gold -= 50
+					if rng.randf() < 0.5:
+						gold += 125
+						ui.banner("Gagné", "+125 or")
+					else:
+						ui.banner("Perdu", "Les dés roulent dans l'eau")
+			elif i == 1:
+				var q := await _deck_pick("TOUT OU RIEN", "Quelle carte jouer aux dés ?", func(ci): return Data.level(ci) < Data.MAX_LVL)
+				if q >= 0:
+					if rng.randf() < 0.5:
+						deck[q]["lvl"] = mini(Data.MAX_LVL, Data.level(deck[q]) + 2)
+						ui.banner("Double six", "%s passe au niveau %d" % [Data.def(deck[q].id).name, deck[q].lvl])
+					else:
+						ui.banner("Perdu", "%s file avec le courant" % Data.def(deck[q].id).name)
+						deck.remove_at(q)
+		"bibliothecaire":
+			var i := await ui.choose("LA BIBLIOTHÉCAIRE AVEUGLE", "« Donne-moi une page, je t'en rendrai une meilleure. Je ne dis pas laquelle. »", [
+				{"title": "Échanger une page", "glyph": "✎", "text": "Une carte du paquet devient une carte du même héros, d'une rareté au-dessus (au hasard).", "color": blue},
+			], true, "Garder ses pages")
+			if i == 0:
+				var q := await _deck_pick("ÉCHANGE", "Quelle carte transmuter ?")
+				if q >= 0:
+					var who := Data.holder(deck[q])
+					var rar := mini(3, int(Data.def(deck[q].id).get("rar", 1)) + 1)
+					var pool: Array = Data.CARDS.keys().filter(func(id): return Data.CARDS[id].owner == who and int(Data.CARDS[id].get("rar", 1)) == rar)
+					if pool.is_empty():
+						pool = Data.CARDS.keys().filter(func(id): return Data.CARDS[id].owner == who)
+					var nid: String = pool[rng.randi_range(0, pool.size() - 1)]
+					var old: String = Data.def(deck[q].id).name
+					deck[q] = {"id": nid, "lvl": 1} if Data.CARDS[nid].owner == who else {"id": nid, "lvl": 1, "h": who}
+					library_see(nid)
+					ui.banner("%s → %s" % [old, Data.def(nid).name], Data.card_text(Data.card(deck[q])))
+		"maitre":
+			var i := await ui.choose("MAÎTRE D'ARMES ERRANT", "Un vieux soldat de la Compagnie, sec comme un sarment, propose une leçon.", [
+				{"title": "Suivre la leçon", "glyph": "⚔", "text": "Un héros au choix gagne 4 points de job (vers sa vocation et ses guildes).", "color": green},
+				{"title": "Lui demander son arme", "glyph": "⚒", "text": "Un équipement rare. Il se vexe : chaque héros perd 3 PV max.", "color": red},
+			], true, "Passer son chemin")
+			if i == 0:
+				var h := await _pick_hero("LA LEÇON", "Qui apprend ?")
+				if h:
+					await _gain_pj(h, 4)
+			elif i == 1:
+				_gain_item(_roll_item(3))
+				for h in heroes:
+					h.base_hp = maxi(10, h.base_hp - 3)
+					h.apply_gear()
+		"bete":
+			var sp: Array = Data.COMPANIONS.keys()
+			var k: String = sp[rng.randi_range(0, sp.size() - 1)]
+			var cd: Dictionary = Data.COMPANIONS[k]
+			var has_fiole := besace.has("fiole")
+			_event_figure(k)
+			var i := await ui.choose("BÊTE BLESSÉE", "%s gît, une patte prise dans un filet de la Compagnie. Elle ne grogne plus : elle attend." % Data.FOES[k].name, [
+				{"title": "La soigner  ·  %s" % ("une Fiole de sève" if has_fiole else "30 or"), "image": "res://assets/ui/comp_%s.png" % k, "text": "Elle vous suit : %s %s" % [cd.name + ".", cd.text], "color": green},
+			], true, "La laisser")
+			if i == 0:
+				if has_fiole:
+					besace.erase("fiole")
+				elif gold >= 30:
+					gold -= 30
+				else:
+					ui.toast("Ni fiole ni or : elle se traîne dans l'eau.")
+					return true
+				companion = k
+				ui.banner("Nouveau compagnon", cd.name)
+		"epave":
+			var i := await ui.choose("ÉPAVE DE LA COMPAGNIE", "Une barge à demi coulée, des coffres encore scellés. Des casques affleurent sous l'eau.", [
+				{"title": "Piller", "glyph": "❖", "text": "Un équipement et 40 or. Le prochain combat reçoit des Renforts.", "color": UI.GOLD},
+			], true, "Ne pas réveiller les noyés")
+			if i == 0:
+				_gain_item(_roll_item(2))
+				gold += 40
+				pending_mods.append("renforts")
+		"glyphes":
+			var i := await ui.choose("CERCLE DE GLYPHES", "Deux glyphes jumeaux pulsent au sol. Ce que l'un prend, l'autre le rend.", [
+				{"title": "Sacrifier une carte", "glyph": "✺", "text": "Retirer une carte : une autre, au choix, gagne deux niveaux.", "color": blue},
+			], true, "Contourner")
+			if i == 0:
+				var q := await _deck_pick("SACRIFICE", "Quelle carte offrir au premier glyphe ?")
+				if q >= 0:
+					deck.remove_at(q)
+					var u := await _deck_pick("OFFRANDE", "Quelle carte reçoit deux niveaux ?", func(ci): return Data.level(ci) < Data.MAX_LVL)
+					if u >= 0:
+						deck[u]["lvl"] = mini(Data.MAX_LVL, Data.level(deck[u]) + 2)
+		"rave":
+			var i := await ui.choose("RAVE ENGLOUTIE", "Sous une voûte, une enceinte de pierre bat à 174 BPM. Des lucioles tiennent le rythme.", [
+				{"title": "Danser jusqu'à l'aube", "glyph": "♫", "text": "Chaque héros récupère 25 % de ses PV max.", "color": green},
+				{"title": "Chercher le DJ", "glyph": "●", "text": "Il vous file 35 or et un Carnet de croquis pour la route.", "color": UI.GOLD},
+			], true, "Garder le tempo")
+			if i == 0:
+				for h in heroes:
+					h.hp = mini(h.max_hp, h.hp + int(h.max_hp * 0.25))
+			elif i == 1:
+				gold += 35
+				_gain_tool("carnet")
+		"grixis":
+			var i := await ui.choose("AUTEL DE GRIXIS", "Trois vasques : l'une d'encre bleue, l'une de braise, l'une de nuit.", [
+				{"title": "Bleu : l'Analyse", "glyph": "◆", "text": "Deux cartes au hasard gagnent un niveau.", "color": Color("#4aa3d8")},
+				{"title": "Rouge : l'Émotion", "glyph": "✹", "text": "Une carte rare au choix, mais chaque héros perd 5 PV.", "color": Color("#e0483f")},
+				{"title": "Noir : l'Ambition", "glyph": "♦", "text": "Une relique au choix parmi trois ; le héros aux plus hauts PV max en perd 8.", "color": Color("#9b6dd6")},
+			], true, "Ne rien boire")
+			if i == 0:
+				await _boon("forge2")
+			elif i == 1:
+				for h in heroes:
+					h.hp = maxi(1, h.hp - 5)
+				await _boon("rare")
+			elif i == 2:
+				var big: Unit = heroes.reduce(func(a, b): return a if a.max_hp >= b.max_hp else b)
+				big.base_hp = maxi(10, big.base_hp - 8)
+				big.apply_gear()
+				await _relic_pick("AMBITION", "Ce qu'on prend, on le garde")
+		"mimique":
+			var i := await ui.choose("UN COFFRE, SEUL", "Un coffre cerclé d'or au milieu de la salle. Trop beau. Beaucoup trop beau.", [
+				{"title": "L'ouvrir", "glyph": "◆", "text": "Une chance sur deux : une relique et 50 or. Sinon, il a des dents (combat d'élite).", "color": UI.GOLD},
+				{"title": "Le frapper d'abord", "glyph": "⚔", "text": "Une chance sur deux : 30 or, le couvercle cabossé. Sinon il se réveille avant de mordre : simple combat, et sa relique.", "color": red},
+			], true, "Ne pas y toucher")
+			if i == 0:
+				if rng.randf() < 0.5:
+					gold += 50
+					await _boon("relique")
+				else:
+					ui.banner("Mimique !", "Le coffre ouvre un œil")
+					if not await _event_fight(r, "elite", ["enrages"]):
+						return false
+					await _boon("relique")
+			elif i == 1:
+				if rng.randf() < 0.5:
+					gold += 30
+				else:
+					ui.banner("Mimique !", "Il hurle avant d'avoir mordu")
+					if not await _event_fight(r, "combat", []):
+						return false
+					await _boon("relique")
+	return true
+
+
 func _mystery(r: Dictionary) -> void:
 	## Salle « ? » : un événement tiré au sort, parfois une embuscade.
 	r.done = true
-	if r.node:
+	if r.get("node"):
 		r.node.queue_free()
 		r.node = null
-	var evs := ["fontaine", "cadavre", "enclume", "puits", "cage", "autel", "atelier", "bibliotheque"]
+	if mode != "aventure":
+		await _haven("mystere")
+	if relics.has("journal_route"):
+		for h in heroes:
+			h.hp = mini(h.max_hp, h.hp + int(h.max_hp * 0.1))
+	var evs: Array = ["fontaine", "cadavre", "enclume", "puits", "cage", "autel", "atelier", "bibliotheque"] + EVENTS_NEW
+	evs = evs.filter(func(e): return not seen_events.has(e) and (e != "bete" or (companion == "" and rng.randf() < 0.4)))
+	if evs.is_empty():
+		seen_events.clear()
+		evs = ["fontaine", "enclume", "puits", "atelier"]
 	var ev: String = evs[rng.randi_range(0, evs.size() - 1)]
+	seen_events.append(ev)
+	if EVENTS_NEW.has(ev):
+		var alive := await _event_new(ev, r)
+		ui.set_gold(gold)
+		if alive and mode != "aventure":
+			_haven_end()
+		elif alive:
+			_explore_hud()
+		return
 	var green := Color("#8fd0a0")
 	match ev:
 		"fontaine":
@@ -2824,12 +3396,8 @@ func _mystery(r: Dictionary) -> void:
 					next_arch = r.arch
 					next_obj = "kill"
 					next_mods = []
-					var won: bool = await _fight("combat")
-					if not won:
-						floor_done.emit("lost")
+					if not await _event_fight(r, "combat", []):
 						return
-					await _post_fight("combat")
-					_show_dungeon()
 		"enclume":
 			var i := await ui.choose("ENCLUME ABANDONNÉE", "Le feu couve encore sous les cendres.", [
 				{"title": "Forger", "glyph": "⚒", "text": "Une carte du paquet gagne un niveau.", "color": UI.GOLD},
@@ -2898,7 +3466,10 @@ func _mystery(r: Dictionary) -> void:
 				if j >= 0:
 					deck.remove_at(j)
 	ui.set_gold(gold)
-	_explore_hud()
+	if mode != "aventure":
+		_haven_end()
+	else:
+		_explore_hud()
 
 
 # ------------------------------------------------------------------ musique

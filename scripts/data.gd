@@ -50,6 +50,15 @@ const FOES := {
 	"obelisque": {"name": "Obélisque d'appel", "hp": 30, "speed": 2, "move": 0, "jump": 0, "dmg": 0, "range": [0, 0], "ai": "spawner", "heavy": true, "structure": true},
 }
 
+# Compagnons : des bêtes des Hauts-Fonds apprivoisées au détour d'un événement (rare). Elles jouent seules,
+# à leur vitesse, se relèvent à chaque combat. Une seule à la fois.
+const COMPANIONS := {
+	"crabe": {"name": "Pince, crabe apprivoisé", "hp": 34, "push": 1, "taunt": true, "text": "Encaisse et attire les coups (Provocation), repousse d'une case à chaque pince."},
+	"harpie": {"name": "Zéphyr, harpie apprivoisée", "hp": 20, "mark": 2, "text": "Vole au-dessus de tout, fond sur l'ennemi le plus faible et le Marque 2 tours."},
+	"crapaud": {"name": "Gloup, crapaud-gouffre", "hp": 28, "pull": 3, "text": "Sa langue attire un ennemi jusqu'à lui depuis 4 cases : parfait pour les pièges et la Tenaille."},
+	"chaman": {"name": "Braisille, chaman repenti", "hp": 22, "heal": 7, "text": "Soigne 7 le héros le plus blessé (sous 70 % de ses PV), sinon lance de la braise."},
+}
+
 # Ce que chaque ennemi demande au joueur (affiché au survol).
 const FOE_TIPS := {
 	"husk": "Mêlée simple. Le repousser dans l'eau.",
@@ -163,6 +172,99 @@ const CARDS := {
 	"marchenoir": {"name": "Marché noir", "owner": "receleur", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "marchenoir", "text": "Pouvoir : chaque objet utilisé inflige 4 à l'ennemi le plus proche."},
 	"poches": {"name": "Poches sans fond", "owner": "receleur", "rar": 3, "cost": 2, "kind": "power", "target": "self", "power": "poches", "text": "Pouvoir : besace +2 places, un objet fabriqué à chaque tour."},
 	"lotus": {"name": "Lotus", "owner": "oracle", "rar": 3, "cost": 2, "kind": "skill", "target": "self", "heal_all": 5, "text": "Soigne {heal_all} tous les alliés."},
+	# ---- 80 cartes de classe (25/09) : 3 archétypes par classe, conçues par designers puis panel Timmy, Johnny, Spike, Vorthos, Melvin
+	"c_ancrage": {"name": "Ancrage", "owner": "garde", "rar": 1, "cost": 1, "kind": "skill", "target": "self", "block": 4, "trig": {"on": "immobile", "block": 4, "keep": true}, "text": "+{block} armure.", "up": [{"block": 2}, {"trig": {"on": "immobile", "block": 6, "keep": true, "draw": 1}}], "arch": "L'Enclume"},
+	"c_ouvrir": {"name": "Ouvrir la garde", "owner": "garde", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 5, "expose": true, "text": "Inflige {dmg}. La cible est Exposée.", "up": [{"dmg": 3}, {"reach": 2, "text": "Pavois lancé à {rmax} cases : {dmg}. La cible est Exposée."}], "arch": "Le Défi"},
+	"c_represailles": {"name": "Représailles", "owner": "garde", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 4, "trig": {"on": "attaque", "dmg": 6, "block": 4}, "text": "Inflige {dmg}.", "up": [{"dmg": 2}, {"trig": {"on": "attaque", "dmg": 6, "block": 4, "refund": true}}], "arch": "Le Défi"},
+	"c_epaule": {"name": "Coup d'épaule", "owner": "garde", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 4, "push": 1, "crash": 3, "text": "Inflige {dmg}, repousse {push}. Choc : +{crash} aux deux.", "up": [{"dmg": 2, "crash": 2}, {"push": 1}], "arch": "Brise-lames"},
+	"c_ecailles": {"name": "Écailles d'écluse", "owner": "garde", "rar": 2, "cost": 1, "kind": "power", "target": "self", "power": "ecailles", "val": 3, "text": "Pouvoir : fin de tour sans avoir marché, le héros gagne {val} armure et la conserve.", "up": [{"val": 1}, {"cost": -1}], "arch": "L'Enclume"},
+	"c_interposition": {"name": "Interposition", "owner": "garde", "rar": 2, "cost": 1, "kind": "skill", "target": "ally", "range": [1, 3], "swap": true, "block": 5, "text": "Échange de place avec un allié à {rmax} cases ; il gagne {block} armure.", "up": [{"block": 3}, {"cost": -1}], "arch": "Le Défi"},
+	"c_remous": {"name": "Remous", "owner": "garde", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 5, "trig": {"on": "chasse", "dmg": 6, "draw": 1}, "text": "Inflige {dmg}.", "up": [{"dmg": 2}, {"cost": -1}], "arch": "Brise-lames"},
+	"c_lacher": {"name": "Lâcher d'écluse", "owner": "garde", "rar": 2, "cost": 2, "kind": "atk", "target": "self", "dmg": 5, "around": true, "push": 1, "crash": 3, "text": "Inflige {dmg} à chaque voisin, repousse 1. Choc : +{crash}.", "up": [{"dmg": 2}, {"block": 6, "text": "Inflige {dmg} à chaque voisin, repousse 1. Choc : +{crash}. +{block} armure."}], "arch": "Brise-lames"},
+	"c_contrepoids": {"name": "Contrepoids", "owner": "garde", "rar": 3, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 2, "per_block": 1.5, "spend_block": 0.5, "text": "Inflige {dmg} + 1,5× l'armure du héros, puis il en perd la moitié.", "up": [{"dmg": 4}, {"per_block": 0.5, "text": "Inflige {dmg} + 2× l'armure du héros, puis il en perd la moitié."}], "arch": "L'Enclume"},
+	"c_vindicte": {"name": "Vindicte", "owner": "garde", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "vindicte", "val": 3, "text": "Pouvoir : qui frappe le héros au contact subit {val} et devient Exposé.", "up": [{"val": 2}, {"cost": -1}], "arch": "Le Défi"},
+	"c_feinte": {"name": "Feinte", "owner": "lame", "rar": 1, "cost": 0, "kind": "atk", "range": [1, 2], "dmg": 0, "expose": true, "text": "La cible est Exposée : son prochain coup reçu compte de dos.", "up": [{"draw": 1, "text": "La cible est Exposée. Pioche {draw}."}, {"reach": 2}], "arch": "Le Revers"},
+	"c_aiguille": {"name": "Aiguille", "owner": "lame", "rar": 1, "cost": 0, "kind": "atk", "range": [1, 3], "dmg": 2, "poison": 2, "trig": {"on": "empoisonne", "poison": 1}, "text": "Inflige {dmg} et {poison} de poison.", "up": [{"poison": 1}, {"trig": {"on": "empoisonne", "poison": 1, "draw": 1}}], "arch": "Sève noire"},
+	"c_coupe_jarret": {"name": "Coupe-jarret", "owner": "lame", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 5, "root": 1, "trig": {"on": "empoisonne", "dmg": 4}, "text": "Inflige {dmg}. Entravé {root} tour.", "up": [{"dmg": 2}, {"root": 1, "text": "Inflige {dmg}. Entravé {root} tours."}], "arch": "Sève noire"},
+	"c_kunai": {"name": "Kunaï", "owner": "lame", "rar": 1, "cost": 0, "kind": "atk", "range": [1, 3], "dmg": 2, "trig": {"on": "enchaine", "dmg": 2}, "text": "Inflige {dmg}.", "up": [{"bounce": true, "text": "Inflige {dmg}, rebondit sur un voisin."}, {"trig": {"on": "enchaine", "dmg": 2, "draw": 1}}], "arch": "Pluie de kunaïs"},
+	"c_aller_retour": {"name": "Aller-retour", "owner": "lame", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 3], "dmg": 5, "behind": true, "ret": true, "text": "Dans le dos d'un ennemi à {rmax} cases : {dmg}, puis revient.", "up": [{"dmg": 3}, {"draw": 1, "text": "Dans le dos d'un ennemi à {rmax} cases : {dmg}, puis revient. Pioche {draw}."}], "arch": "Le Revers"},
+	"c_mue": {"name": "Mue", "owner": "lame", "rar": 2, "cost": 1, "kind": "skill", "target": "self", "iframe": true, "ambush": true, "text": "Esquive le prochain coup. Le prochain coup du héros compte de dos.", "up": [{"draw": 1, "text": "Esquive le prochain coup. Le prochain coup du héros compte de dos. Pioche {draw}."}, {"cost": -1}], "arch": "Le Revers"},
+	"c_maceration": {"name": "Macération", "owner": "lame", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 2], "dmg": 0, "poison": 2, "poison_x2": true, "exhaust": true, "text": "Ajoute {poison} poison. Déjà empoisonné : son poison double. Épuise.", "up": [{"poison": 1}, {"reach": 2, "draw": 1, "text": "Ajoute {poison} poison à {rmax} cases. Déjà empoisonné : double. Pioche {draw}. Épuise."}], "arch": "Sève noire"},
+	"c_ceinture": {"name": "Ceinture de kunaïs", "owner": "lame", "rar": 2, "cost": 1, "kind": "skill", "target": "self", "add_card": "c_kunai", "add_n": 2, "text": "Ajoute {add_n} Kunaïs Éphémères à la main.", "up": [{"add_n": 1}, {"draw": 1, "text": "Ajoute {add_n} Kunaïs Éphémères à la main. Pioche {draw}."}], "arch": "Pluie de kunaïs"},
+	"c_seve_noire": {"name": "Sève noire", "owner": "lame", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "seve_noire", "val": 2, "text": "Pouvoir : quand un ennemi empoisonné meurt, son poison +{val} passe à l'ennemi le plus proche.", "up": [{"val": 2}, {"cost": -1}], "arch": "Sève noire"},
+	"c_sillage": {"name": "Sillage", "owner": "lame", "rar": 3, "cost": 1, "kind": "atk", "range": [1, 3], "dmg": 3, "per_tele": 4, "text": "Inflige {dmg}, +{per_tele} par téléportation du héros ce tour.", "up": [{"per_tele": 1}, {"cost": -1}], "arch": "Pluie de kunaïs"},
+	"c_pas_braise": {"name": "Pas de braise", "owner": "oracle", "rar": 1, "cost": 1, "kind": "skill", "target": "tile", "range": [1, 3], "rune": "lave", "block": 4, "text": "Une case libre à {rmax} cases devient une Faille de braise. +{block} armure.", "up": [{"block": 3}, {"draw": 1, "text": "Une case libre à {rmax} cases devient une Faille de braise. +{block} armure. Pioche {draw}."}], "arch": "Semeur de failles"},
+	"c_tison": {"name": "Tison", "owner": "oracle", "rar": 1, "cost": 1, "kind": "atk", "range": [2, 5], "dmg": 5, "trig": {"on": "sol", "dmg": 5}, "text": "Inflige {dmg}.", "up": [{"dmg": 2}, {"trig": {"on": "sol", "dmg": 5, "draw": 1}}], "arch": "Semeur de failles"},
+	"c_palimpseste": {"name": "Palimpseste", "owner": "oracle", "rar": 1, "cost": 1, "kind": "skill", "target": "self", "recall": 1, "block": 4, "text": "Reprend au hasard {recall} carte de la défausse (−1 coût ce tour). +{block} armure.", "up": [{"block": 3}, {"recall": 1, "text": "Reprend au hasard {recall} cartes de la défausse (−1 coût ce tour). +{block} armure."}], "arch": "Palimpseste"},
+	"c_ondee": {"name": "Ondée", "owner": "oracle", "rar": 1, "cost": 1, "kind": "skill", "target": "ally", "range": [0, 3], "heal": 6, "spill": true, "text": "Soigne {heal} un allié. Le surplus frappe l'ennemi le plus proche de lui.", "up": [{"heal": 3}, {"block": 4, "text": "Soigne {heal} un allié, +{block} armure. Le surplus frappe l'ennemi le plus proche de lui."}], "arch": "Marée montante"},
+	"c_eruption": {"name": "Éruption", "owner": "oracle", "rar": 2, "cost": 1, "kind": "atk", "target": "tile", "range": [2, 4], "dmg": 4, "aoe": true, "trig": {"on": "sol", "dmg": 4}, "text": "Inflige {dmg} en croix autour d'une case.", "up": [{"dmg": 2}, {"trig": {"on": "sol", "dmg": 4, "energy": 1}}], "arch": "Semeur de failles"},
+	"c_scelle": {"name": "Scellé dans la braise", "owner": "oracle", "rar": 2, "cost": 1, "kind": "atk", "range": [2, 4], "dmg": 5, "root": 1, "trig": {"on": "sol", "dmg": 5}, "text": "Inflige {dmg}. Entravé {root} tour.", "up": [{"root": 1, "text": "Inflige {dmg}. Entravé {root} tours."}, {"mark": 2, "text": "Inflige {dmg}. Entravé {root} tours, Marqué {mark}."}], "arch": "Semeur de failles"},
+	"c_reminiscence": {"name": "Réminiscence", "owner": "oracle", "rar": 2, "cost": 1, "kind": "skill", "target": "self", "flashback": true, "text": "Copie Éphémère en main de ta dernière carte Épuisée, −1 coût. Aucune : pioche 1.", "up": [{"cost": -1}, {"retain": true, "text": "Conservé. Copie Éphémère en main de ta dernière carte Épuisée, −1 coût. Aucune : pioche 1."}], "arch": "Palimpseste"},
+	"c_reflux": {"name": "Reflux", "owner": "oracle", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 4], "dmg": 4, "push": 2, "heal_adj": true, "spill": true, "text": "Inflige {dmg}, repousse {push}. Un allié blessé à 2 cases regagne autant ; le surplus déborde.", "up": [{"dmg": 2}, {"push": 1}], "arch": "Marée montante"},
+	"c_phenix": {"name": "Phénix de papier", "owner": "oracle", "rar": 3, "cost": 2, "kind": "skill", "target": "self", "flashback": true, "echo": true, "exhaust": true, "text": "Copie Éphémère de ta dernière carte Épuisée ; la prochaine carte agit deux fois. Épuise.", "up": [{"cost": -1}, {"retain": true, "text": "Conservé. Copie Éphémère de ta dernière carte Épuisée ; la prochaine carte agit deux fois. Épuise."}], "arch": "Palimpseste"},
+	"c_maree_haute": {"name": "Marée haute", "owner": "oracle", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "maree_haute", "val": 2, "text": "Pouvoir : le soin en trop reçu par un héros frappe l'ennemi le plus proche de lui, +{val}.", "up": [{"val": 1}, {"cost": -1}], "arch": "Marée montante"},
+	"c_trainee": {"name": "Traînée de poudre", "owner": "artificier", "rar": 1, "cost": 1, "kind": "skill", "target": "tile", "range": [1, 3], "place": "baril", "lure": 1, "text": "Pose un baril ; les ennemis à 4 cases avancent de {lure} vers lui.", "up": [{"lure": 1}, {"draw": 1, "text": "Pose un baril ; les ennemis à 4 cases avancent de {lure} vers lui. Pioche {draw}."}], "arch": "Poudrière"},
+	"c_poudre_recup": {"name": "Poudre récupérée", "owner": "artificier", "rar": 1, "cost": 0, "kind": "skill", "target": "self", "draw": 1, "trig": {"on": "poudre", "energy": 1}, "text": "Pioche {draw}.", "up": [{"trig": {"on": "poudre", "energy": 1, "draw": 1}}, {"retain": true, "text": "Conservé. Pioche {draw}."}], "arch": "Chaudière"},
+	"c_tourelle_fortune": {"name": "Tourelle de fortune", "owner": "artificier", "rar": 1, "cost": 1, "kind": "skill", "target": "tile", "range": [1, 2], "place": "tourelle", "tdmg": 1, "tgrow": 2, "turns": 3, "text": "Pose une tourelle : {tdmg} au plus proche chaque round, +{tgrow} à chaque tir. {turns} rounds.", "up": [{"turns": 1}, {"tmark": true, "text": "Pose une tourelle : {tdmg} au plus proche, qu'elle Marque, chaque round ; +{tgrow} à chaque tir. {turns} rounds."}], "arch": "Chantier de siège"},
+	"c_rafale_rivets": {"name": "Rafale de rivets", "owner": "artificier", "rar": 1, "cost": 0, "kind": "atk", "range": [1, 3], "dmg": 5, "hits": 0, "xcost": {"hits": 1}, "text": "Coût X. Inflige {dmg} X fois.", "up": [{"dmg": 1}, {"hits": 1, "text": "Coût X. Inflige {dmg} X + 1 fois."}], "arch": "Chaudière"},
+	"c_brulot": {"name": "Brûlot", "owner": "artificier", "rar": 2, "cost": 1, "kind": "atk", "range": [2, 5], "dmg": 4, "per_boom": 3, "text": "Inflige {dmg}, +{per_boom} par baril sauté ce tour.", "up": [{"per_boom": 2}, {"chain": 2, "text": "Inflige {dmg}, +{per_boom} par baril sauté ce tour, puis saute sur un ennemi proche."}], "arch": "Poudrière"},
+	"c_demolition": {"name": "Charge de démolition", "owner": "artificier", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 2], "dmg": 4, "stick": 7, "text": "Inflige {dmg}. Charge collée : {stick} autour de la cible en fin de tour.", "up": [{"stick": 3}, {"cost": -1}], "arch": "Poudrière"},
+	"c_ressort": {"name": "Tourelle à ressort", "owner": "artificier", "rar": 2, "cost": 2, "kind": "skill", "target": "tile", "range": [1, 2], "place": "tourelle", "tdmg": 3, "tpush": 1, "turns": 3, "text": "Pose une tourelle : {tdmg} et repousse {tpush} le plus proche chaque round. {turns} rounds.", "up": [{"tpush": 1}, {"cost": -1}], "arch": "Chantier de siège"},
+	"c_decharge": {"name": "Décharge", "owner": "artificier", "rar": 2, "cost": 0, "kind": "atk", "range": [1, 4], "dmg": 4, "chain": 1, "xcost": {"chain": 1}, "text": "Coût X. Inflige {dmg}, puis saute sur X ennemis proches.", "up": [{"dmg": 2}, {"chain": 1, "text": "Coût X. Inflige {dmg}, puis saute sur X + 1 ennemis proches."}], "arch": "Chaudière"},
+	"c_bombarde": {"name": "Bombarde de siège", "owner": "artificier", "rar": 3, "cost": 2, "kind": "skill", "target": "tile", "range": [1, 2], "place": "tourelle", "tdmg": 3, "tgrow": 2, "turns": 4, "trange": 6, "text": "Pose une bombarde : {tdmg} à 6 cases chaque round, +{tgrow} à chaque tir. {turns} rounds.", "up": [{"tgrow": 1}, {"tpierce": true, "text": "Pose une bombarde : {tdmg} à 6 cases chaque round, ignore l'armure, +{tgrow} à chaque tir. {turns} rounds."}], "arch": "Chantier de siège"},
+	"c_salve": {"name": "Salve de mortiers", "owner": "artificier", "rar": 3, "cost": 0, "kind": "atk", "target": "tile", "range": [3, 6], "dmg": 3, "aoe": true, "xcost": {"dmg": 5}, "text": "Coût X. Obus en croix, de très loin : {dmg} + 5 par énergie dépensée.", "up": [{"dmg": 3}, {"aoe_baril": true, "text": "Coût X. Obus en croix, de très loin : {dmg} + 5 par énergie dépensée. Laisse un baril au centre."}], "arch": "Chaudière"},
+	"c_gifle_maree": {"name": "Gifle de marée", "owner": "moine", "rar": 1, "cost": 0, "kind": "atk", "range": [1, 1], "dmg": 2, "hits": 2, "combo": 1, "text": "Inflige {dmg} deux fois, +{combo} par coup déjà porté ce tour.", "up": [{"hits": 1, "text": "Inflige {dmg} trois fois, +{combo} par coup déjà porté ce tour."}, {"combo": 1}], "arch": "Ressac"},
+	"c_pas_chasse": {"name": "Pas de chasse", "owner": "moine", "rar": 1, "cost": 1, "kind": "atk", "range": [2, 3], "dash": true, "dmg": 6, "trig": {"on": "enchaine", "dmg": 2}, "text": "Bondit au contact d'un ennemi à {rmax} cases et inflige {dmg}.", "up": [{"reach": 1}, {"dmg": 3}], "arch": "Pas de grue"},
+	"c_vol_heron": {"name": "Vol du héron", "owner": "moine", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "vault": true, "dmg": 4, "trig": {"on": "bondi", "dmg": 3}, "text": "Saute par-dessus la cible et frappe {dmg}.", "up": [{"dmg": 2}, {"ret": true, "text": "Saute par-dessus la cible, frappe {dmg}, puis revient."}], "arch": "Pas de grue"},
+	"c_paume_ouverte": {"name": "Paume ouverte", "owner": "moine", "rar": 1, "cost": 1, "kind": "skill", "target": "self", "block": 5, "parry": true, "text": "+{block} armure. Renvoie le prochain coup reçu au contact.", "up": [{"block": 3}, {"taunt": true, "text": "+{block} armure. Renvoie le prochain coup reçu au contact. Provocation."}], "arch": "Contre-courant"},
+	"c_vague_fond": {"name": "Vague de fond", "owner": "moine", "rar": 2, "cost": 1, "kind": "atk", "target": "self", "dmg": 3, "around": true, "combo": 2, "text": "Inflige {dmg} à chaque voisin, +{combo} par coup déjà porté ce tour.", "up": [{"dmg": 2}, {"push": 1, "text": "Inflige {dmg} à chaque voisin, +{combo} par coup déjà porté ce tour. Les repousse de 1."}], "arch": "Ressac"},
+	"c_garde_tigre": {"name": "Garde du tigre", "owner": "moine", "rar": 2, "cost": 1, "kind": "skill", "target": "self", "bph": 3, "draw": 1, "text": "Ce tour, +{bph} armure par coup porté. Pioche {draw}.", "up": [{"bph": 1}, {"cost": -1}], "arch": "Ressac"},
+	"c_pique_cormoran": {"name": "Piqué du cormoran", "owner": "moine", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 6, "push": 1, "trig": {"on": "bondi", "dmg": 5}, "text": "Inflige {dmg} et repousse {push}.", "up": [{"dmg": 2}, {"cost": -1}], "arch": "Pas de grue"},
+	"c_contre_ressac": {"name": "Contre du ressac", "owner": "moine", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 5, "leech": 3, "trig": {"on": "attaque", "dmg": 5}, "text": "Inflige {dmg}, soigne {leech}.", "up": [{"leech": 2}, {"root": 1, "text": "Inflige {dmg}, soigne {leech}. Entravé {root} tour."}], "arch": "Contre-courant"},
+	"c_danse_grue": {"name": "Danse de la grue", "owner": "moine", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "danse_grue", "val": 3, "text": "Pouvoir : chaque bond ou téléportation du héros lui donne {val} armure.", "up": [{"val": 2}, {"val2": 1, "text": "Pouvoir : chaque bond ou téléportation du héros lui donne {val} armure. 2e du tour : +1 énergie."}], "arch": "Pas de grue"},
+	"c_second_souffle": {"name": "Second souffle", "owner": "moine", "rar": 3, "cost": 2, "kind": "atk", "range": [1, 1], "dmg": 3, "hits": 3, "per_missing": 1, "leech": 5, "text": "Inflige {dmg} trois fois, +{per_missing} par tranche de 5 PV manquants. Soigne {leech}.", "up": [{"leech": 3}, {"cost": -1}], "arch": "Contre-courant"},
+	"c_tir_rabat": {"name": "Tir de rabat", "owner": "trappeur", "rar": 1, "cost": 1, "kind": "atk", "range": [2, 4], "dmg": 4, "trap_behind": true, "tdmg": 5, "text": "Inflige {dmg}. Pose un piège ({tdmg}) derrière la cible.", "up": [{"tdmg": 3}, {"push": 1, "text": "Inflige {dmg}. Pose un piège ({tdmg}) derrière la cible, puis l'y repousse."}], "arch": "Collets et rabattage"},
+	"c_coup_crosse": {"name": "Coup de crosse", "owner": "trappeur", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 5, "push": 2, "recoil": 1, "trig": {"on": "proie", "draw": 1}, "text": "Inflige {dmg}, repousse {push} et recule d'1 case.", "up": [{"dmg": 2}, {"push": 1}], "arch": "Collets et rabattage"},
+	"c_tir_affut": {"name": "Tir d'affût", "owner": "trappeur", "rar": 1, "cost": 1, "kind": "atk", "range": [3, 6], "dmg": 5, "trig": {"on": "immobile", "dmg": 3}, "text": "Inflige {dmg}.", "up": [{"dmg": 2}, {"mark": 1, "text": "Inflige {dmg}. Marqué {mark} tour."}], "arch": "Affût"},
+	"c_trace_sang": {"name": "Trace de sang", "owner": "trappeur", "rar": 1, "cost": 0, "kind": "atk", "range": [1, 5], "dmg": 2, "mark": 1, "trig": {"on": "proie", "mark": 2}, "text": "Inflige {dmg}. Marqué {mark} tour.", "up": [{"draw": 1, "text": "Inflige {dmg}. Marqué {mark} tour. Pioche {draw}."}, {"dmg": 3}], "arch": "Curée"},
+	"c_appeau": {"name": "Appeau", "owner": "trappeur", "rar": 2, "cost": 1, "kind": "skill", "target": "tile", "range": [2, 4], "place": "piege", "tdmg": 6, "lure": 2, "text": "Pose un piège ({tdmg}) ; les ennemis à 4 cases avancent de {lure} vers lui.", "up": [{"lure": 1}, {"cost": -1}], "arch": "Collets et rabattage"},
+	"c_nasse": {"name": "Nasse", "owner": "trappeur", "rar": 2, "cost": 1, "kind": "skill", "target": "tile", "range": [1, 3], "place": "collet", "tdmg": 4, "draw": 1, "text": "Pose un collet ({tdmg}) : la proie est entravée et volée. Pioche {draw}.", "up": [{"tdmg": 4}, {"lure": 2, "text": "Pose un collet ({tdmg}) ; les ennemis à 4 cases avancent de {lure} vers lui. Pioche {draw}."}], "arch": "Collets et rabattage"},
+	"c_nid_guet": {"name": "Nid de guet", "owner": "trappeur", "rar": 2, "cost": 1, "kind": "skill", "target": "self", "block": 4, "draw": 1, "trig": {"on": "immobile", "energy": 1}, "text": "+{block} armure. Pioche {draw}.", "up": [{"block": 3}, {"retain": true, "text": "Conservé. +{block} armure. Pioche {draw}."}], "arch": "Affût"},
+	"c_signal_meute": {"name": "Signal de meute", "owner": "trappeur", "rar": 2, "cost": 1, "kind": "atk", "range": [2, 5], "dmg": 0, "mark": 2, "shadow_ally": true, "text": "Marqué {mark}. L'allié le plus proche bondit dans son dos ; son prochain coup compte de dos.", "up": [{"mark": 1}, {"draw": 1, "text": "Marqué {mark}. L'allié le plus proche bondit dans son dos ; son prochain coup compte de dos. Pioche {draw}."}], "arch": "Curée"},
+	"c_carreau_silure": {"name": "Carreau de silure", "owner": "trappeur", "rar": 3, "cost": 2, "kind": "atk", "range": [3, 7], "dmg": 8, "pierce": true, "chain": 2, "trig": {"on": "immobile", "energy": 1}, "text": "Inflige {dmg}, ignore l'armure, puis traverse vers un ennemi proche.", "up": [{"dmg": 3}, {"chain": 1, "text": "Inflige {dmg}, ignore l'armure, puis traverse vers 2 ennemis proches."}], "arch": "Affût"},
+	"c_curee": {"name": "Curée", "owner": "trappeur", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "curee", "val": 6, "text": "Pouvoir : quand un ennemi entravé meurt, un piège ({val}) se referme sur sa case. Pioche 1.", "up": [{"val": 3}, {"cost": -1}], "arch": "Curée"},
+	"c_contretemps": {"name": "Contretemps", "owner": "tidiane", "voix": "B", "rar": 1, "cost": 0, "kind": "skill", "target": "self", "bpm": 2, "trig": {"on": "premier", "draw": 1}, "text": "BPM +{bpm}.", "up": [{"bpm": 1}, {"retain": true, "text": "Conservé. BPM +{bpm}."}], "arch": "174 BPM"},
+	"c_saignee": {"name": "Saignée", "owner": "tidiane", "voix": "N", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 6, "selfdmg": 3, "per_missing": 2, "text": "Perd {selfdmg} PV. Inflige {dmg}, +{per_missing} par tranche de 5 PV manquants.", "up": [{"per_missing": 1}, {"reach": 1}], "arch": "Pacte de sang"},
+	"c_ligne_claire": {"name": "Ligne claire", "owner": "tidiane", "voix": "B", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 3], "dmg": 5, "trig": {"on": "grixis", "draw": 2}, "text": "Inflige {dmg}.", "up": [{"dmg": 3}, {"mark": 1, "text": "Inflige {dmg}. Marqué {mark} tour."}], "arch": "Trinité Grixis"},
+	"c_coup_de_sang": {"name": "Coup de sang", "owner": "tidiane", "voix": "R", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 6, "trig": {"on": "blesse", "dmg": 5}, "text": "Inflige {dmg}.", "up": [{"dmg": 2}, {"trig": {"on": "blesse", "dmg": 5, "energy": 1}}], "arch": "Pacte de sang"},
+	"c_drop": {"name": "The Drop", "owner": "tidiane", "voix": "R", "rar": 2, "cost": 2, "kind": "atk", "range": [1, 1], "dmg": 6, "drop": 2, "text": "Inflige {dmg}, +{drop} par BPM. Remet le BPM à 0.", "up": [{"drop": 1}, {"cost": -1}], "arch": "174 BPM"},
+	"c_boucle": {"name": "Boucle de 8 mesures", "owner": "tidiane", "voix": "B", "rar": 2, "cost": 1, "kind": "skill", "target": "self", "recall": 1, "bpm": 1, "text": "Reprend au hasard {recall} carte de la défausse (−1 coût). BPM +{bpm}.", "up": [{"recall": 1, "text": "Reprend au hasard {recall} cartes de la défausse (−1 coût). BPM +{bpm}."}, {"cost": -1}], "arch": "174 BPM"},
+	"c_rancoeur": {"name": "Rancœur", "owner": "tidiane", "voix": "N", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 2], "dmg": 4, "per_missing": 2, "leech": 4, "text": "Inflige {dmg}, +{per_missing} par tranche de 5 PV manquants. Soigne {leech}.", "up": [{"leech": 2}, {"trig": {"on": "grace", "energy": 1}}], "arch": "Pacte de sang"},
+	"c_trinite": {"name": "Trinité", "owner": "tidiane", "voix": "N", "rar": 2, "cost": 1, "kind": "skill", "target": "self", "echo": true, "exhaust": true, "trig": {"on": "grixis", "energy": 1}, "text": "La prochaine carte jouée agit deux fois. Épuise.", "up": [{"retain": true, "text": "Conservé. La prochaine carte jouée agit deux fois. Épuise."}, {"draw": 1, "text": "Conservé. La prochaine carte jouée agit deux fois. Pioche {draw}. Épuise."}], "arch": "Trinité Grixis"},
+	"c_metronome": {"name": "Métronome", "owner": "tidiane", "voix": "B", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "metronome", "val": 2, "text": "Pouvoir : BPM +{val} au début de chaque tour du héros.", "up": [{"val": 1}, {"cost": -1}], "arch": "174 BPM"},
+	"c_catharsis": {"name": "Catharsis", "owner": "tidiane", "voix": "R", "rar": 3, "cost": 2, "kind": "atk", "range": [1, 1], "dmg": 6, "per_missing": 4, "trig": {"on": "grace", "heal": 8}, "text": "Inflige {dmg}, +{per_missing} par tranche de 5 PV manquants.", "up": [{"per_missing": 1}, {"cost": -1}], "arch": "Pacte de sang"},
+	"c_brocante": {"name": "Brocante", "owner": "receleur", "rar": 1, "cost": 1, "kind": "skill", "target": "self", "idraw": 2, "iblock": 2, "text": "Pioche 1 par objet en besace ({idraw} au plus). +{iblock} armure par objet.", "up": [{"iblock": 1}, {"idraw": 1}], "arch": "Brocanteur"},
+	"c_revente": {"name": "Revente à la sauvette", "owner": "receleur", "rar": 1, "cost": 0, "kind": "skill", "target": "self", "sell": 10, "draw": 1, "exhaust": true, "text": "Détruit le premier objet de la besace : +{sell} or. Pioche {draw}. Épuise.", "up": [{"sell": 5}, {"draw": 1}], "arch": "Casse et Revente"},
+	"c_tire_laine": {"name": "Tire-laine", "owner": "receleur", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 2], "dmg": 6, "trig": {"on": "butin", "heal": 4}, "text": "Inflige {dmg}.", "up": [{"dmg": 3}, {"steal": true, "text": "Vole l'objet de la cible, puis inflige {dmg}."}], "arch": "Pickpocket"},
+	"c_casse_tout": {"name": "Casse-tout", "owner": "receleur", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 4, "per_used": 4, "text": "Inflige {dmg}, +{per_used} par objet utilisé ou détruit ce tour.", "up": [{"per_used": 1}, {"cost": -1}], "arch": "Casse et Revente"},
+	"c_bonneteau": {"name": "Bonneteau", "owner": "receleur", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 3], "dmg": 0, "steal": true, "pull": 2, "text": "Vole l'objet d'un ennemi à {rmax} cases et l'attire de {pull}.", "up": [{"dmg": 5, "text": "Vole l'objet d'un ennemi à {rmax} cases, l'attire de {pull} et inflige {dmg}."}, {"cost": -1}], "arch": "Pickpocket"},
+	"c_feu_de_joie": {"name": "Feu de joie", "owner": "receleur", "rar": 2, "cost": 1, "kind": "atk", "target": "self", "around": true, "dmg": 3, "per_used": 3, "text": "Inflige {dmg} à chaque voisin, +{per_used} par objet utilisé ou détruit ce tour.", "up": [{"per_used": 1}, {"block": 6, "text": "Inflige {dmg} à chaque voisin, +{per_used} par objet utilisé ou détruit ce tour. +{block} armure."}], "arch": "Casse et Revente"},
+	"c_inventaire": {"name": "Inventaire", "owner": "receleur", "rar": 2, "cost": 1, "kind": "atk", "range": [2, 4], "throw": true, "dmg": 4, "junk": 2, "text": "Lance le premier objet de la besace sur la cible, puis inflige {dmg}, +{junk} par objet restant.", "up": [{"junk": 1}, {"reach": 1}], "arch": "Brocanteur"},
+	"c_marchandage": {"name": "Marchandage", "owner": "receleur", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "dupe": true, "sell": 10, "exhaust": true, "text": "Copie le dernier objet de la besace, puis revend le premier : +{sell} or. Épuise.", "up": [{"sell": 5}, {"draw": 1, "text": "Copie le dernier objet de la besace, puis revend le premier : +{sell} or. Pioche {draw}. Épuise."}], "arch": "Brocanteur"},
+	"c_fourgue": {"name": "Le Fourgue", "owner": "receleur", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "fourgue", "val": 2, "text": "Pouvoir : chaque objet volé ou fabriqué soigne {val} à chaque héros. Vol : +1 Bricole.", "up": [{"val": 1}, {"cost": -1}], "arch": "Pickpocket"},
+	"c_benne": {"name": "Benne à ferraille", "owner": "receleur", "rar": 3, "cost": 2, "kind": "atk", "range": [1, 1], "dmg": 6, "need_item": true, "per_used": 4, "text": "Détruit le premier objet (besace vide : 0 dégât), puis inflige {dmg}, +{per_used} par objet utilisé ou détruit ce tour.", "up": [{"per_used": 1}, {"cost": -1}], "arch": "Casse et Revente"},
+}
+
+# Trois routes par classe (25/09) : les cartes portent « arch », le butin en propose de différentes.
+const ARCHETYPES := {
+	"garde": [["L'Enclume", "empiler l'armure sans marcher, puis la dépenser"], ["Le Défi", "attirer les coups, punir, exposer pour les autres"], ["Brise-lames", "repousser contre les murs : le Choc"]],
+	"lame": [["Le Revers", "feintes, allers-retours, coups de dos"], ["Sève noire", "un poison qui passe d'ennemi en ennemi"], ["Pluie de kunaïs", "tempo à 0, kunaïs et téléportations"]],
+	"oracle": [["Semeur de failles", "créer des cases spéciales, punir qui s'y tient"], ["Palimpseste", "la défausse et le Flashback"], ["Marée montante", "le soin en trop frappe l'ennemi"]],
+	"artificier": [["Poudrière", "barils en chaîne"], ["Chantier de siège", "tourelles qui grandissent"], ["Chaudière", "coût X : tout mettre dans un coup"]],
+	"moine": [["Ressac", "l'enchaînement de coups"], ["Pas de grue", "bonds et téléportations"], ["Contre-courant", "punir et se battre ensanglanté"]],
+	"trappeur": [["Collets et rabattage", "pousser la proie dans les pièges"], ["Affût", "tirer sans bouger d'un pas"], ["Curée", "marquer, entraver, pièges en chaîne"]],
+	"tidiane": [["174 BPM", "monter le rythme, lâcher le Drop"], ["Pacte de sang", "les PV manquants frappent"], ["Trinité Grixis", "Analyse, Émotion, Ambition"]],
+	"receleur": [["Brocanteur", "la besace pleine"], ["Casse et Revente", "détruire ses objets pour frapper"], ["Pickpocket", "voler, et le Butin"]],
 }
 
 const STARTER := {
@@ -201,6 +303,14 @@ const TRIGGERS := {
 	"blesse": {"name": "Blessure", "text": "si un héros a perdu des PV ce tour"},
 	"attaque": {"name": "Punition", "text": "si la cible a frappé un héros à son dernier tour"},
 	"chasse": {"name": "Chasse", "text": "si la cible a été repoussée ce tour"},
+	"immobile": {"name": "Ancré", "text": "si le héros n'a pas marché ce tour (il ne pourra plus bouger)"},
+	"empoisonne": {"name": "Plaie", "text": "si la cible est empoisonnée"},
+	"sol": {"name": "Terrain", "text": "si la cible se tient sur une case spéciale (rune, faille, ronces...)"},
+	"bondi": {"name": "Bondi", "text": "si le héros s'est déjà téléporté ou a bondi ce tour"},
+	"butin": {"name": "Butin", "text": "si un objet a été volé ce tour"},
+	"dos": {"name": "Revers", "text": "si le coup part dans le dos de la cible"},
+	"regain": {"name": "Regain", "text": "si un héros a regagné des PV ce tour"},
+	"declic": {"name": "Déclic", "text": "si un piège s'est déclenché depuis la fin de ton dernier tour"},
 }
 # Mots-clés expliqués en infobulle sur les cartes.
 const KEYWORDS := {
@@ -227,6 +337,19 @@ const KEYWORDS := {
 	"Braquage": "Regarde 3 cartes d'une classe absente de l'escouade, gardes-en une.",
 	"Surcharge": "Si l'énergie restante suffit, la carte la dépense et touche chaque ennemi.",
 	"Provocation": "Les ennemis visent ce héros en priorité.",
+	"Exposé": "Le prochain coup qu'il reçoit d'un héros compte de dos.",
+	"Choc": "Dégâts en plus quand la cible repoussée heurte un mur, un relief ou une unité.",
+	"BPM": "Chaque carte jouée monte le BPM du héros de 1 (12 au plus). Les cartes Drop le dépensent d'un coup.",
+	"Drop": "Ajoute le BPM du héros (multiplié) à la carte, puis le remet à zéro.",
+	"Flashback": "Rejoue en Éphémère la dernière carte épuisée par ce héros ce combat (elle coûte 1 de moins).",
+	"déborde": "Le soin en trop frappe l'ennemi le plus proche (×1,5 s'il est Marqué).",
+	"Débordement": "Le soin en trop frappe l'ennemi le plus proche (×1,5 s'il est Marqué).",
+	"X": "Coût X : dépense toute l'énergie restante (1 au moins) ; chaque point renforce la carte.",
+	"Ouï-dire": "+N par carte piochée ce tour hors début de tour.",
+	"Présage": "Marque une case : au début de ton prochain tour, l'ennemi qui s'y tient encaisse, armure ignorée.",
+	"Conservé chargé": "Chaque tour passé en main, la carte gagne des dégâts (3 fois au plus).",
+	"Exposée": "Le prochain coup qu'elle reçoit d'un héros compte de dos.",
+		"Revends": "Détruit le premier objet de la besace contre de l'or (30 or de revente au plus par combat).",
 }
 # Objets de besace : à usage unique, sans énergie, utilisés par le héros sélectionné.
 # target : self | ally | foe | free (case libre) | tile. foe_ai : ce que fait un ennemi qui le porte.
@@ -349,6 +472,16 @@ const RELICS := {
 	"medaille": {"name": "Médaille du duo", "glyph": "⚭", "text": "Les cartes de guilde coûtent 1 de moins quand les deux classes de la guilde sont dans l'escouade."},
 	"noblesse": {"name": "Lettre de noblesse", "glyph": "✉", "text": "La case bonus du butin propose trois cartes au lieu d'une."},
 	"plume": {"name": "Plume d'emprunt", "glyph": "✒", "text": "La première carte hors classe jouée à chaque tour pioche 1."},
+	"masque": {"name": "Masque de porcelaine", "glyph": "◐", "text": "La première carte hors classe de chaque tour coûte 1 de moins."},
+	"tambour": {"name": "Tambour 174", "glyph": "♫", "text": "Toutes les 4 cartes jouées dans un combat, +1 énergie."},
+	"galet": {"name": "Galet poli", "glyph": "●", "text": "La 3e carte jouée par un héros dans son tour lui donne 4 armure."},
+	"pierre": {"name": "Pierre à aiguiser", "glyph": "◇", "text": "Les attaques à plusieurs coups infligent +1 par coup."},
+	"braise_eternelle": {"name": "Braise éternelle", "glyph": "☠", "text": "Le poison des ennemis ne décroît plus."},
+	"hamecon": {"name": "Hameçon rouillé", "glyph": "⌐", "text": "Attirer tire une case plus loin et Marque la cible 1 tour."},
+	"collier": {"name": "Collier de la meute", "glyph": "∞", "text": "Le compagnon a 50 % de PV en plus et frappe +3."},
+	"sifflet": {"name": "Sifflet d'os", "glyph": "♪", "text": "Sans compagnon, une bête des Hauts-Fonds répond à l'appel à chaque combat."},
+	"bourse": {"name": "Bourse du Passeur", "glyph": "◎", "text": "L'or des combats +25 %."},
+	"journal_route": {"name": "Journal de route", "glyph": "✎", "text": "Chaque salle « ? » soigne 10 % des PV max de chaque héros."},
 }
 # Maîtrise : points de job (1 par combat, 2 par élite) ; seuils des paliers II, III, IV.
 const MASTERY := [0, 0, 3, 7, 11]
@@ -388,6 +521,7 @@ const ROOMS := {
 	"sanctuaire": {"name": "Sanctuaire", "glyph": "✚", "text": "Soigner le groupe ou affûter une carte."},
 	"reliquaire": {"name": "Reliquaire", "glyph": "◆", "text": "Une relique parmi trois."},
 	"marchand": {"name": "Marchand", "glyph": "⚖", "text": "Équipement, cartes et soins contre de l'or."},
+	"mystere": {"name": "Inconnu", "glyph": "?", "text": "Une rencontre, un marché douteux, une bête, un piège. On ne sait qu'en entrant."},
 	"boss": {"name": "Le Gardien", "glyph": "♜", "text": "Le colosse qui tient l'Écluse."},
 }
 
@@ -701,7 +835,7 @@ const DIFF_NAME := {"cost": "Coût", "dmg": "Dégâts", "block": "Armure", "heal
 	"val": "Puissance", "val2": "Cibles", "craft": "Objets fabriqués", "bricole": "Bricole", "chain": "Rebonds", "backstab": "De dos ×",
 	"boom": "Explosion", "iblock": "Armure par objet", "mark_all": "Marque", "mark_near": "Marque", "recall": "Cartes reprises", "delay": "Recul d'initiative",
 	"stick": "Charge", "rpoison": "Poison", "inner": "Braise", "bph": "Armure par coup", "c_block": "Armure", "c_energy": "Énergie", "lure": "Attirance",
-	"craft_n": "Objets", "heal_ally": "Soin", "per_boom": "Par baril", "fuse": "Explosion", "overload": "Surcharge", "item_poison": "Poison des objets", "idraw": "Pioche max"}
+	"craft_n": "Objets", "crash": "Choc", "per_missing": "Par 5 PV manquants", "per_used": "Par objet utilisé", "per_tele": "Par téléportation", "drop": "Drop", "bpm": "BPM", "sell": "Or de revente", "tgrow": "Croissance", "add_n": "Cartes créées", "per_drawn": "Ouï-dire", "per_marked": "Par Marqué", "per_exhaust": "Par carte épuisée", "omen": "Présage", "hone": "Affûtage", "consume_root": "Par entrave", "charge_up": "Charge", "per_missing_block": "Armure par 5 PV manquants", "pay_gold": "Or", "tpush": "Recul", "heal_ally": "Soin", "per_boom": "Par baril", "fuse": "Explosion", "overload": "Surcharge", "item_poison": "Poison des objets", "idraw": "Pioche max"}
 const DIFF_FLAG := {"exhaust": ["Ne s'épuise plus", "S'épuise"], "pierce": ["Ignore l'armure", ""], "bounce": ["Rebondit", "Ne rebondit plus"], "twin": ["Deux pièges", ""]}
 
 
@@ -723,8 +857,13 @@ static func upgrade_diff(before: Dictionary, after: Dictionary) -> String:
 			var t: String = DIFF_FLAG[k][0 if (k == "exhaust") != bool(b.get(k, false)) else 1]
 			if t != "":
 				out.append(t)
-	if out.is_empty() and a.text != b.text:
-		out.append("Nouvel effet")
+	if a.get("trig", {}) != b.get("trig", {}) and b.has("trig"):
+		out.append("Déclencheur : " + trig_text(b).trim_suffix("."))
+	if out.is_empty():
+		for k in b:
+			if k != "lvl" and str(a.get(k)) != str(b.get(k)):
+				out.append("Nouvel effet")
+				break
 	return " · ".join(out)
 
 
@@ -753,6 +892,8 @@ static func trig_text(c: Dictionary) -> String:
 		fx.append("l'armure reste au prochain tour")
 	if t.get("refund", false):
 		fx.append("revient en main")
+	if t.has("craft"):
+		fx.append("fabrique %d objet%s" % [t.craft, "s" if int(t.craft) > 1 else ""])
 	return "%s : %s." % [TRIGGERS[t.on].name, ", ".join(fx)]
 
 

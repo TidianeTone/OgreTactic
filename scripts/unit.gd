@@ -35,6 +35,12 @@ var turns := 0
 var speed := 5              # initiative : les plus rapides jouent d'abord
 var tool := ""             # objet de besace porté (ennemis) : utilisé parfois, volable, lâché en tombant
 var alive := true
+var companion := false
+var walked := false          # a marché ce tour (Ancré)
+var teles := 0               # téléportations et bonds ce tour (Bondi)
+var trap_seen := 0           # pièges déclenchés vus à la fin de son dernier tour (Déclic)
+var blastproof := false      # les explosions lui donnent de l'armure au lieu de le blesser
+var bpm := 0                 # BPM : monte à chaque carte jouée, les cartes Drop le dépensent       # bête apprivoisée : joue seule, du côté des héros
 # vocation (classe secondaire à la FFT) : points de job, paliers de maîtrise
 var voc := ""
 var voc2 := ""               # Blason écartelé : une deuxième vocation
@@ -70,6 +76,10 @@ func wear_voc(k: String) -> void:
 	if voc_node:
 		voc_node.queue_free()
 		voc_node = null
+	if side == "hero" and model:
+		# le corps hybride : tenue et coiffe de la classe apprise
+		var hy := "res://assets/u_%s__%s.glb" % [key, k]
+		_load_body(hy if k != "" and ResourceLoader.exists(hy) else "res://assets/u_%s.glb" % key)
 	if k == "" or not ResourceLoader.exists("res://assets/voc_%s.glb" % k):
 		return
 	voc_node = load("res://assets/voc_%s.glb" % k).instantiate()
@@ -82,10 +92,43 @@ func wear_voc(k: String) -> void:
 	model.add_child(voc_node)
 
 
+var _body: Node3D
+
+
+func ring_color(c: Color) -> void:
+	ring.material_override.set_shader_parameter("col", c)
+
+
+func _load_body(path: String) -> void:
+	## Modèle voxel du corps ; la vocation le remplace par sa version hybride.
+	if _body:
+		_body.queue_free()
+		for mi in _meshes:
+			mi.material_overlay = null
+	_meshes.clear()
+	_xmats.clear()
+	var inst: Node3D = load(path).instantiate()
+	_body = inst
+	model.add_child(inst)
+	weapon = inst.find_child(key + "_weapon", true, false)
+	for mi in inst.find_children("*", "MeshInstance3D", true, false):
+		if String(mi.name).ends_with("glow"):
+			mi.material_override = Board.material("glow_unit")
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		else:
+			mi.material_override = Board.material("unit")
+			var col: Color = Data.CLASS_COLOR.get(key, Color(1.0, 0.3, 0.15))
+			_xmats.append(_xray(col if side == "hero" else Color(1.0, 0.35, 0.2)))
+			mi.set_instance_shader_parameter("rim", Vector3(0.55, 0.75, 1.0) * 0.3 if side == "hero" else Vector3(col.r, col.g, col.b) * 0.2)
+			_meshes.append(mi)
+			if String(mi.name).ends_with("_body"):
+				head = mi.get_aabb().end.y * bs + 0.35
+
+
 func reset_fight() -> void:
-	for k in ["aegis", "bait", "exposed", "parry", "dodge_next", "keep_block", "tele", "triple", "lvl_next", "bounty", "struck_hero", "pushed", "q40"]:
+	for k in ["aegis", "bait", "exposed", "parry", "dodge_next", "keep_block", "tele", "triple", "lvl_next", "bounty", "struck_hero", "pushed", "q40", "walked"]:
 		set(k, false)
-	for k in ["boomguard", "bph", "inner", "hits", "fuse", "stick"]:
+	for k in ["boomguard", "bph", "inner", "hits", "fuse", "stick", "teles", "bpm"]:
 		set(k, 0)
 
 var model: Node3D
@@ -118,21 +161,7 @@ func setup(k: String, s: String) -> void:
 	add_child(model)
 	bs = {"gardien": 0.85, "husk": 1.2, "guetteur": 1.15, "carapace": 1.1, "rodeur": 0.85, "wisp": 0.9}.get(k, 1.0)
 	model.scale = Vector3.ONE * bs
-	var inst: Node3D = load("res://assets/u_%s.glb" % k).instantiate()
-	model.add_child(inst)
-	weapon = inst.find_child(k + "_weapon", true, false)
-	for mi in inst.find_children("*", "MeshInstance3D", true, false):
-		if String(mi.name).ends_with("glow"):
-			mi.material_override = Board.material("glow_unit")
-			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		else:
-			mi.material_override = Board.material("unit")
-			var col: Color = Data.CLASS_COLOR.get(k, Color(1.0, 0.3, 0.15))
-			_xmats.append(_xray(col if s == "hero" else Color(1.0, 0.35, 0.2)))
-			mi.set_instance_shader_parameter("rim", Vector3(0.55, 0.75, 1.0) * 0.3 if s == "hero" else Vector3(col.r, col.g, col.b) * 0.2)
-			_meshes.append(mi)
-			if String(mi.name).ends_with("_body"):
-				head = mi.get_aabb().end.y * bs + 0.35
+	_load_body("res://assets/u_%s.glb" % k)
 	if k == "wisp":
 		var wl := OmniLight3D.new()
 		wl.light_color = Color(1.0, 0.55, 0.2)
