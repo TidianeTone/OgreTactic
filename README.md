@@ -24,6 +24,7 @@ dans Blender par script (`blender/`).
 ## Commandes
 
 - Clic : choisir un héros, une carte, une case · Espace : fin du tour, puis orientation (souris ou ← →, Espace pour valider)
+- D : zone de danger · I, P, F : équipement, paquet, fusion dans le donjon
 - Clic droit maintenu : caméra libre (ZQSD) · Q/E : pivoter · molette : zoom
 - P : voir le paquet · M : couper la musique · H : aide · Alt : objets interactifs · Échap : menu
 - Manette Xbox prise en charge
@@ -37,6 +38,13 @@ dans Blender par script (`blender/`).
 - Runes au sol (force, source, garde, élan, portails, ronces)
 - Deux modes : Descente (carte d'étage) et Aventure (donjon à explorer) ; en Aventure, équipement, paquet et fusion restent accessibles (I, P, F)
 - 12 biomes, dont la Crypte aux Cierges, le Bosquet Émeraude, la Grotte au Croissant et le Temple de Jade
+- Ennemis : les Moussus des ruines, la Compagnie noyée (lancier, cavalier qui se replie, vouivre, mage, bretteur, danseuse qui fait rejouer un allié,
+  capitaine, baliste), les bêtes des Hauts-Fonds (crabe, crapaud-gouffre, harpie) et l'Obélisque d'appel, une structure qui invoque à chaque tour
+- Terrains : fourré, fort en ruine, faille de braise, autel des vœux, glyphe instable, en plus des runes
+- Soutien : un allié au contact donne +2 aux coups et -2 aux dégâts reçus ; D affiche la zone de danger
+- Course : 3 mana pour un second déplacement ; un coffre s'ouvre en le frappant
+- Illustrations : cartes peintes par KIE en planches de 9 (`blender/kie_cartes`), légendaires en planches de 4 (`blender/kie_legendaires`) ;
+  la vocation d'un héros se voit sur son modèle (insigne voxel, `blender/gen_chars.py`)
 - Un Ancien à chaque étage, modificateurs de salles, pactes, 5 niveaux de difficulté
 
 ## Développement
@@ -46,6 +54,7 @@ dans Blender par script (`blender/`).
 - Chaque carte de guilde jouée en combat : `godot --headless --path . -- --cardtest --party=garde,lame,tidiane`
 - Captures des écrans de vocation, de l'étal, de la carte, du titre et de l'orientation : `godot --path . -- --voctest=DOSSIER`
 - Sauvegarde et reprise (Descente et Aventure) : `godot --path . -- --savetest`
+- Forcer des ennemis : `-- --autoplay=3 --foes=obelisque,crabe,crapaud` (marche aussi avec `--capture`) ; `--voc=garde` montre les insignes
 - Régénérer les modèles : `blender -b --factory-startup -P blender/gen_chars.py`
 
 Polices libres (SIL OFL / licence Bitstream Vera) : Fraunces, Lato, DejaVu Sans Mono, Noto Sans Math, Noto Emoji.
