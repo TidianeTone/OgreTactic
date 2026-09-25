@@ -462,7 +462,7 @@ const ITEM_ICON := {"epee_ecluse": "epee", "masse_os": "masse", "hallebarde": "h
 const PRICE := {1: 45, 2: 75, 3: 110}
 
 const PROPS := {
-	"coffre": {"name": "Coffre", "text": "Un héros adjacent peut l'ouvrir (utilise son déplacement)."},
+	"coffre": {"name": "Coffre", "text": "Frappez-le avec une attaque, ou ouvrez-le au contact sans perdre votre déplacement."},
 	"brasero": {"name": "Brasero", "text": "Un coup le fait exploser : 7 dégâts autour."},
 	"pilier": {"name": "Pilier fendu", "text": "Frappé ou poussé, il s'effondre sur les 2 cases suivantes : 9 dégâts."},
 	"baril": {"name": "Baril de poudre", "text": "Un coup le fait exploser : 7 dégâts autour."},
