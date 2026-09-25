@@ -574,7 +574,7 @@ func _unhandled_input(e: InputEvent) -> void:
 			KEY_F:
 				adv_menu("fuse")
 			KEY_H:
-				ui.show_keys = not ui.show_keys
+				ui.show_keys = 0 if ui.keys_plate.visible else 1
 				ui.refresh()
 			KEY_M:
 				_mute = not _mute
@@ -598,7 +598,8 @@ func _unhandled_input(e: InputEvent) -> void:
 func _title() -> void:
 	play_music("titre")
 	orbit = true
-	_build_room(randi(), randi() % Data.BIOMES.size(), 16, Board.ARCHETYPES[randi() % Board.ARCHETYPES.size()])
+	title_bi = randi() % Data.BIOMES.size()
+	_build_room(randi(), title_bi, 16, Board.ARCHETYPES[randi() % Board.ARCHETYPES.size()])
 	dist = 34.0
 	pitch = 30.0
 	_snap_cam()
@@ -612,6 +613,15 @@ func _title() -> void:
 		_tutorial()
 		return
 	new_run()
+
+
+var title_bi := 0
+func title_place(d: int) -> String:
+	## Écran titre : le décor voxel derrière le menu, et son nom ; ‹ › en change.
+	if d != 0:
+		title_bi = posmod(title_bi + d, Data.BIOMES.size())
+		_build_room(randi(), title_bi, 16, Board.ARCHETYPES[randi() % Board.ARCHETYPES.size()])
+	return Data.BIOMES[title_bi].name
 
 
 func _make_party(keys: Array = party) -> void:
@@ -3092,6 +3102,17 @@ func view_deck(which := "deck") -> void:
 		cards = battle.draw_pile.duplicate()
 		title = "PIOCHE"
 		sub = "%d cartes, ordre caché · défausse %d · épuisées %d" % [cards.size(), battle.discard.size(), battle.exhausted.size()]
+	if which == "defausse" and ui.hud.visible:
+		# la plus récente d'abord, dans l'ordre où elles ont été jouées ; les épuisées à la suite
+		var opts: Array = []
+		var d: Array = battle.discard.duplicate()
+		d.reverse()
+		for c in d:
+			opts.append({"card": c, "tag": "Joué ce tour" if battle.played_turn.any(func(p): return p.id == c.id) else "Défausse"})
+		for c in battle.exhausted:
+			opts.append({"card": c, "tag": "Épuisée"})
+		await ui.choose("DÉFAUSSE", "%d en défausse · %d épuisée(s) · elles reviennent quand la pioche est vide" % [battle.discard.size(), battle.exhausted.size()], opts, true, "Fermer")
+		return
 	var key := func(c: Dictionary) -> String: return "%s|%s|%d" % [Data.holder(c), c.id, 9 - Data.level(c)]
 	cards.sort_custom(func(a, b): return key.call(a) < key.call(b))
 	await ui.choose(title, sub, cards.map(func(c): return {"card": c}), true, "Fermer")

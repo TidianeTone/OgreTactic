@@ -27,6 +27,7 @@ var deck: Array = []
 var relics: Array = []
 var draw_pile: Array = []
 var discard: Array = []
+var played_turn: Array = []  # cartes jouées par le héros actif ce tour (affichées près de l'orbe)
 var exhausted: Array = []
 var hand: Array = []
 var energy := 3
@@ -812,6 +813,7 @@ func _hero_turn(h: Unit) -> void:
 	exhausted = pl.exhausted
 	hand = pl.keep
 	pl.keep = []
+	played_turn = []
 	for ci in hand:
 		var cu := int(Data.card(ci).get("charge_up", 0))
 		if cu > 0:
@@ -1411,6 +1413,7 @@ func play_card(i: int, t: Vector2i) -> void:
 	ci.erase("free")
 	ci.erase("cut")
 	ci.erase("chg")
+	played_turn.append(ci.duplicate())
 	if refund:
 		hand.append(ci)
 	elif c.get("eph", false):

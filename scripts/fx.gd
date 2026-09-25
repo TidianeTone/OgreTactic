@@ -27,6 +27,20 @@ static func title_font() -> Font:
 	return font
 
 
+static var _goth := {}
+static func goth(n: String) -> Font:
+	## Polices gothiques des titres : fette_trump (logo), pirataone (menu), newrocker (titres d'écran).
+	if not _goth.has(n):
+		var f: FontFile = load("res://fonts/%s.ttf" % n)
+		if f.fallbacks.is_empty():
+			var fb: Array[Font] = []
+			for x in ["dejavu_mono", "noto_math", "noto_emoji"]:
+				fb.append(load("res://fonts/%s.woff2" % x))
+			f.fallbacks = fb
+		_goth[n] = f
+	return _goth[n]
+
+
 static func number_font() -> Font:
 	if _num_font == null:
 		_num_font = _face("res://fonts/lato_bold.woff2", 700)

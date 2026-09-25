@@ -60,7 +60,9 @@ var lib_layer: Control     # bibliothèque : sa propre couche, ouvrable par-dess
 var _eq_act := {}          # action choisie sur l'écran d'équipement
 var powers_lbl: Label
 var keys_plate: PanelContainer
-var show_keys := false      # H : garder l'aide affichée
+var show_keys := -1         # H : -1 auto (1er round), 0 masquée, 1 affichée
+var played_box: HBoxContainer
+var _played_sig := ""
 var explore_box: VBoxContainer
 var explore_title: Label
 var explore_sub: Label
@@ -74,9 +76,9 @@ var _besace_sig := ""
 func _ready() -> void:
 	title_f = Fx.title_font()
 	wide_f = FontVariation.new()
-	wide_f.base_font = title_f
-	wide_f.spacing_glyph = 14
-	wide_f.fallbacks = title_f.fallbacks
+	wide_f.base_font = Fx.goth("newrocker")  # titres d'écran : gothique lisible
+	wide_f.spacing_glyph = 8
+	wide_f.fallbacks = Fx.goth("newrocker").fallbacks
 	body_f = Fx.body_font()
 	root = Control.new()
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -262,6 +264,11 @@ func _build_hud() -> void:
 	pb.tooltip_text = "Voir la pioche · P : tout le paquet"
 	pb.pressed.connect(func(): main.view_deck("pioche"))
 	hud.add_child(pb)
+	# cartes jouées ce tour : la dernière arrive à droite ; clic = toute la défausse
+	played_box = HBoxContainer.new()
+	played_box.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	played_box.position = Vector2(170, -160)
+	hud.add_child(played_box)
 	besace_row = HBoxContainer.new()
 	besace_row.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	besace_row.position = Vector2(24, -246)
@@ -821,7 +828,11 @@ func refresh() -> void:
 	powers_lbl.text = ("Pouvoirs : " + " · ".join(pw)) if pw.size() > 0 else ""
 	end_btn.disabled = not battle.player_turn or battle.busy
 	end_btn.text = "Fin du tour" if battle.active == null else ("Valider l'orientation" if battle.orienting else "Fin · %s" % battle.active.nm)
-	keys_plate.visible = (battle.turn <= 1 or show_keys) and not big  # au doigt, pas de clavier
+	keys_plate.visible = (battle.turn <= 1 if show_keys < 0 else show_keys == 1) and not big  # au doigt, pas de clavier
+	var psig := "%s|%d" % [JSON.stringify(battle.played_turn), battle.discard.size()]
+	if psig != _played_sig:
+		_played_sig = psig
+		_rebuild_played()
 	var bsig := "%s|%d|%d|%d" % [JSON.stringify(battle.besace), battle.tool_sel, battle.besace_cap(), battle.bricole]
 	if bsig != _besace_sig:
 		_besace_sig = bsig
@@ -840,6 +851,50 @@ func refresh() -> void:
 		(_cards[i].get_meta("live") as Control).visible = ok and battle.trig_live(c)
 	_sync_tags()
 	main.refresh_hover()
+
+
+func _rebuild_played() -> void:
+	for c in played_box.get_children():
+		c.queue_free()
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 2)
+	var t := _shadowed(_label("Défausse %d" % battle.discard.size(), 13, GOLD, title_f), 4)
+	col.add_child(t)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", -40)
+	col.add_child(row)
+	played_box.add_child(col)
+	var k := 0.42
+	var list: Array = battle.played_turn.slice(-5)
+	if list.is_empty():
+		var empty := _plate(row)
+		empty.custom_minimum_size = CARD * k
+		empty.add_child(_label("rien joué
+ce tour", 11, DIM))
+	for i in list.size():
+		var holder := Control.new()
+		holder.custom_minimum_size = CARD * k
+		var w := make_card(list[i])
+		w.scale = Vector2.ONE * k
+		w.pivot_offset = Vector2.ZERO
+		holder.tooltip_text = w.tooltip_text
+		_passthrough(w)
+		holder.add_child(w)
+		row.add_child(holder)
+		if i == list.size() - 1 and _played_sig != "":
+			# la carte qui vient d'être jouée se pose
+			w.modulate.a = 0.0
+			w.position.y = -40
+			var tw := create_tween().set_parallel()
+			tw.tween_property(w, "modulate:a", 1.0, 0.25)
+			tw.tween_property(w, "position:y", 0.0, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	# tout le bloc est cliquable : la défausse complète
+	_passthrough(col)
+	col.mouse_filter = Control.MOUSE_FILTER_STOP
+	col.tooltip_text = "Joué ce tour · clic : toute la défausse"
+	col.gui_input.connect(func(e):
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			main.view_deck("defausse"))
 
 
 func _rebuild_besace() -> void:
@@ -1654,122 +1709,139 @@ func _close_overlay() -> void:
 
 
 func title_screen(resume := "") -> int:
+	## Façon Duelyst : logo et lieu à gauche, une liste d'entrées gothiques, une bulle au survol.
+	## Rend 0 nouvelle descente, 2 reprendre, 3 initiation, -1 si le mode portable vient de changer.
 	_close_overlay()
 	overlay = Control.new()
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_child(overlay)
 	var grad := TextureRect.new()
 	var g := Gradient.new()
-	g.colors = PackedColorArray([Color(0.02, 0.02, 0.03, 0.0), Color(0.02, 0.02, 0.03, 0.75)])
+	g.colors = PackedColorArray([Color(0.02, 0.02, 0.04, 0.82), Color(0.02, 0.02, 0.04, 0.35), Color(0.02, 0.02, 0.04, 0.0)])
+	g.offsets = PackedFloat32Array([0.0, 0.38, 0.62])
 	var gt := GradientTexture2D.new()
 	gt.gradient = g
-	gt.fill_from = Vector2(0, 0.3)
-	gt.fill_to = Vector2(0, 1)
+	gt.fill_from = Vector2(0, 0.5)
+	gt.fill_to = Vector2(1, 0.5)
 	grad.texture = gt
 	grad.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	grad.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	grad.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(grad)
-	var box := VBoxContainer.new()
-	box.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	box.position = Vector2(-400, -330)
-	box.size = Vector2(800, 280)
-	box.add_theme_constant_override("separation", 6)
-	overlay.add_child(box)
-	var t := _shadowed(_label("TONERTACTIC", 104, INK, wide_f), 16)
-	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(t)
-	var s := _shadowed(_label("Roguelike tactique à cartes · les ruines de l'Écluse", 18, GOLD), 6)
-	s.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(s)
-	var cr := _shadowed(_label("Icônes : game-icons.net (Lorc, Delapouite et al., CC BY 3.0) · idéogrammes : KIE", 11, DIM), 4)
-	cr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(cr)
+	var col := VBoxContainer.new()
+	col.position = Vector2(90, 70)
+	col.add_theme_constant_override("separation", 4)
+	overlay.add_child(col)
+	var logo := _shadowed(_label("TonerTactic", 104, INK, Fx.goth("fette_trump")), 14)
+	col.add_child(logo)
+	# le lieu du décor, comme « ‹ Magaari, Ember Highlands › » : on peut en changer
+	var place := HBoxContainer.new()
+	place.add_theme_constant_override("separation", 10)
+	col.add_child(place)
+	var place_l := _shadowed(_label(main.title_place(0), 17, GOLD), 5)
+	for d in [-1, 1]:
+		var ab := Button.new()
+		ab.text = "‹" if d < 0 else "›"
+		ab.flat = true
+		ab.focus_mode = Control.FOCUS_NONE
+		ab.add_theme_font_override("font", title_f)
+		ab.add_theme_font_size_override("font_size", 24)
+		ab.add_theme_color_override("font_color", GOLD.darkened(0.2))
+		ab.add_theme_color_override("font_hover_color", Color.WHITE)
+		ab.tooltip_text = "Changer de décor"
+		var dd: int = d
+		ab.pressed.connect(func(): place_l.text = main.title_place(dd))
+		place.add_child(ab)
+		if d < 0:
+			place.add_child(place_l)
 	var sp := Control.new()
-	sp.custom_minimum_size = Vector2(0, 30)
-	box.add_child(sp)
-	var b := Button.new()
-	b.text = "Nouvelle descente"
-	b.add_theme_font_override("font", title_f)
-	b.add_theme_font_size_override("font_size", 24)
-	b.add_theme_color_override("font_color", Color("#2a1606"))
-	b.add_theme_stylebox_override("normal", sb(GOLD, Color("#fff0c8"), 12, 2, 10))
-	b.add_theme_stylebox_override("hover", sb(GOLD.lightened(0.18), Color("#fff6dc"), 12, 2, 12))
-	b.add_theme_stylebox_override("pressed", sb(GOLD.darkened(0.15), Color("#fff0c8"), 12, 2, 4))
-	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
-	b.custom_minimum_size = Vector2(300, 60)
-	b.pressed.connect(func(): picked.emit(0))
-	var rs: Button
+	sp.custom_minimum_size = Vector2(0, 70)
+	col.add_child(sp)
+	var entries: Array = []
 	if resume != "":
-		rs = b.duplicate(0)
-		rs.text = "Reprendre la partie"
-		rs.pressed.connect(func(): picked.emit(2))
-		box.position.y -= 150
-	box.position.y -= 24
-	# second rang : l'initiation (une run éclair) et la bibliothèque
-	var minor := func(txt: String, k: int) -> Button:
-		var mb := Button.new()
-		mb.text = txt
-		mb.add_theme_font_override("font", title_f)
-		mb.add_theme_font_size_override("font_size", 18)
-		mb.add_theme_color_override("font_color", INK)
-		mb.add_theme_color_override("font_hover_color", Color("#2a1606"))
-		mb.add_theme_color_override("font_focus_color", Color("#2a1606"))
-		mb.add_theme_stylebox_override("normal", sb(Color(0.1, 0.09, 0.1, 0.88), GOLD.darkened(0.3), 10, 2, 8))
-		mb.add_theme_stylebox_override("hover", sb(GOLD, Color("#fff0c8"), 10, 2, 8))
-		mb.add_theme_stylebox_override("focus", sb(GOLD, Color("#fff0c8"), 10, 2, 8))
-		mb.add_theme_stylebox_override("pressed", sb(GOLD.darkened(0.15), Color("#fff0c8"), 10, 2, 4))
-		mb.custom_minimum_size = Vector2(250, 46)
-		mb.pressed.connect(func(): picked.emit(k))
-		return mb
-	var tut: Button = minor.call("Initiation · run éclair", 3)
-	tut.tooltip_text = "Trois combats en Oklm, points de job accélérés : de quoi voir le multiclasse en un quart d'heure."
-	var lib: Button = minor.call("Bibliothèque · %d / %d" % [main.library.size(), Data.all_ids().size()], 1)
-	lib.tooltip_text = "Toutes les cartes déjà croisées, par classe et par guilde."
-	var c := VBoxContainer.new()
-	c.alignment = BoxContainer.ALIGNMENT_CENTER
-	c.add_theme_constant_override("separation", 10)
-	if rs:
-		b.remove_theme_stylebox_override("normal")
-		b.add_theme_stylebox_override("normal", sb(Color(0.1, 0.09, 0.1, 0.9), GOLD, 12, 2, 10))
-		b.add_theme_color_override("font_color", INK)
-		var cr2 := CenterContainer.new()
-		cr2.add_child(rs)
-		c.add_child(cr2)
-		var ri := _shadowed(_label(resume, 15, GOLD), 4)
-		ri.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		c.add_child(ri)
-	var cb := CenterContainer.new()
-	cb.add_child(b)
-	c.add_child(cb)
-	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 14)
-	row.add_child(tut)
-	row.add_child(lib)
-	c.add_child(row)
+		entries.append([2, "Reprendre", "reprendre", "La partie en cours : " + resume])
+	entries.append([0, "Nouvelle descente", "descente", "Choisir le mode, la difficulté, l'escouade et ses pactes, puis descendre."])
+	entries.append([3, "Initiation", "initiation", "Une run éclair de trois combats : de quoi voir naître un multiclasse en un quart d'heure."])
+	entries.append([1, "Bibliothèque  %d / %d" % [main.library.size(), Data.all_ids().size()], "bibliotheque", "Toutes les cartes déjà croisées, par classe et par guilde."])
 	if OS.has_feature("web") or main.args.has("portable"):
-		var mob: Button = minor.call("Mode portable : %s" % ("oui" if big else "non"), 4)
-		mob.tooltip_text = "Interface agrandie, gestes tactiles (deux doigts : zoom et rotation ; toucher = viser, retoucher = valider), rendu allégé."
-		var cm := CenterContainer.new()
-		cm.add_child(mob)
-		c.add_child(cm)
-		box.position.y -= 56
-	box.add_child(c)
+		entries.append([4, "Mode portable : %s" % ("oui" if big else "non"), "portable", "Interface agrandie, gestes tactiles (deux doigts : zoom et rotation ; toucher = viser, retoucher = valider), rendu allégé."])
+	if not OS.has_feature("web"):
+		entries.append([7, "Quitter", "quitter", "Refermer l'Écluse."])
+	var bubble := PanelContainer.new()
+	var bs := sb(Color(0.03, 0.03, 0.04, 0.92), Color(0, 0, 0, 0), 6, 0, 8)
+	bs.content_margin_left = 14
+	bs.content_margin_right = 14
+	bs.content_margin_top = 8
+	bs.content_margin_bottom = 8
+	bubble.add_theme_stylebox_override("panel", bs)
+	bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var bl := _label("", 15, INK)
+	bl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	bl.custom_minimum_size = Vector2(300, 0)
+	bubble.add_child(bl)
+	bubble.visible = false
+	overlay.add_child(bubble)
+	var lib_btn: Button
+	var first: Button
+	for e in entries:
+		var b := Button.new()
+		b.text = "  " + e[1]
+		b.icon = load("res://assets/ui/menu_%s.png" % e[2])
+		b.expand_icon = true
+		b.flat = true
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.custom_minimum_size = Vector2(520, 64)
+		b.add_theme_constant_override("icon_max_width", 46)
+		b.add_theme_font_override("font", Fx.goth("pirataone"))
+		b.add_theme_font_size_override("font_size", 42)
+		b.add_theme_color_override("font_color", INK)
+		b.add_theme_color_override("font_hover_color", GOLD.lightened(0.15))
+		b.add_theme_color_override("font_focus_color", GOLD.lightened(0.15))
+		b.add_theme_color_override("font_pressed_color", GOLD)
+		b.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+		b.add_theme_constant_override("outline_size", 8)
+		b.add_theme_color_override("icon_hover_color", Color(1.2, 1.1, 0.8))
+		b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		var k: int = e[0]
+		var info: String = e[3]
+		b.pressed.connect(func(): picked.emit(k))
+		var show_bubble := func() -> void:
+			bl.text = info
+			bubble.reset_size()
+			var r := b.get_global_rect()
+			var tw := b.get_theme_font("font").get_string_size(b.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 42).x
+			bubble.position = Vector2(r.position.x + 64 + tw + 24, r.position.y + (r.size.y - bubble.size.y) / 2.0)
+			bubble.visible = true
+		b.mouse_entered.connect(show_bubble)
+		b.focus_entered.connect(show_bubble)
+		b.mouse_exited.connect(func(): bubble.visible = false)
+		col.add_child(b)
+		if k == 1:
+			lib_btn = b
+		if first == null:
+			first = b
+	var cr := _shadowed(_label("Icônes : game-icons.net (Lorc, Delapouite et al., CC BY 3.0) · idéogrammes : KIE · polices : Fette Trump (D. Steffmann), Pirata One, New Rocker (OFL)", 11, DIM), 4)
+	cr.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	cr.position = Vector2(90, -34)
+	overlay.add_child(cr)
 	if Input.get_connected_joypads().size() > 0:
-		(rs if rs else b).grab_focus.call_deferred()
+		first.grab_focus.call_deferred()
 	var k := 0
 	while true:
 		k = await picked
 		if k == 4:
 			main.set_mobile(not big)
 			return -1
+		if k == 7:
+			get_tree().quit()
+			return -1
 		if k != 1:
 			break
+		bubble.visible = false
 		overlay.visible = false
 		await library_screen()
 		overlay.visible = true
-		lib.text = "Bibliothèque · %d / %d" % [main.library.size(), Data.all_ids().size()]
+		lib_btn.text = "  Bibliothèque  %d / %d" % [main.library.size(), Data.all_ids().size()]
 	var tw := create_tween()
 	tw.tween_property(overlay, "modulate:a", 0.0, 0.4)
 	await tw.finished
