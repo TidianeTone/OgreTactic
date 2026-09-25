@@ -1559,7 +1559,17 @@ func _option(o: Dictionary, w := 250) -> Control:
 	v.add_theme_constant_override("separation", 12)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.add_child(v)
-	if o.has("image") and ResourceLoader.exists(o.image):
+	if o.has("art") and ResourceLoader.exists(o.art):
+		# grande illustration (bienfaits des Anciens)
+		var ar := TextureRect.new()
+		ar.texture = load(o.art)
+		ar.custom_minimum_size = Vector2(w - 40, (w - 40) / 1.5)
+		ar.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ar.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		ar.clip_contents = true
+		ar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(ar)
+	elif o.has("image") and ResourceLoader.exists(o.image):
 		var im := TextureRect.new()
 		im.texture = load(o.image)
 		im.custom_minimum_size = Vector2(56, 56) if small else Vector2(110, 110)

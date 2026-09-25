@@ -2706,7 +2706,7 @@ func _ancient() -> void:
 		pool[i] = pool[j]
 		pool[j] = t
 	var picks: Array = pool.slice(0, 3)
-	var opts: Array = picks.map(func(b): return {"title": Data.BOONS[b].name, "glyph": Data.BOONS[b].glyph, "text": Data.BOONS[b].text, "color": an.col})
+	var opts: Array = picks.map(func(b): return {"title": Data.BOONS[b].name, "glyph": Data.BOONS[b].glyph, "art": "res://assets/ui/boon_%s.png" % b, "text": Data.BOONS[b].text, "color": an.col})
 	var i := await ui.choose("%s  %s" % [an.glyph, an.name.to_upper()], "%s · « %s »" % [an.title, an.line], opts)
 	await _boon(picks[i])
 	ui.refresh_relics(relics)
