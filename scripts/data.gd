@@ -328,15 +328,15 @@ static func starter(party: Array) -> Array:
 	return out
 
 const RELICS := {
-	"ambre": {"name": "Ambre du Gué", "glyph": "◆", "text": "+1 énergie au premier tour de chaque combat."},
+	"ambre": {"name": "Ambre du Gué", "glyph": "◆", "text": "+1 énergie au premier tour de chaque héros, à chaque combat."},
 	"feuille": {"name": "Feuille Rouge", "glyph": "❦", "text": "Les attaques de dos infligent +3."},
 	"lotus_pale": {"name": "Lotus Pâle", "glyph": "✿", "text": "Soigne 4 chaque héros après un combat."},
-	"crochet": {"name": "Crochet d'Écluse", "glyph": "⚓", "text": "Les poussées portent 1 case plus loin."},
+	"crochet": {"name": "Crochet d'Écluse", "glyph": "⚓", "text": "Les ennemis repoussés vont 1 case plus loin."},
 	"cendre": {"name": "Cendre Vive", "glyph": "✹", "text": "Un ennemi tué explose : 4 dégâts autour de lui."},
 	"tuile": {"name": "Tuile Brisée", "glyph": "▲", "text": "Le bonus de hauteur est doublé."},
-	"cloche": {"name": "Cloche Noyée", "glyph": "♒", "text": "La noyade inflige +6."},
-	"grimoire": {"name": "Grimoire Humide", "glyph": "▤", "text": "Pioche 6 cartes par tour."},
-	"sablier": {"name": "Sablier Vert", "glyph": "⧗", "text": "La première carte de chaque tour coûte 0."},
+	"cloche": {"name": "Cloche Noyée", "glyph": "♒", "text": "Un ennemi qui se noie subit 6 de plus."},
+	"grimoire": {"name": "Grimoire Humide", "glyph": "▤", "text": "Chaque héros pioche 1 carte de plus à son tour."},
+	"sablier": {"name": "Sablier Vert", "glyph": "⧗", "text": "La première carte du tour de chaque héros coûte 0."},
 	"ecaille": {"name": "Écaille de Carpe", "glyph": "◈", "text": "Chaque héros commence le combat avec 6 d'armure."},
 	"heron": {"name": "Bottes de Héron", "glyph": "⇶", "text": "+1 déplacement pour tous les héros."},
 	"oeil": {"name": "Œil de Surveil", "glyph": "◉", "text": "Choix de 4 cartes au lieu de 3."},

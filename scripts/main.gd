@@ -526,6 +526,8 @@ func _unhandled_input(e: InputEvent) -> void:
 					view_deck()
 			KEY_I:
 				adv_menu("equip")
+			KEY_L:
+				ui.log_box.visible = not ui.log_box.visible
 			KEY_D:
 				if not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) and ui.hud.visible:
 					battle.danger = not battle.danger
@@ -556,9 +558,9 @@ func _unhandled_input(e: InputEvent) -> void:
 # ------------------------------------------------------------------ run
 
 func _title() -> void:
-	play_music("calme")
+	play_music("titre")
 	orbit = true
-	_build_room(4242, 0, 16, "ecluse")
+	_build_room(randi(), randi() % Data.BIOMES.size(), 16, Board.ARCHETYPES[randi() % Board.ARCHETYPES.size()])
 	dist = 34.0
 	pitch = 30.0
 	_snap_cam()
@@ -915,7 +917,7 @@ func _fight(type: String, ids_override: Array = []) -> bool:
 		ui.set_header(Data.BIOMES[_biome()].name, "Étage %d · salle %d / %d  ·  %s" % [floor_i, step + 1, ROOMS_PER_FLOOR,
 			" · ".join(mods.map(func(m): return Data.MODIFIERS[m].glyph + " " + Data.MODIFIERS[m].name))])
 	ui.show_hud(true)
-	play_music("combat")
+	play_music("boss" if type == "boss" else ("elite" if type == "elite" else "combat"))
 	battle.start(heroes, ids, deck, relics)
 	target = _units_center()
 	ui.show_hud(true)
@@ -1027,9 +1029,7 @@ func _mastery_up(h: Unit, lvl: int) -> void:
 	var gl: Array = Guildes.LIST[g]
 	var rars: Array = [3] if lvl == 3 else [4]
 	var ids: Array = Guildes.cards_of(g, rars)
-	var title := "MAÎTRISE %s · %s" % [Data.MASTERY_NAME[lvl], h.nm.to_upper()]
-	var what := "Les rares de %s peuvent maintenant sortir dans ses butins." % gl[2] if lvl == 3 else "La légendaire de %s l'attend dans la case bonus du prochain butin." % gl[2]
-	await ui.choose(title, what, ids.map(func(id): return {"card": {"id": id, "lvl": 1, "h": h.key}}), true, "En avant")
+	ui.banner("Maîtrise %s" % Data.MASTERY_NAME[lvl], h.nm)  # rien d'annoncé : au joueur de découvrir
 
 
 func _choose_vocation(h: Unit, second := false) -> void:
@@ -1050,7 +1050,7 @@ func _choose_vocation(h: Unit, second := false) -> void:
 		var gl: Array = Guildes.LIST[g]
 		var leg: String = Guildes.CARDS[Guildes.cards_of(g, [4])[0]].name
 		opts.append({"title": Data.HEROES[k].name, "image": "res://assets/art/portrait_%s.png" % k, "color": Data.CLASS_COLOR[k],
-			"text": "Guilde : %s\n« %s »\n\nLégendaire : %s" % [gl[2], gl[3], leg]})
+			"text": "%s\n%s" % [Data.HEROES[k].title, Data.HEROES[k].role]})
 	var i := await ui.choose("VOCATION · %s" % h.nm.to_upper(), "%s apprend une deuxième classe. Trois voies se présentent cette fois." % h.nm, opts)
 	var k: String = picks[maxi(i, 0)]
 	if second:
@@ -1060,13 +1060,7 @@ func _choose_vocation(h: Unit, second := false) -> void:
 		h.wear_voc(k)
 	var g := Guildes.index(h.key, k)
 	var gl: Array = Guildes.LIST[g]
-	# pas de divulgâchage : ce qui n'est pas encore débloqué reste un dos de carte
-	var open: Array = [1, 2] if mastery(h) < 3 and not relics.has("sceau") else [1, 2, 3]
-	var shown: Array = []
-	for id in Guildes.cards_of(g):
-		var rar: int = Guildes.CARDS[id].rar
-		shown.append({"card": {"id": id, "lvl": 1, "h": h.key}} if open.has(rar) else {"hidden": rar})
-	await ui.choose(gl[2].to_upper(), "%s + %s · %s" % [h.nm, Data.HEROES[k].name, gl[3]], shown, true, "En avant")
+	ui.banner("Vocation : %s" % Data.HEROES[k].name, h.nm)
 
 
 func _voc_pool(h: Unit) -> Array:
@@ -1388,12 +1382,15 @@ func _merchant() -> void:
 func _shelf_stock() -> Array:
 	## L'étal à la Slay the Spire : deux communes, deux peu communes, une rare, une carte de guilde si quelqu'un a sa vocation.
 	var out: Array = []
-	for r0 in [1, 1, 2, 2, 3]:
+	var rs := [1, 1, 2, 2, 3]
+	for si in rs.size():
+		var r0: int = rs[si]
+		var who: String = party[si % party.size()]  # chaque héros a au moins une carte à l'étal
 		var taken: Array = out.map(func(o): return o.card.id)
 		var ids: Array = []
 		var rar: int = r0
 		while ids.is_empty() and rar <= 3:  # les communes sont souvent toutes au paquet de départ : on monte d'un cran
-			ids = Data.CARDS.keys().filter(func(id): return party.has(Data.CARDS[id].owner) and Data.CARDS[id].get("rar", 1) == rar 				and not Data.STARTER[Data.CARDS[id].owner].has(id) and not taken.has(id))
+			ids = Data.CARDS.keys().filter(func(id): return Data.CARDS[id].owner == who and Data.CARDS[id].get("rar", 1) == rar and not Data.STARTER[Data.CARDS[id].owner].has(id) and not taken.has(id))
 			if ids.is_empty():
 				rar += 1
 		if ids.size() > 0:
@@ -2325,8 +2322,13 @@ func _room_node(r: Dictionary) -> Node3D:
 func _fog(rc: Rect2i) -> MeshInstance3D:
 	## Nappe de nuée plate, bleutée, posée juste au-dessus du sol de la salle ; les tours la percent en silhouette.
 	var mi := MeshInstance3D.new()
-	var pm := PlaneMesh.new()
-	pm.size = Vector2(rc.size.x + 1.6, rc.size.y + 1.6)
+	var top0 := 0
+	for x in range(rc.position.x, rc.end.x):
+		for z in range(rc.position.y, rc.end.y):
+			top0 = maxi(top0, aboard.h.get(Vector2i(x, z), 0))
+	var pm := BoxMesh.new()  # un bloc de brume : on ne voit plus dessous en tournant la caméra
+	var hh := top0 * Board.LH + 3.0
+	pm.size = Vector3(rc.size.x + 1.6, hh + 2.0, rc.size.y + 1.6)
 	mi.mesh = pm
 	if _fog_mat == null:
 		_fog_mat = StandardMaterial3D.new()
@@ -2353,7 +2355,7 @@ func _fog(rc: Rect2i) -> MeshInstance3D:
 		for z in range(rc.position.y, rc.end.y):
 			if aboard.kind.get(Vector2i(x, z), "") != "tower":
 				top = maxi(top, aboard.h.get(Vector2i(x, z), 0))
-	mi.position = Vector3(rc.position.x + rc.size.x * 0.5 - 0.5, top * Board.LH + 0.9, rc.position.y + rc.size.y * 0.5 - 0.5)
+	mi.position = Vector3(rc.position.x + rc.size.x * 0.5 - 0.5, (hh + 2.0) * 0.5 - 1.5, rc.position.y + rc.size.y * 0.5 - 0.5)
 	adv_root.add_child(mi)
 	return mi
 
@@ -2915,16 +2917,21 @@ func set_music_volume(v: float) -> void:
 	cf.save("user://reglages.cfg")
 
 
+const PLAYLIST := {"titre": ["reveur"], "calme": ["chill_bnb", "pulse_alice", "far_away", "reveur"],
+	"combat": ["bebey", "combo_devils", "dark_is_the_sun"], "elite": ["proceed_caution", "combo_devils"], "boss": ["wretched"]}
+var _track_i := {}
+
+
 func play_music(kind: String) -> void:
-	## « calme » : titre, cartes, exploration ; « combat » : combats. Fondu enchaîné.
+	## titre, calme (cartes, exploration), combat, élite, boss : chaque ambiance tourne sur ses morceaux. Fondu enchaîné.
 	if kind == _music_kind or _music.is_empty():
 		return
 	_music_kind = kind
-	var path := "res://assets/music/%s.mp3" % ("dark_is_the_sun" if kind == "combat" else "far_away")
-	if not ResourceLoader.exists(path):
-		path = "res://assets/music/dark_is_the_sun.mp3"  # la version en ligne n'a qu'un morceau
-	if not ResourceLoader.exists(path):
+	var pool: Array = PLAYLIST.get(kind, PLAYLIST.calme).filter(func(n): return ResourceLoader.exists("res://assets/music/%s.mp3" % n))
+	if pool.is_empty():
 		return
+	_track_i[kind] = int(_track_i.get(kind, randi())) + 1
+	var path := "res://assets/music/%s.mp3" % pool[int(_track_i[kind]) % pool.size()]
 	var st: AudioStreamMP3 = load(path)
 	st.loop = true
 	var old: AudioStreamPlayer = _music[1]

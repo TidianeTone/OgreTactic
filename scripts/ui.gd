@@ -34,6 +34,7 @@ var toast_plate: PanelContainer
 var tip_plate: PanelContainer
 var relic_row: HBoxContainer
 var hero_box: VBoxContainer
+var log_box: RichTextLabel
 var gold_lbl: Label
 var frieze: HBoxContainer
 var boss_bar: VBoxContainer
@@ -177,6 +178,20 @@ func _build_hud() -> void:
 	hero_box.position = Vector2(24, 110)
 	hero_box.add_theme_constant_override("separation", 10)
 	hud.add_child(hero_box)
+	# journal du combat : les derniers événements, sous les fiches (L pour masquer)
+	log_box = RichTextLabel.new()
+	log_box.bbcode_enabled = false
+	log_box.scroll_active = false
+	log_box.position = Vector2(26, 450)
+	log_box.size = Vector2(300, 190)
+	log_box.add_theme_font_size_override("normal_font_size", 12)
+	log_box.add_theme_color_override("default_color", Color(0.93, 0.88, 0.8, 0.92))
+	log_box.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.9))
+	log_box.add_theme_constant_override("shadow_offset_x", 1)
+	log_box.add_theme_constant_override("shadow_offset_y", 1)
+	log_box.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	log_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(log_box)
 
 	# énergie
 	var orb := Panel.new()
@@ -267,7 +282,7 @@ func _build_hud() -> void:
 	for row in [["Clic", "héros, carte, case, objet de besace"], ["Clic ennemi", "épingler / retirer sa fiche"],
 			["Survol", "infos de la case ou de l'objet"], ["Clic droit", "annuler · maintenu : caméra"],
 			["ZQSD", "déplacer la caméra (clic droit tenu)"], ["Q / E · molette", "pivoter · zoomer"],
-			["Espace · ← →", "fin du tour, puis orientation"], ["D", "zone de danger"], ["Tab · 1 à 9", "recentrer · jouer une carte"],
+			["Espace · ← →", "fin du tour, puis orientation"], ["D · L", "zone de danger · journal"], ["Tab · 1 à 9", "recentrer · jouer une carte"],
 			["Alt", "montrer les objets interactifs"], ["P · M", "paquet · musique"], ["H · Échap", "cette aide · menu"]]:
 		var k := _label(row[0], 14, Color("#ffe3a3"), title_f)
 		k.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -368,6 +383,12 @@ func _build_explore() -> void:
 	var hint := _plate(explore_box)
 	hint.add_child(_label("Clic : avancer · croiser un monstre lance le combat · clic droit maintenu : caméra · Échap : menu", 12, DIM))
 	explore_box.visible = false
+
+
+func refresh_log() -> void:
+	if log_box:
+		log_box.text = "
+".join(battle.log_lines.slice(maxi(0, battle.log_lines.size() - 11)))
 
 
 func show_explore(on: bool, title := "", sub := "", party := "") -> void:
@@ -1134,8 +1155,17 @@ func _refresh_frieze() -> void:
 		else:
 			l.text = "%s %s" % [u.nm.split(" ")[0], battle.intent(u)]
 			l.add_theme_color_override("font_color", Color("#ffc48a"))
-		p.tooltip_text = "Vitesse %d" % u.speed
+		p.tooltip_text = "%s · vitesse %d\n%s" % [u.nm, u.speed, battle.sheet(u)]
 		p.mouse_filter = Control.MOUSE_FILTER_PASS
+		var uu: Unit = u
+		p.mouse_entered.connect(func():
+			if is_instance_valid(uu):
+				set_sheet(uu)
+				uu.set_xray(true))
+		p.mouse_exited.connect(func():
+			if is_instance_valid(uu):
+				uu.set_xray(false)
+				main.refresh_hover())
 		p.add_child(l)
 		frieze.add_child(p)
 	boss_bar.visible = boss != null
@@ -1360,9 +1390,14 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 	if allow_skip:
 		var sk := Button.new()
 		sk.text = skip_text
-		sk.flat = true
-		sk.add_theme_color_override("font_color", DIM)
-		sk.add_theme_font_size_override("font_size", 16)
+		sk.add_theme_font_override("font", title_f)
+		sk.add_theme_font_size_override("font_size", 20)
+		sk.add_theme_color_override("font_color", INK)
+		sk.add_theme_color_override("font_hover_color", Color.WHITE)
+		sk.add_theme_stylebox_override("normal", sb(Color(0.1, 0.09, 0.1, 0.94), GOLD.darkened(0.2), 10, 2, 8))
+		sk.add_theme_stylebox_override("hover", sb(Color(0.2, 0.16, 0.1, 0.96), GOLD, 10, 2, 8))
+		sk.add_theme_stylebox_override("pressed", sb(Color(0.3, 0.22, 0.1, 0.96), GOLD, 10, 2, 8))
+		sk.custom_minimum_size = Vector2(260, 50)
 		sk.pressed.connect(func():
 			if not fresh.call():
 				picked.emit(-1))
@@ -1708,57 +1743,12 @@ func vocation_intro(h: Unit) -> void:
 	txt.add_theme_color_override("default_color", INK)
 	txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	txt.text = ("[center]Comme dans Final Fantasy Tactics, [color=#e3b45c]%s choisit une vocation[/color] : une deuxième classe.\n" +
-		"Chaque paire de classes forme une [color=#e3b45c]guilde[/color], avec sa règle et ses cartes à elle : 28 guildes, 168 cartes.\n" +
+		"Chaque paire de classes forme une [color=#e3b45c]guilde[/color], avec sa règle et ses cartes à elle.\n" +
 		"Ses butins gagnent une [color=#e3b45c]case bonus[/color] : cartes de sa vocation et de sa guilde, sans jamais prendre la place d'une carte de classe.\n" +
 		"Et plus il combat, plus la guilde se dévoile.[/center]") % h.nm
 	var tc := CenterContainer.new()
 	tc.add_child(txt)
 	box.add_child(tc)
-	var hint := _shadowed(_label("Les sept guildes de %s — trois vocations vont se présenter" % h.nm, 15, DIM), 4)
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(hint)
-	var grid := GridContainer.new()
-	grid.columns = 4
-	grid.add_theme_constant_override("h_separation", 12)
-	grid.add_theme_constant_override("v_separation", 12)
-	for k in Data.HEROES:
-		if k == h.key:
-			continue
-		var g := Guildes.index(h.key, k)
-		var gl: Array = Guildes.LIST[g]
-		var kc: Color = Data.CLASS_COLOR[k]
-		var pc := PanelContainer.new()
-		pc.custom_minimum_size = Vector2(250, 128)
-		var st := sb(Color(0.08, 0.07, 0.075, 0.94), kc.darkened(0.1), 12, 2, 10)
-		st.content_margin_left = 14
-		st.content_margin_right = 14
-		st.content_margin_top = 10
-		st.content_margin_bottom = 10
-		pc.add_theme_stylebox_override("panel", st)
-		var v := VBoxContainer.new()
-		v.add_theme_constant_override("separation", 3)
-		pc.add_child(v)
-		var pair := RichTextLabel.new()
-		pair.bbcode_enabled = true
-		pair.fit_content = true
-		pair.scroll_active = false
-		pair.add_theme_font_size_override("normal_font_size", 13)
-		pair.text = "[color=#%s]%s[/color] + [color=#%s]%s[/color]" % [col.lightened(0.3).to_html(false), h.nm, kc.lightened(0.3).to_html(false), Data.HEROES[k].name]
-		v.add_child(pair)
-		var gn := _label(gl[2], 19, INK, title_f)
-		v.add_child(gn)
-		var rule := _label(gl[3], 13, DIM)
-		rule.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		rule.custom_minimum_size = Vector2(222, 0)
-		v.add_child(rule)
-		var leg := _label("✦ " + Guildes.CARDS[Guildes.cards_of(g, [4])[0]].name, 13, Data.RARITY_COL[4])
-		leg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		leg.custom_minimum_size = Vector2(222, 0)
-		v.add_child(leg)
-		grid.add_child(pc)
-	var gc := CenterContainer.new()
-	gc.add_child(grid)
-	box.add_child(gc)
 	var b := Button.new()
 	b.text = "Voir les vocations"
 	b.add_theme_font_override("font", title_f)

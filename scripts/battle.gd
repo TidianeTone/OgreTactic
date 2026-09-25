@@ -10,6 +10,7 @@ const EMBER := Color(1.0, 0.55, 0.22)
 const DMG_COL := Color(1.0, 0.93, 0.7)
 
 var main: Node3D
+var log_lines: Array = []   # journal du combat, affiché à gauche
 var danger := false         # zone de danger : tout ce que les ennemis menacent
 var _extra_move := {}       # héros qui ont déjà payé leur course (3 mana) ce tour
 var glyph_t := {}           # glyphe instable -> tours avant l'explosion
@@ -101,6 +102,13 @@ const BOOM := ["brasero", "baril"]
 const RING8: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(-1, -1)]
 
 
+func log_add(t: String) -> void:
+	log_lines.append(t)
+	if log_lines.size() > 60:
+		log_lines.pop_front()
+	main.ui.refresh_log()
+
+
 func has(relic: String) -> bool:
 	return relics.has(relic)
 
@@ -177,9 +185,16 @@ func start(hs: Array, foe_ids: Array, deck_ref: Array, relics_ref: Array) -> voi
 			board.props[free[i]] = "baril"
 			_make_prop(free[i])
 	piles.clear()
+	log_lines.clear()
 	for ci in deck:
 		for k in ["bump", "free", "cut"]:
 			ci.erase(k)
+	for ci in deck:
+		var cls: Array = Data.classes_of(ci.id)
+		if ci.has("h") and cls.size() == 1 and cls[0] != ci.h:
+			var ok: Array = heroes.filter(func(u): return u.key == cls[0] or u.voc == cls[0] or u.voc2 == cls[0])
+			if ok.size() > 1:
+				ci["h"] = ok[rng.randi_range(0, ok.size() - 1)].key  # tirée au sort à chaque combat
 	for h in heroes:
 		var d: Array = deck.filter(func(ci): return Data.holder(ci) == h.key)
 		d.shuffle()
@@ -440,6 +455,7 @@ func trigger_prop(c: Vector2i, d: Vector2i) -> void:
 func _next_round() -> void:
 	## Nouveau round : tout le monde joue une fois, du plus rapide au plus lent (FFT).
 	turn += 1
+	log_add("— Round %d —" % turn)
 	if turn > 1:
 		_smoke_tick()
 		await _turrets_fire()
@@ -1047,6 +1063,7 @@ func play_card(i: int, t: Vector2i) -> void:
 	card_sel = -1
 	busy = true
 	board.highlight({})
+	log_add("%s joue %s" % [h.nm, c.name])
 	main.ui.announce(c)
 	changed.emit()
 	var pre := _trig_ok(c, h, t)
@@ -1490,7 +1507,7 @@ func attack(h: Unit, f: Unit, c: Dictionary) -> void:
 		Fx.number(main, f.position + Vector3(0, 0.4, 0), "☠ %d" % f.poison, Color(0.6, 0.9, 0.3))
 	if f.alive and c.get("push", 0) > 0:
 		double_trap = c.get("trap2", false)
-		await push(f, _dir(h.cell, f.cell), c.push + (1 if has("crochet") else 0))
+		await push(f, _dir(h.cell, f.cell), c.push)
 		double_trap = false
 	if c.get("recoil", 0) > 0 and h.alive:
 		await push(h, _dir(f.cell, h.cell), int(c.recoil))
@@ -1529,7 +1546,7 @@ func charge(h: Unit, t: Vector2i, c: Dictionary) -> void:
 		await h.lunge(f.position)
 		damage(f, calc(h, f, c.dmg + _trig_dmg(c, h, nx), c).dmg, h)
 		if f.alive and c.get("push", 0) > 0:
-			await push(f, d, c.push + (1 if has("crochet") else 0))
+			await push(f, d, c.push)
 	elif board.props.get(nx, "") in BOOM + ["pilier"]:
 		await h.lunge(board.world(nx))
 		await trigger_prop(nx, d)
@@ -1669,6 +1686,8 @@ func damage(u: Unit, amount: int, src: Unit = null, show := true, ranged := fals
 		u.block += int(power_val.get("quarante", 15))
 		bonus[u] = bonus.get(u, 0) + 2
 		Fx.number(main, u.position + Vector3(0, 1.0, 0), "La règle des 40 % !", GOLD_FX, true)
+	if rest > 0 or absorbed > 0:
+		log_add("%s%s : −%d PV%s" % [(src.nm + " → ") if src and src != u else "", u.nm, rest, (" (armure %d)" % absorbed) if absorbed > 0 else ""])
 	if show:
 		if rest > 0:
 			Fx.number(main, u.position, str(rest), DMG_COL if u.side == "foe" else Color(1.0, 0.4, 0.35), rest >= 10)
@@ -1714,6 +1733,7 @@ const GOLD_FX := Color(1.0, 0.82, 0.4)
 
 
 func kill(u: Unit, src: Unit = null) -> void:
+	log_add("✝ %s tombe%s" % [u.nm, (" (%s)" % src.nm) if src and src != u else ""])
 	if u.side == "foe":
 		_killed = true
 	u.hp = 0
@@ -1764,6 +1784,8 @@ func gain_block(u: Unit, v: int) -> void:
 
 func push(u: Unit, d: Vector2i, n: int) -> void:
 	if mods.has("glissant"):
+		n += 1
+	if has("crochet") and u.side == "foe":
 		n += 1
 	var from := u.cell
 	if u.side == "foe" and powers.has("hallali"):
@@ -2898,11 +2920,19 @@ func _add_bricole(h: Unit, n: int) -> void:
 
 
 func _steal(h: Unit, f: Unit) -> bool:
+	## Voler rapporte toujours : l'objet porté, sinon ce qui traîne dans ses poches ; besace pleine, on revend.
 	if f.tool == "":
-		return false
+		var common: Array = Data.TOOLS.keys().filter(func(k): return Data.TOOLS[k].rar == 1)
+		f.tool = common[randi() % common.size()]
+		Fx.number(main, f.position + Vector3(0, 1.5, 0), "Poches fouillées", GOLD_FX)
 	if besace.size() >= besace_cap():
-		main.ui.toast("Besace pleine : rien à voler.")
-		return false
+		main.gold += 12
+		main.ui.set_gold(main.gold)
+		Fx.number(main, f.position + Vector3(0, 1.2, 0), "Revendu : +12 or", GOLD_FX, true)
+		f.tool = ""
+		stolen_turn += 1
+		changed.emit()
+		return true
 	besace.append(f.tool)
 	stolen_turn += 1
 	Fx.number(main, f.position + Vector3(0, 1.2, 0), "Volé : " + Data.TOOLS[f.tool].name, GOLD_FX, true)
