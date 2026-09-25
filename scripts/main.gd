@@ -142,6 +142,8 @@ func _ready() -> void:
 		_eventtest.call_deferred()
 	elif args.has("savetest"):
 		_savetest.call_deferred()
+	elif args.has("maptest"):
+		_maptest.call_deferred()
 	elif args.has("tutotest"):
 		_tutotest.call_deferred()
 	elif args.has("capture"):
@@ -901,7 +903,7 @@ func _door() -> String:
 	var nexts: Array = range(fmap[step].size()) if lane < 0 else fmap[step - 1][lane].links
 	while true:
 		var i := await ui.map_screen("ÉTAGE %d" % floor_i, "%s · salle %d / %d · %d or · difficulté %d/5" % [Data.BIOMES[_biome()].name, step + 1, ROOMS_PER_FLOOR, gold, difficulty + 1],
-			fmap, step, lane, nexts, visited, "Équipement · %d objet(s) au sac" % bag.size())
+			fmap, step, lane, nexts, visited, "Équipement · %d objet(s) au sac" % bag.size(), _biome())
 		if i == -2:
 			await _equipment()
 			continue
@@ -1393,7 +1395,7 @@ func _load_run() -> bool:
 
 func _testing() -> bool:
 	## Les essais n'écrivent ni dans la bibliothèque ni dans la sauvegarde du joueur.
-	return ["autoplay", "uitest", "advtest", "capture", "cardtest", "voctest", "looktest", "haventest", "eventtest", "tutotest"].any(func(k): return args.has(k))
+	return ["autoplay", "uitest", "advtest", "capture", "cardtest", "voctest", "looktest", "haventest", "eventtest", "tutotest", "maptest"].any(func(k): return args.has(k))
 
 
 func _save_library() -> void:
@@ -2229,6 +2231,28 @@ func _voctest() -> void:
 	ui.refresh()
 	await _frames(40)
 	_shot(dir, "10_orientation")
+	get_tree().quit()
+
+
+func _maptest() -> void:
+	## Les douze cartes d'étage peintes, avec un parcours à moitié fait : -- --maptest=DIR
+	var dir: String = args.maptest
+	DirAccess.make_dir_recursive_absolute(dir)
+	party = ["garde", "lame", "oracle"]
+	_make_party()
+	floor_i = 1
+	step = 0
+	_gen_map()
+	visited = [Vector2i(0, 1), Vector2i(1, fmap[0][1].links[0])]
+	lane = fmap[0][1].links[0]
+	step = 2
+	for bi in Data.BIOMES.size():
+		var f := func(): await ui.map_screen("ÉTAGE 1", Data.BIOMES[bi].name, fmap, step, lane, fmap[1][lane].links, visited, "Équipement", bi)
+		f.call()
+		await _frames(30)
+		_shot(dir, "carte_%02d" % bi)
+		ui.picked.emit(0)
+		await _frames(5)
 	get_tree().quit()
 
 

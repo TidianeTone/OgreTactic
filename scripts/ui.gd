@@ -1593,51 +1593,130 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 	return i
 
 
-func map_screen(title: String, subtitle: String, fmap: Array, step: int, lane: int, nexts: Array, visited: Array, equip_txt: String) -> int:
-	## Carte de l'étage : salles déjà faites, chemins ouverts, suite du parcours jusqu'au gardien.
+# Cartes d'étage peintes (KIE, voxel) : une île par biome. A et B : les deux bouts du sentier sur le plateau
+# (fractions de l'image), dy : écart vertical entre deux voies. Ordre = Data.BIOMES.
+const MAPS := [
+	["automne", Vector2(0.15, 0.56), Vector2(0.85, 0.3), 0.085], ["mousse", Vector2(0.2, 0.62), Vector2(0.8, 0.46), 0.06],
+	["braise", Vector2(0.16, 0.56), Vector2(0.85, 0.5), 0.075], ["lilas", Vector2(0.2, 0.52), Vector2(0.82, 0.6), 0.075],
+	["tours", Vector2(0.16, 0.52), Vector2(0.85, 0.5), 0.11], ["altiplano", Vector2(0.17, 0.53), Vector2(0.86, 0.4), 0.075],
+	["cristal", Vector2(0.24, 0.6), Vector2(0.82, 0.33), 0.075], ["epilobes", Vector2(0.16, 0.5), Vector2(0.85, 0.5), 0.12],
+	["crypte", Vector2(0.15, 0.42), Vector2(0.85, 0.5), 0.075], ["emeraude", Vector2(0.15, 0.45), Vector2(0.85, 0.42), 0.1],
+	["quartz", Vector2(0.17, 0.55), Vector2(0.85, 0.5), 0.08], ["jade", Vector2(0.22, 0.55), Vector2(0.8, 0.5), 0.1],
+]
+static var _dash: Texture2D
+static func dash_tex() -> Texture2D:
+	## Pointillés du sentier : une moitié pleine, une moitié vide, répétée le long de la ligne.
+	if _dash == null:
+		var im := Image.create(16, 4, false, Image.FORMAT_RGBA8)
+		for x in 16:
+			for y in 4:
+				im.set_pixel(x, y, Color(1, 1, 1, 1.0 if x < 9 else 0.0))
+		_dash = ImageTexture.create_from_image(im)
+	return _dash
+
+
+func map_screen(title: String, subtitle: String, fmap: Array, step: int, lane: int, nexts: Array, visited: Array, equip_txt: String, bi := 0) -> int:
+	## Carte de l'étage : l'île du biome vue de haut, un sentier en pointillés de salle en salle jusqu'au gardien.
 	_close_overlay()
 	overlay = Control.new()
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_child(overlay)
-	var dim := ColorRect.new()
-	dim.color = Color(0.03, 0.03, 0.04, 0.72)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.add_child(dim)
-	var box := VBoxContainer.new()
-	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	box.alignment = BoxContainer.ALIGNMENT_CENTER
-	box.add_theme_constant_override("separation", 10)
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	overlay.add_child(box)
+	var m: Array = MAPS[bi % MAPS.size()]
+	var vp: Vector2 = root.get_viewport_rect().size
+	var tex: Texture2D = load("res://assets/ui/map_%s.jpg" % m[0])
+	var ts := Vector2(tex.get_width(), tex.get_height())
+	var k_img: float = maxf(vp.x / ts.x, vp.y / ts.y)
+	var stage := Control.new()
+	stage.size = ts * k_img
+	stage.position = (vp - stage.size) / 2.0
+	stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(stage)
+	var bg := TextureRect.new()
+	bg.texture = tex
+	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	bg.size = stage.size
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stage.add_child(bg)
+	# voiles haut et bas : les titres et les boutons restent lisibles sur l'image
+	for top in [true, false]:
+		var g := Gradient.new()
+		g.colors = PackedColorArray([Color(0.02, 0.02, 0.04, 0.8), Color(0.02, 0.02, 0.04, 0.0)])
+		var gt := GradientTexture2D.new()
+		gt.gradient = g
+		gt.fill_from = Vector2(0, 0) if top else Vector2(0, 1)
+		gt.fill_to = Vector2(0, 1) if top else Vector2(0, 0)
+		var v := TextureRect.new()
+		v.texture = gt
+		v.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		v.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE if top else Control.PRESET_BOTTOM_WIDE)
+		v.custom_minimum_size = Vector2(0, 190)
+		if top:
+			v.offset_bottom = 190
+		else:
+			v.offset_top = -210
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		overlay.add_child(v)
+	var head := VBoxContainer.new()
+	head.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	head.offset_top = 22
+	head.add_theme_constant_override("separation", 2)
+	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(head)
 	var tl := _shadowed(_label(title, 44, INK, wide_f), 10)
 	tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(tl)
+	head.add_child(tl)
 	var sl := _shadowed(_label(subtitle, 16, GOLD), 6)
 	sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(sl)
+	head.add_child(sl)
 	var area := Control.new()
-	area.custom_minimum_size = Vector2(1200, 440)
+	area.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	area.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var ac := CenterContainer.new()
-	ac.add_child(area)
-	box.add_child(ac)
-	var info := _shadowed(_label("Choisissez la prochaine salle.", 17, INK), 6)
-	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	info.custom_minimum_size = Vector2(0, 52)
-	box.add_child(info)
+	overlay.add_child(area)
 	var pos := func(k: int, i: int) -> Vector2:
 		var n: int = fmap[k].size()
-		return Vector2(70 + k * 1060.0 / maxi(1, fmap.size() - 1), 220 + (i - (n - 1) * 0.5) * 150)
+		var t: float = float(k) / maxf(1.0, fmap.size() - 1.0)
+		var p: Vector2 = (m[1] as Vector2).lerp(m[2], t) + Vector2(0, (i - (n - 1) * 0.5) * float(m[3]))
+		return stage.position + p * stage.size
+	# le sentier : une courbe douce par lien, ombre dessous, pointillés dessus
 	for k in fmap.size() - 1:
 		for i in fmap[k].size():
 			for j in fmap[k][i].links:
-				var ln := Line2D.new()
-				ln.points = PackedVector2Array([pos.call(k, i), pos.call(k + 1, j)])
+				var a: Vector2 = pos.call(k, i)
+				var b: Vector2 = pos.call(k + 1, j)
+				var mid: Vector2 = (a + b) / 2.0 + (b - a).orthogonal().normalized() * (14.0 if (k + i + j) % 2 == 0 else -14.0)
+				var pts := PackedVector2Array()
+				for q in 13:
+					var u := q / 12.0
+					pts.append(a.lerp(mid, u).lerp(mid.lerp(b, u), u))
 				var trod: bool = visited.has(Vector2i(k, i)) and visited.has(Vector2i(k + 1, j))
 				var open: bool = k == step - 1 and i == lane and nexts.has(j)
-				ln.width = 5.0 if trod or open else 3.0
-				ln.default_color = GOLD if open else (INK if trod else Color(1, 1, 1, 0.16))
+				var under := Line2D.new()
+				under.points = pts
+				under.width = 11.0 if trod or open else 8.0
+				under.default_color = Color(0.05, 0.03, 0.02, 0.55 if trod or open else 0.3)
+				under.joint_mode = Line2D.LINE_JOINT_ROUND
+				under.begin_cap_mode = Line2D.LINE_CAP_ROUND
+				under.end_cap_mode = Line2D.LINE_CAP_ROUND
+				area.add_child(under)
+				var ln := Line2D.new()
+				ln.points = pts
+				ln.width = 6.0 if trod or open else 4.0
+				ln.texture = dash_tex()
+				ln.texture_mode = Line2D.LINE_TEXTURE_TILE
+				ln.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+				ln.default_color = GOLD if open else (INK if trod else Color(1, 0.95, 0.85, 0.55))
 				area.add_child(ln)
+	var info_plate := PanelContainer.new()
+	var ips := sb(Color(0.05, 0.04, 0.05, 0.86), GOLD.darkened(0.4), 10, 1, 8)
+	ips.content_margin_left = 18
+	ips.content_margin_right = 18
+	ips.content_margin_top = 8
+	ips.content_margin_bottom = 8
+	info_plate.add_theme_stylebox_override("panel", ips)
+	info_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var info := _label("Choisissez la prochaine salle.", 17, INK)
+	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	info_plate.add_child(info)
 	var first: Button
 	for k in fmap.size():
 		for i in fmap[k].size():
@@ -1649,24 +1728,24 @@ func map_screen(title: String, subtitle: String, fmap: Array, step: int, lane: i
 			var b := Button.new()
 			b.text = r.glyph
 			b.add_theme_font_override("font", title_f)
-			b.add_theme_font_size_override("font_size", 30)
-			var sz := 76.0 if n.type == "boss" else 62.0
+			b.add_theme_font_size_override("font_size", 28)
+			var sz := 72.0 if n.type == "boss" else 56.0
 			if n.get("mods", []).size() > 0:
-				var mk := _shadowed(_label(Data.MODIFIERS[n.mods[0]].glyph, 28, Color("#ffb05a"), title_f), 8)
-				mk.position = pos.call(k, i) + Vector2(sz * 0.3, -sz * 0.75)
+				var mk := _shadowed(_label(Data.MODIFIERS[n.mods[0]].glyph, 26, Color("#ffb05a"), title_f), 8)
+				mk.position = pos.call(k, i) + Vector2(sz * 0.3, -sz * 0.8)
 				area.add_child(mk)
 			b.size = Vector2(sz, sz)
 			b.position = pos.call(k, i) - Vector2(sz, sz) * 0.5
 			b.pivot_offset = Vector2(sz, sz) * 0.5
-			b.add_theme_stylebox_override("normal", sb(Color(0.1, 0.09, 0.1, 0.96), col, int(sz / 2), 3, 8))
-			b.add_theme_stylebox_override("hover", sb(col.darkened(0.55), Color.WHITE, int(sz / 2), 3, 12))
-			b.add_theme_stylebox_override("focus", sb(col.darkened(0.55), Color.WHITE, int(sz / 2), 3, 12))
+			b.add_theme_stylebox_override("normal", sb(Color(0.1, 0.09, 0.1, 0.96), col, int(sz / 2), 3, 10))
+			b.add_theme_stylebox_override("hover", sb(col.darkened(0.55), Color.WHITE, int(sz / 2), 3, 14))
+			b.add_theme_stylebox_override("focus", sb(col.darkened(0.55), Color.WHITE, int(sz / 2), 3, 14))
 			b.add_theme_stylebox_override("pressed", sb(col.darkened(0.3), Color.WHITE, int(sz / 2), 3, 4))
-			b.add_theme_stylebox_override("disabled", sb(col.darkened(0.62) if done else Color(0.07, 0.065, 0.075, 0.9), col.darkened(0.25 if done else 0.55), int(sz / 2), 2))
+			b.add_theme_stylebox_override("disabled", sb(col.darkened(0.62) if done else Color(0.07, 0.065, 0.075, 0.92), col.darkened(0.25 if done else 0.5), int(sz / 2), 2, 6))
 			b.add_theme_color_override("font_color", col)
 			b.add_theme_color_override("font_hover_color", Color.WHITE)
 			b.add_theme_color_override("font_focus_color", Color.WHITE)
-			b.add_theme_color_override("font_disabled_color", INK if done else col.darkened(0.4))
+			b.add_theme_color_override("font_disabled_color", INK if done else col.darkened(0.3))
 			b.disabled = not open
 			var desc: String = n.desc
 			b.mouse_entered.connect(func(): info.text = desc)
@@ -1675,7 +1754,7 @@ func map_screen(title: String, subtitle: String, fmap: Array, step: int, lane: i
 				var idx: int = i
 				b.pressed.connect(func(): picked.emit(idx))
 				var tw := b.create_tween().set_loops()
-				tw.tween_property(b, "scale", Vector2.ONE * 1.1, 0.6).set_trans(Tween.TRANS_SINE)
+				tw.tween_property(b, "scale", Vector2.ONE * 1.12, 0.6).set_trans(Tween.TRANS_SINE)
 				tw.tween_property(b, "scale", Vector2.ONE, 0.6).set_trans(Tween.TRANS_SINE)
 				if first == null:
 					first = b
@@ -1683,9 +1762,36 @@ func map_screen(title: String, subtitle: String, fmap: Array, step: int, lane: i
 				b.mouse_filter = Control.MOUSE_FILTER_PASS
 			area.add_child(b)
 	if lane >= 0 and step > 0:
-		var here := _shadowed(_label("vous", 13, GOLD), 4)
-		here.position = pos.call(step - 1, lane) + Vector2(-20, 36)
-		area.add_child(here)
+		# l'escouade : le portrait de tête posé sur la dernière salle
+		var here := _panel(area, sb(GOLD, Color("#fff0c8"), 8, 2, 8))
+		here.size = Vector2(44, 44)
+		here.position = pos.call(step - 1, lane) + Vector2(-22, -80)
+		if main.heroes.size() > 0:
+			var hp := TextureRect.new()
+			hp.texture = load("res://assets/art/portrait_%s.png" % main.heroes[0].key)
+			hp.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			hp.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			hp.offset_left = 3
+			hp.offset_top = 3
+			hp.offset_right = -3
+			hp.offset_bottom = -3
+			hp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			here.add_child(hp)
+		var bob := here.create_tween().set_loops()
+		bob.tween_property(here, "position:y", here.position.y - 6, 0.7).set_trans(Tween.TRANS_SINE)
+		bob.tween_property(here, "position:y", here.position.y, 0.7).set_trans(Tween.TRANS_SINE)
+	var foot := VBoxContainer.new()
+	foot.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	foot.offset_top = -130
+	foot.offset_bottom = -22
+	foot.alignment = BoxContainer.ALIGNMENT_END
+	foot.add_theme_constant_override("separation", 12)
+	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(foot)
+	var ic := CenterContainer.new()
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ic.add_child(info_plate)
+	foot.add_child(ic)
 	var eq := Button.new()
 	eq.text = equip_txt
 	eq.add_theme_font_override("font", title_f)
@@ -1708,7 +1814,7 @@ func map_screen(title: String, subtitle: String, fmap: Array, step: int, lane: i
 	ec.add_child(eq)
 	ec.add_child(fu)
 	ec.add_child(dk)
-	box.add_child(ec)
+	foot.add_child(ec)
 	if first and Input.get_connected_joypads().size() > 0:
 		first.grab_focus.call_deferred()
 	overlay.modulate.a = 0
