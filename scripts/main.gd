@@ -485,7 +485,10 @@ func _unhandled_input(e: InputEvent) -> void:
 	var esc: bool = (e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_ESCAPE) \
 		or (e is InputEventJoypadButton and e.pressed and e.button_index == JOY_BUTTON_START)
 	if esc:
-		if ui.lib_layer and is_instance_valid(ui.lib_layer):
+		if ui.sheet_layer and is_instance_valid(ui.sheet_layer):
+			ui.sheet_layer.queue_free()
+			ui.sheet_layer = null
+		elif ui.lib_layer and is_instance_valid(ui.lib_layer):
 			ui.lib_closed.emit()
 		elif ui.menu_open() or not (battle.card_sel >= 0 or battle.inspect):
 			ui.toggle_menu()
@@ -647,29 +650,40 @@ func _make_party(keys: Array = party) -> void:
 		u.setup(k, "hero")
 		u.trait_id = traits[i]
 		i += 1
-		match u.trait_id:
-			"vertige":
-				u.base_jump -= 1
-				u.base_hp += 6
-			"leger":
-				u.base_move += 1
-			"colosse":
-				u.base_hp += 8
-				u.base_move -= 1
-			"insomniaque":
-				u.base_hp -= 4
-			"fragile":
-				u.base_hp -= 6
-			"grimpeur":
-				u.base_jump += 2
-			"lourdaud":
-				u.base_move -= 1
+		_trait_mod(u, 1)
 		u.base_hp = int(round(u.base_hp * Data.DIFFICULTY[difficulty].hp * (0.85 if pacts.has("sang") else 1.0)))
 		u.max_hp = u.base_hp
 		u.hp = u.max_hp
 		u.apply_gear()
 		units_root.add_child(u)
 		heroes.append(u)
+
+
+func _trait_mod(u: Unit, sgn: int) -> void:
+	## Ce que le trait change aux stats de base ; sgn = -1 pour le retirer (relance du Journal de route).
+	var m: Array = {"vertige": [6, 0, -1], "leger": [0, 1, 0], "colosse": [8, -1, 0], "insomniaque": [-4, 0, 0],
+		"fragile": [-6, 0, 0], "grimpeur": [0, 0, 2], "lourdaud": [0, -1, 0]}.get(u.trait_id, [0, 0, 0])
+	u.base_hp += sgn * m[0]
+	u.base_move += sgn * m[1]
+	u.base_jump += sgn * m[2]
+
+
+var journal_floor := 0
+func _journal_reroll() -> void:
+	## Journal de route : à la première salle « ? » de l'étage, un héros peut relancer son trait.
+	if journal_floor == floor_i:
+		return
+	journal_floor = floor_i
+	var h := await _pick_hero("JOURNAL DE ROUTE", "Un héros de votre choix relance son trait")
+	if h == null:
+		return
+	var pool: Array = Data.TRAITS.keys().filter(func(t): return t != h.trait_id)
+	var t: String = pool[rng.randi_range(0, pool.size() - 1)]
+	await ui.trait_roulette([h.key], [t])
+	_trait_mod(h, -1)
+	h.trait_id = t
+	_trait_mod(h, 1)
+	h.apply_gear()
 
 
 func new_run() -> void:
@@ -695,6 +709,7 @@ func new_run() -> void:
 
 func _start_run() -> void:
 	floor_i = 1
+	journal_floor = 0
 	step = 0
 	fmap = []
 	_no_save = false
@@ -1609,7 +1624,7 @@ func _purge_price() -> int:
 
 func _merchant_shop() -> void:
 	var stock: Array = []
-	while stock.size() < 3:
+	while stock.size() < 4 + (1 if relics.has("bourse") else 0):  # quatre emplacements : quatre pièces à l'étal
 		var id := _roll_item()
 		if not stock.has(id):
 			stock.append(id)
@@ -1902,7 +1917,7 @@ func _capture() -> void:
 	deck = Data.starter(party)
 	_make_party()
 	heroes[0].equip.arme = "epee_ecluse"
-	heroes[1].equip.talisman = "bottes_heron"
+	heroes[1].equip.bottes = "bottes_heron"
 	if args.has("voc"):
 		for h in heroes:
 			h.voc = args.voc if args.voc != h.key else "lame"
@@ -2004,9 +2019,9 @@ func _autoplay() -> void:
 	_make_party()
 	companion = str(args.get("companion", ""))  # --companion=crabe : une bête apprivoisée dans chaque combat
 	if party == ["garde", "lame", "oracle"]:
-		heroes[0].equip = {"arme": "masse_os", "talisman": "anneau_bouclier"}
-		heroes[1].equip = {"arme": "kriss", "talisman": "ecaille_eau"}
-		heroes[2].equip = {"arme": "sceptre_maree", "talisman": "miroir"}
+		heroes[0].equip = {"arme": "masse_os", "armure": "anneau_bouclier", "bottes": "bottes_vase", "bijou": "bague_charognard"}
+		heroes[1].equip = {"arme": "kriss", "armure": "mantelet_feuilles", "bottes": "ecaille_eau", "bijou": "croc_brochet"}
+		heroes[2].equip = {"arme": "sceptre_maree", "armure": "cire_passeur", "bottes": "bottes_fuyard", "bijou": "miroir"}
 	var won := 0
 	for n in fights_n:
 		floor_i = 1 + n % 3
@@ -2416,6 +2431,9 @@ func _uitest() -> void:
 	battle.besace = besace
 	battle.besace_max = 5
 	battle.tool_rate = 1.0
+	fights = 9  # des ennemis équipés à coup sûr ou presque
+	heroes[0].equip = {"arme": "epee_ecluse", "armure": "brigandine_noyee", "bottes": "bottes_vase", "bijou": "croc_brochet"}
+	heroes[0].apply_gear()
 	battle.start(heroes, Data.ENCOUNTERS[1][0], deck, relics)
 	target = _units_center()
 	_snap_cam()
@@ -2432,6 +2450,12 @@ func _uitest() -> void:
 	await _frames(20)
 	_shot(dir, "menu")
 	ui.toggle_menu()
+	ui.hero_sheet(heroes[0])
+	await _frames(20)
+	_shot(dir, "fiche_heros")
+	ui.sheet_layer.queue_free()
+	ui.sheet_layer = null
+	print("ennemis équipés : ", battle.foes.map(func(f): return "%s %s" % [f.nm, f.equip.values().filter(func(x): return x != "")]))
 	while not battle.player_turn:
 		await get_tree().process_frame
 	print("main du héros actif (%s) : %s" % [battle.active.nm, battle.hand.all(func(ci): return Data.card(ci).owner == battle.active.key)])
@@ -3505,6 +3529,7 @@ func _mystery(r: Dictionary) -> void:
 	if relics.has("journal_route"):
 		for h in heroes:
 			h.hp = mini(h.max_hp, h.hp + int(h.max_hp * 0.1))
+		await _journal_reroll()
 	var evs: Array = ["fontaine", "cadavre", "enclume", "puits", "cage", "autel", "atelier", "bibliotheque"] + EVENTS_NEW
 	evs = evs.filter(func(e): return not seen_events.has(e) and (e != "bete" or (companion == "" and rng.randf() < 0.4)))
 	if evs.is_empty():

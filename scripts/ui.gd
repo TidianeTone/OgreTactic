@@ -8,7 +8,7 @@ signal lib_closed
 const INK := Color("#efe6d2")
 const DIM := Color("#a79d8b")
 const GOLD := Color("#e3b45c")
-const CARD := Vector2(164, 232)
+const CARD := Vector2(196, 272)  # proportions des cadres KIE
 const KIND_NAME := {"atk": "Attaque", "skill": "Technique", "move": "Mouvement", "power": "Pouvoir"}
 const ICON := {
 	"frappe": "⚔", "pavois": "🛡", "charge": "➤", "defi": "⚑", "rempart": "✠", "marteau": "⚒", "bastion": "🛡",
@@ -267,7 +267,7 @@ func _build_hud() -> void:
 	# cartes jouées ce tour : la dernière arrive à droite ; clic = toute la défausse
 	played_box = HBoxContainer.new()
 	played_box.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	played_box.position = Vector2(170, -160)
+	played_box.position = Vector2(196, -170)
 	hud.add_child(played_box)
 	besace_row = HBoxContainer.new()
 	besace_row.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
@@ -677,6 +677,13 @@ func _rebuild_heroes(box: VBoxContainer = null, list: Array = [], panels: Dictio
 		var badge := _panel(p, sb(col, col.lightened(0.4), 8, 2))
 		badge.position = Vector2(12, 13)
 		badge.size = Vector2(52, 52)
+		# le portrait ouvre la fiche : trait, vocation, les quatre pièces d'équipement
+		badge.mouse_filter = Control.MOUSE_FILTER_STOP
+		badge.tooltip_text = "Fiche de %s : équipement, trait, vocation" % h.nm
+		badge.gui_input.connect(func(e):
+			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+				badge.accept_event()
+				hero_sheet(h))
 		var por := TextureRect.new()
 		por.texture = load("res://assets/art/portrait_%s.png" % h.key)
 		por.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -957,72 +964,106 @@ func _rebuild_hand() -> void:
 		_cards.append(card)
 
 
+const FRAME_OF := {"atk": "attaque", "skill": "technique", "move": "mouvement", "power": "pouvoir"}
+# fenêtres des cadres KIE (fractions mesurées par blender/kie_ui/cut_ui.py) : illustration, texte
+const F_ART := Rect2(0.14, 0.175, 0.72, 0.475)
+const F_TXT := Rect2(0.14, 0.685, 0.72, 0.225)
+
+
 func make_card(ci: Dictionary) -> Control:
 	var c := Data.card(ci)
 	if main and main.has_method("library_see"):
 		main.library_see(c.id)
 	var col: Color = Data.CLASS_COLOR[c.cls[0]]
 	var col2: Color = Data.CLASS_COLOR[c.cls[1]] if c.cls.size() > 1 else col
-	var legend: bool = int(c.get("rar", 1)) == 4
+	var rar: int = c.get("rar", 1)
+	var legend: bool = rar == 4
 	var card := Control.new()
 	card.size = CARD
 	card.custom_minimum_size = CARD
 	card.pivot_offset = Vector2(CARD.x * 0.5, CARD.y)
-	var bg := _panel(card, sb(Color("#1b181d") if not legend else Color("#231812"), (Data.RARITY_COL[4] if legend else col.darkened(0.05)), 12, 3 if legend else 2, 10))
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	# guilde : le second liseré prend la couleur de l'autre classe
-	var inner := _panel(card, sb(Color(0, 0, 0, 0), col2.lightened(0.1) if c.has("guild") else Color(1, 0.9, 0.7, 0.12), 9, 2 if c.has("guild") else 1))
-	inner.position = Vector2(5, 5)
-	inner.size = CARD - Vector2(10, 10)
+	# fond sombre sous le cadre, liseré de rareté (lueur pour les rares et légendaires)
+	var bgs := sb(Color("#1b181d") if not legend else Color("#231812"), Data.RARITY_COL[rar].darkened(0.1 if rar > 1 else 0.5), 10, 2, 18 if legend else (10 if rar == 3 else 6))
+	if rar >= 3:
+		bgs.shadow_color = Data.RARITY_COL[rar] * Color(1, 1, 1, 0.55)
+	var bg := _panel(card, bgs)
+	bg.position = CARD * Vector2(0.05, 0.05)
+	bg.size = CARD * Vector2(0.9, 0.91)
+	var art_r := Rect2(CARD * F_ART.position, CARD * F_ART.size)
+	var txt_r := Rect2(CARD * F_TXT.position, CARD * F_TXT.size)
 	var art := TextureRect.new()
 	var path := "res://assets/art/card_%s.png" % c.id
 	art.texture = load(path) if ResourceLoader.exists(path) else (_art2(col, col2, c.kind) if c.has("guild") else _art(col, c.kind))
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	art.clip_contents = true
-	art.position = Vector2(12, 36)
-	art.size = Vector2(CARD.x - 24, 96)
+	art.position = art_r.position
+	art.size = art_r.size
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(art)
+	# bas de l'illustration assombri : les chiffres s'y posent
+	var shade := TextureRect.new()
+	var sg := Gradient.new()
+	sg.colors = PackedColorArray([Color(0.05, 0.04, 0.05, 0.0), Color(0.05, 0.04, 0.05, 0.85)])
+	var sgt := GradientTexture2D.new()
+	sgt.gradient = sg
+	sgt.fill_from = Vector2(0, 0)
+	sgt.fill_to = Vector2(0, 1)
+	shade.texture = sgt
+	shade.position = art_r.position + Vector2(0, art_r.size.y * 0.6)
+	shade.size = Vector2(art_r.size.x, art_r.size.y * 0.4)
+	shade.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(shade)
 	var lvc: int = c.get("lvl", 1)
-	var fcol: Color = Color("#ffcf5a") if lvc >= 3 else (Color("#d8e0e8") if lvc >= 2 else col.lightened(0.25))
-	var frame := _panel(card, sb(Color(0, 0, 0, 0), fcol, 4, 3 if lvc >= 2 else 1))
-	frame.position = art.position
-	frame.size = art.size
+	if lvc >= 2:
+		var lf := _panel(card, sb(Color(0, 0, 0, 0), Color("#ffcf5a") if lvc >= 3 else Color("#d8e0e8"), 3, 2))
+		lf.position = art_r.position
+		lf.size = art_r.size
+	# le cadre peint : un par type de carte
+	var fr := TextureRect.new()
+	var fpath := "res://assets/ui/frame_%s.png" % FRAME_OF.get(c.kind, "technique")
+	if ResourceLoader.exists(fpath):
+		fr.texture = load(fpath)
+	fr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	fr.stretch_mode = TextureRect.STRETCH_SCALE
+	fr.size = CARD
+	fr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(fr)
 	var shown: String = c.name.split(",")[0] if c.name.length() > 18 else c.name  # « Kaede, Vent sans ombre » -> « Kaede »
-	var fs := 16
-	while fs > 9 and title_f.get_string_size(shown, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > CARD.x - 62:
-		fs -= 1  # le nom tient toujours dans le cadre
-	var nm := _label(shown, fs, INK, title_f)
-	nm.clip_text = true  # avant la taille, sinon le Label s'élargit à son texte
+	var fs := 17
+	while fs > 9 and title_f.get_string_size(shown, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > CARD.x * 0.62:
+		fs -= 1  # le nom tient toujours dans le bandeau
+	var nm := _shadowed(_label(shown, fs, INK, title_f), 5)
+	nm.clip_text = true
 	nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	nm.position = Vector2(36, 8)
-	nm.size = Vector2(CARD.x - 58, 24)
+	nm.position = Vector2(CARD.x * 0.18, CARD.y * 0.045)
+	nm.size = Vector2(CARD.x * 0.64, CARD.y * 0.1)
 	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	card.add_child(nm)
-	var orb := _panel(card, sb(Color("#e8a33c"), Color("#fff0c8"), 17, 2, 4))
-	orb.position = Vector2(-7, -7)
-	orb.size = Vector2(36, 36)
-	var cl := _label("X" if c.has("xcost") else str(c.cost), 20, Color("#2a1606"), title_f)
+	var orb := _panel(card, sb(Color("#e8a33c"), Color("#fff0c8"), 19, 2, 4))
+	orb.position = Vector2(-6, -6)
+	orb.size = Vector2(40, 40)
+	var cl := _label("X" if c.has("xcost") else str(c.cost), 22, Color("#2a1606"), title_f)
 	cl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	cl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	cl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	orb.add_child(cl)
 	card.set_meta("cost", cl)
-	var lv: int = c.get("lvl", 1)
-	if lv >= 2:
-		# niveau : pastilles sur une pilule sombre, dans le coin de l'illustration
+	if lvc >= 2:
+		# niveau : pastilles sur une pilule sombre, en haut à droite de l'illustration
 		var pill := _panel(card, sb(Color(0.04, 0.03, 0.04, 0.8), Color(0, 0, 0, 0), 7))
-		pill.position = Vector2(CARD.x - 12 - 8 - lv * 11, art.position.y + art.size.y - 20)
-		pill.size = Vector2(lv * 11 + 8, 16)
-		var pips := _label("●".repeat(lv), 10, Color("#ffcf5a") if lv >= 3 else Color("#e8eef4"))
+		pill.position = Vector2(art_r.end.x - lvc * 11 - 12, art_r.position.y + 4)
+		pill.size = Vector2(lvc * 11 + 8, 16)
+		var pips := _label("●".repeat(lvc), 10, Color("#ffcf5a") if lvc >= 3 else Color("#e8eef4"))
 		pips.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		pips.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		pips.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		pill.add_child(pips)
 	if c.has("voix"):
 		var vd := _panel(card, sb(Data.VOIX[c.voix][1], Color(0.05, 0.04, 0.04, 0.9), 7, 2))
-		vd.position = art.position + Vector2(5, 5)
+		vd.position = art_r.position + Vector2(5, 5)
 		vd.size = Vector2(14, 14)
 	var live := _panel(card, sb(Color(0, 0, 0, 0), Color(1.0, 0.82, 0.35), 13, 3, 16))
 	live.position = Vector2(-3, -3)
@@ -1030,30 +1071,28 @@ func make_card(ci: Dictionary) -> Control:
 	live.visible = false
 	card.set_meta("live", live)
 	card.tooltip_text = Data.keyword_tip(c)
-	var rar: int = c.get("rar", 1)
-	var gem := _label("✦" if rar == 4 else "◆", 15, Data.RARITY_COL[rar], title_f)
-	gem.position = Vector2(CARD.x - 22, 9)
+	var gem := _shadowed(_label("✦" if legend else "◆", 19 if rar >= 3 else 15, Data.RARITY_COL[rar], title_f), 4)
+	gem.position = Vector2(CARD.x * 0.83, CARD.y * 0.05)
 	card.add_child(gem)
 	if rar > 1:
-		nm.add_theme_color_override("font_color", Data.RARITY_COL[rar].lightened(0.25))
-		gem.add_theme_font_size_override("font_size", 19 if rar >= 3 else 15)
+		nm.add_theme_color_override("font_color", Data.RARITY_COL[rar].lightened(0.3))
 	if c.has("guild") or c.cls[0] != c.owner:
 		# bandeau : la guilde, ou la classe d'origine d'une carte de vocation
 		var band := _panel(card, sb(Color(0.05, 0.04, 0.05, 0.82), Color(0, 0, 0, 0), 6))
-		band.position = art.position + Vector2(4, 4)
-		band.size = Vector2(art.size.x - 8, 17)
+		band.position = art_r.position + Vector2(4, 22 if lvc >= 2 else 4)
+		band.size = Vector2(art_r.size.x - 8, 17)
 		var bl := _label(c.guild if c.has("guild") else "Vocation · " + Data.HEROES[c.cls[0]].name, 11, col2.lightened(0.45) if c.has("guild") else col.lightened(0.4))
 		bl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		bl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		bl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		bl.clip_text = true
 		band.add_child(bl)
-	# idéogrammes : ce que fait la carte, en chiffres
+	# idéogrammes : ce que fait la carte, en chiffres, au bas de l'illustration
 	var stats := HBoxContainer.new()
 	stats.alignment = BoxContainer.ALIGNMENT_CENTER
 	stats.add_theme_constant_override("separation", 8)
-	stats.position = Vector2(6, 134)
-	stats.size = Vector2(CARD.x - 12, 26)
+	stats.position = Vector2(art_r.position.x, art_r.end.y - 30)
+	stats.size = Vector2(art_r.size.x, 28)
 	stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(stats)
 	if c.get("dmg", 0) > 0:
@@ -1068,16 +1107,21 @@ func make_card(ci: Dictionary) -> Control:
 	var txt := Data.card_brief(c)
 	var tt := Data.trig_text(c)
 	var body := VBoxContainer.new()
-	body.position = Vector2(10, 162 if stats.get_child_count() > 0 else 140)
-	body.size = Vector2(CARD.x - 20, CARD.y - body.position.y - 8)
+	body.position = txt_r.position + Vector2(-4, 0)
+	body.size = txt_r.size + Vector2(8, 0)
 	body.alignment = BoxContainer.ALIGNMENT_CENTER
-	body.add_theme_constant_override("separation", 2)
+	body.add_theme_constant_override("separation", 1)
 	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(body)
+	var long := txt.length() + tt.length()
 	if txt != "":
-		body.add_child(_rich(kw_bbcode(txt), 14 if txt.length() <= 40 else (13 if txt.length() <= 60 else 12), INK))
+		var r := _rich(kw_bbcode(txt), 13 if long <= 50 else (12 if long <= 80 else 11), INK)
+		r.custom_minimum_size.x = txt_r.size.x + 8
+		body.add_child(r)
 	if tt != "":
-		body.add_child(_rich(kw_bbcode(tt), 12, Color("#ffd98a")))
+		var r2 := _rich(kw_bbcode(tt), 11 if long <= 80 else 10, Color("#ffd98a"))
+		r2.custom_minimum_size.x = txt_r.size.x + 8
+		body.add_child(r2)
 	return card
 
 
@@ -2199,16 +2243,16 @@ func equipment_screen(heroes: Array, bag: Array) -> Dictionary:
 		nv.add_child(st)
 		var slots := HBoxContainer.new()
 		slots.alignment = BoxContainer.ALIGNMENT_CENTER
-		slots.add_theme_constant_override("separation", 18)
+		slots.add_theme_constant_override("separation", 8)
 		slots.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		v.add_child(slots)
-		for slot in ["arme", "talisman"]:
-			var id: String = h.equip[slot]
-			var cap: String = slot.capitalize()
+		for slot in Data.SLOTS:
+			var id: String = h.equip.get(slot, "")
+			var cap: String = Data.SLOT_NAME[slot]
 			var sv := VBoxContainer.new()
 			sv.add_theme_constant_override("separation", 4)
 			sv.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			var t := _gear_tile(id, 84, ITEM_COL[Data.ITEMS[id].rarity] if id != "" else DIM.darkened(0.5))
+			var t := _gear_tile(id, 58, ITEM_COL[Data.ITEMS[id].rarity] if id != "" else DIM.darkened(0.5))
 			if id == "":
 				var q := _label("vide", 13, DIM.darkened(0.3))
 				q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -2413,3 +2457,96 @@ func trait_roulette(keys: Array, traits: Array) -> void:
 	box.add_child(gc)
 	await picked
 	_close_overlay()
+
+
+# ------------------------------------------------------------------ fiche du héros
+
+var sheet_layer: Control
+func hero_sheet(h: Unit) -> void:
+	## Lecture seule, par-dessus tout : portrait, stats, trait, vocation, les quatre pièces avec leurs effets. Un clic ferme.
+	if sheet_layer and is_instance_valid(sheet_layer):
+		sheet_layer.queue_free()
+	sheet_layer = Control.new()
+	sheet_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	sheet_layer.z_index = 110
+	root.add_child(sheet_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0.02, 0.02, 0.03, 0.6)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	sheet_layer.add_child(dim)
+	var close := func(e):
+		if e is InputEventMouseButton and e.pressed:
+			sheet_layer.queue_free()
+			sheet_layer = null
+	dim.gui_input.connect(close)
+	var col: Color = Data.CLASS_COLOR[h.key]
+	var p := PanelContainer.new()
+	var ps := sb(Color(0.08, 0.07, 0.075, 0.97), col, 16, 2, 16)
+	ps.content_margin_left = 26
+	ps.content_margin_right = 26
+	ps.content_margin_top = 22
+	ps.content_margin_bottom = 22
+	p.add_theme_stylebox_override("panel", ps)
+	p.gui_input.connect(close)
+	var cc := CenterContainer.new()
+	cc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	cc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sheet_layer.add_child(cc)
+	cc.add_child(p)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 12)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(v)
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 18)
+	v.add_child(top)
+	var por := TextureRect.new()
+	por.texture = load("res://assets/art/portrait_%s.png" % h.key)
+	por.custom_minimum_size = Vector2(110, 110)
+	por.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	por.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	top.add_child(por)
+	var nv := VBoxContainer.new()
+	nv.alignment = BoxContainer.ALIGNMENT_CENTER
+	top.add_child(nv)
+	nv.add_child(_label(h.nm, 30, col.lightened(0.35), Fx.goth("pirataone")))
+	nv.add_child(_label(Data.HEROES[h.key].title, 15, DIM))
+	var st := HBoxContainer.new()
+	st.add_theme_constant_override("separation", 14)
+	st.add_child(_chip("pv", "%d/%d" % [h.hp, h.max_hp], Color.WHITE, 22))
+	st.add_child(_chip("deplacement", str(h.move), Color.WHITE, 22))
+	st.add_child(_chip("attaque", "+%d" % h.gear_dmg(), Color(1.0, 0.75, 0.6), 22))
+	st.add_child(_chip("armure", "+%d" % h.block0(), Color(0.8, 0.9, 1.0), 22))
+	var sj := _label("saut %d · vitesse %d" % [h.jump, h.speed], 14, DIM)
+	sj.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	st.add_child(sj)
+	nv.add_child(st)
+	var tr := _rich("[color=#e3b45c]Trait — %s[/color] : %s" % [Data.TRAITS[h.trait_id].name, Data.TRAITS[h.trait_id].text], 15, INK)
+	tr.text = tr.text.trim_prefix("[center]").trim_suffix("[/center]")
+	tr.custom_minimum_size = Vector2(560, 0)
+	v.add_child(tr)
+	v.add_child(_label(main.voc_line(h) if h.voc != "" else "Pas encore de vocation · %d / %d points de job" % [h.pj, Data.MASTERY[2]], 14, DIM))
+	for slot in Data.SLOTS:
+		var id: String = h.equip.get(slot, "")
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 14)
+		var t := _gear_tile(id, 56, ITEM_COL[Data.ITEMS[id].rarity] if id != "" else DIM.darkened(0.5))
+		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(t)
+		var rv := VBoxContainer.new()
+		rv.alignment = BoxContainer.ALIGNMENT_CENTER
+		row.add_child(rv)
+		if id == "":
+			rv.add_child(_label("%s : libre" % Data.SLOT_NAME[slot], 16, DIM))
+		else:
+			var it: Dictionary = Data.ITEMS[id]
+			rv.add_child(_label("%s — %s" % [Data.SLOT_NAME[slot], it.name], 17, ITEM_COL[it.rarity].lightened(0.25), title_f))
+			var fx := _label(Data.item_text(id).split("
+")[1], 14, INK)
+			fx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			fx.custom_minimum_size = Vector2(480, 0)
+			rv.add_child(fx)
+		v.add_child(row)
+	var hint := _label("Clic pour fermer · l'équipement se change hors combat (carte d'étage, repos, I)", 12, DIM)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(hint)

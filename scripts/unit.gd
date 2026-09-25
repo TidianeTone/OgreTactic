@@ -18,7 +18,7 @@ var poison := 0
 var taunt := false
 var moved := false
 var trait_id := ""
-var equip := {"arme": "", "talisman": ""}
+var equip := {"arme": "", "armure": "", "bottes": "", "bijou": ""}
 var base_move := 3
 var base_jump := 2
 var base_hp := 10
@@ -255,16 +255,44 @@ func gear_dmg() -> int:
 
 func apply_gear() -> void:
 	## Recalcule les stats dérivées de l'équipement ; les PV suivent le nouveau maximum.
+	fix_equip()
 	move = base_move + int(has_p("deplacement"))
 	if side == "hero":
 		speed = int(data.get("speed", 5)) + (3 if trait_id == "vif" else 0)
 	jump = base_jump + 2 * int(has_p("saut"))
+	for slot in equip:
+		if equip[slot] != "":
+			move += int(Data.ITEMS[equip[slot]].get("move", 0))
+			jump += int(Data.ITEMS[equip[slot]].get("jump", 0))
 	var old := max_hp
 	max_hp = base_hp
 	for slot in equip:
 		if equip[slot] != "":
 			max_hp += int(Data.ITEMS[equip[slot]].get("hp", 0))
 	hp = clampi(hp + max_hp - old, 1, max_hp)
+
+
+func fix_equip() -> void:
+	## Sauvegardes d'avant le 26/09 : l'ancien « talisman » rejoint son nouvel emplacement.
+	if equip.has("talisman"):
+		var t: String = equip.talisman
+		equip.erase("talisman")
+		if t != "" and Data.ITEMS.has(t):
+			equip[Data.ITEMS[t].slot] = t
+	for s in Data.SLOTS:
+		if not equip.has(s):
+			equip[s] = ""
+	for s in equip:
+		if equip[s] != "" and not Data.ITEMS.has(equip[s]):
+			equip[s] = ""
+
+
+func block0() -> int:
+	var b := 0
+	for slot in equip:
+		if equip[slot] != "":
+			b += int(Data.ITEMS[equip[slot]].get("block0", 0))
+	return b
 
 
 func atk() -> int:

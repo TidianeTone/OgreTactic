@@ -459,16 +459,16 @@ const RELICS := {
 	"cendre": {"name": "Cendre Vive", "glyph": "✹", "text": "Un ennemi tué explose : 4 dégâts autour de lui."},
 	"tuile": {"name": "Tuile Brisée", "glyph": "▲", "text": "Le bonus de hauteur est doublé."},
 	"cloche": {"name": "Cloche Noyée", "glyph": "♒", "text": "Un ennemi qui se noie subit 6 de plus."},
-	"grimoire": {"name": "Grimoire Humide", "glyph": "▤", "text": "Chaque héros pioche 1 carte de plus à son tour."},
-	"sablier": {"name": "Sablier Vert", "glyph": "⧗", "text": "La première carte du tour de chaque héros coûte 0."},
+	"grimoire": {"name": "Grimoire Humide", "glyph": "▤", "text": "Chaque héros pioche 1 carte de plus à ses deux premiers tours de chaque combat."},
+	"sablier": {"name": "Clepsydre verte", "glyph": "⧗", "text": "La première carte au coût imprimé de 1 du tour de chaque héros coûte 0."},
 	"ecaille": {"name": "Écaille de Carpe", "glyph": "◈", "text": "Chaque héros commence le combat avec 6 d'armure."},
-	"heron": {"name": "Bottes de Héron", "glyph": "⇶", "text": "+1 déplacement pour tous les héros."},
-	"oeil": {"name": "Œil de Surveil", "glyph": "◉", "text": "Choix de 4 cartes au lieu de 3."},
+	"heron": {"name": "Aigrette du héron", "glyph": "⇶", "text": "+1 déplacement pour tous les héros."},
+	"oeil": {"name": "Longue-vue embuée", "glyph": "◉", "text": "Choix de 4 cartes au lieu de 3."},
 	"sacoche": {"name": "Sacoche de cuir", "glyph": "▣", "text": "Besace +1 place."},
 	"alambic": {"name": "Alambic de poche", "glyph": "☄", "text": "Un objet fabriqué au début de chaque combat."},
 	"livret": {"name": "Livret d'apprenti", "glyph": "◇", "text": "Un héros au choix prend sa vocation tout de suite."},
 	"blason": {"name": "Blason écartelé", "glyph": "⚜", "text": "Un héros gagne une deuxième vocation, et donc une deuxième guilde."},
-	"touriste": {"name": "Carnet du touriste", "glyph": "✈", "text": "Chaque butin propose en plus une carte d'une classe absente de l'escouade."},
+	"touriste": {"name": "Carnet du colporteur", "glyph": "⚐", "text": "Chaque butin propose en plus une carte d'une classe absente de l'escouade."},
 	"sceau": {"name": "Sceau de guilde", "glyph": "⬡", "text": "Les rares de guilde s'ouvrent dès la maîtrise II."},
 	"medaille": {"name": "Médaille du duo", "glyph": "⚭", "text": "Les cartes de guilde coûtent 1 de moins quand les deux classes de la guilde sont dans l'escouade."},
 	"noblesse": {"name": "Lettre de noblesse", "glyph": "✉", "text": "La case bonus du butin propose trois cartes au lieu d'une."},
@@ -477,12 +477,12 @@ const RELICS := {
 	"tambour": {"name": "Tambour 174", "glyph": "♫", "text": "Toutes les 4 cartes jouées dans un combat, +1 énergie."},
 	"galet": {"name": "Galet poli", "glyph": "●", "text": "La 3e carte jouée par un héros dans son tour lui donne 4 armure."},
 	"pierre": {"name": "Pierre à aiguiser", "glyph": "◇", "text": "Les attaques à plusieurs coups infligent +1 par coup."},
-	"braise_eternelle": {"name": "Braise éternelle", "glyph": "☠", "text": "Le poison des ennemis ne décroît plus."},
+	"braise_eternelle": {"name": "Eau croupie", "glyph": "☠", "text": "Le poison des ennemis ne décroît plus."},
 	"hamecon": {"name": "Hameçon rouillé", "glyph": "⌐", "text": "Attirer tire une case plus loin et Marque la cible 1 tour."},
 	"collier": {"name": "Collier de la meute", "glyph": "∞", "text": "Le compagnon a 50 % de PV en plus et frappe +3."},
 	"sifflet": {"name": "Sifflet d'os", "glyph": "♪", "text": "Sans compagnon, une bête des Hauts-Fonds répond à l'appel à chaque combat."},
-	"bourse": {"name": "Bourse du Passeur", "glyph": "◎", "text": "L'or des combats +25 %."},
-	"journal_route": {"name": "Journal de route", "glyph": "✎", "text": "Chaque salle « ? » soigne 10 % des PV max de chaque héros."},
+	"bourse": {"name": "Obole du Passeur", "glyph": "◎", "text": "L'or des combats +25 %, et la boutique propose toujours une pièce d'équipement de plus."},
+	"journal_route": {"name": "Journal de route", "glyph": "✎", "text": "Chaque salle « ? » soigne 10 % des PV max de chaque héros ; la première de chaque étage permet de relancer le trait d'un héros."},
 }
 # Maîtrise : points de job (1 par combat, 2 par élite) ; seuils des paliers II, III, IV.
 const MASTERY := [0, 0, 3, 7, 11]
@@ -558,54 +558,78 @@ const PASSIVES := {
 	"vigilance": {"name": "Vigilance", "text": "Jamais pris de dos."},
 	"economie": {"name": "Demi-coût", "text": "La 1re carte à 2+ du tour coûte 1 de moins."},
 	"chasseur": {"name": "Chasseur de trésors", "text": "Les coffres donnent aussi 25 or."},
+	"ancre": {"name": "Ancre", "text": "Ne peut être ni repoussé ni attiré : il encaisse le Choc comme un mur."},
+	"flotte": {"name": "Insubmersible", "text": "Insensible à la noyade."},
+	"venin": {"name": "Venin", "text": "Chaque coup au contact qui touche inflige aussi 1 poison."},
+	"charogne": {"name": "Charogne", "text": "Tuer un ennemi donne 4 armure."},
+	"meche": {"name": "Mèche courte", "text": "Pendant son tour, les explosions infligent +2."},
+	"prelude": {"name": "Prélude", "text": "Pioche 1 carte de plus à son premier tour de chaque combat."},
+	"affut": {"name": "Embusqué", "text": "+2 aux attaques à distance si le porteur n'a pas bougé ce tour."},
+	"main_leste": {"name": "Main leste", "text": "Tuer un ennemi équipé récupère sa pièce à coup sûr."},
 }
 
-# slot : arme (propre à une classe) ou talisman (tous). dmg : bonus plat. rarity 1-3.
+# 4 emplacements (26/09) : arme (propre à une classe), armure, bottes, bijou (tous). dmg / hp / move / jump : bonus plats,
+# block0 : armure au début de chaque combat. foe : un ennemi peut la porter (à partir du 3e combat). Revue par panel d'agents.
 const ITEMS := {
 	"epee_ecluse": {"name": "Épée de l'Écluse", "slot": "arme", "owner": "garde", "dmg": 1, "passive": "contre", "rarity": 1},
 	"masse_os": {"name": "Masse brise-os", "slot": "arme", "owner": "garde", "dmg": 2, "passive": "casseur", "rarity": 2},
-	"hallebarde": {"name": "Hallebarde du héron", "slot": "arme", "owner": "garde", "dmg": 1, "passive": "bouclier", "rarity": 3},
-	"dague_ombre": {"name": "Dague d'ombre", "slot": "arme", "owner": "lame", "dmg": 1, "passive": "reflexe", "rarity": 1},
+	"hallebarde": {"name": "Hallebarde du héron", "slot": "arme", "owner": "garde", "dmg": 2, "passive": "bouclier", "rarity": 3},
+	"dague_ombre": {"name": "Dague des Arches", "slot": "arme", "owner": "lame", "dmg": 1, "passive": "reflexe", "rarity": 1},
 	"kriss": {"name": "Kriss jumeau", "slot": "arme", "owner": "lame", "dmg": 2, "passive": "deux_mains", "rarity": 2},
-	"lame_soif": {"name": "Lame de soif", "slot": "arme", "owner": "lame", "dmg": 1, "passive": "absorbe", "rarity": 3},
+	"lame_soif": {"name": "Lame de soif", "slot": "arme", "owner": "lame", "dmg": 1, "passive": "venin", "rarity": 3},
 	"baton_braise": {"name": "Bâton de braise", "slot": "arme", "owner": "oracle", "dmg": 1, "passive": "concentration", "rarity": 1},
 	"sceptre_maree": {"name": "Sceptre des marées", "slot": "arme", "owner": "oracle", "dmg": 2, "passive": "economie", "rarity": 2},
-	"baton_lotus": {"name": "Bâton de lotus", "slot": "arme", "owner": "oracle", "dmg": 0, "passive": "regen", "rarity": 3},
-	"cle_meca": {"name": "Clé de mécanicien", "slot": "arme", "owner": "artificier", "dmg": 1, "passive": "arme_plus", "rarity": 1},
-	"canon_main": {"name": "Canon à main", "slot": "arme", "owner": "artificier", "dmg": 2, "passive": "economie", "rarity": 2},
-	"bandes_jade": {"name": "Bandes de jade", "slot": "arme", "owner": "moine", "dmg": 1, "passive": "reflexe", "rarity": 1},
-	"chapelet": {"name": "Chapelet du ressac", "slot": "arme", "owner": "moine", "dmg": 2, "passive": "regen", "rarity": 2},
+	"baton_lotus": {"name": "Bâton de lotus", "slot": "arme", "owner": "oracle", "hp": 6, "passive": "regen", "rarity": 3},
+	"cle_meca": {"name": "Clé d'éclusier", "slot": "arme", "owner": "artificier", "dmg": 1, "passive": "meche", "rarity": 1},
+	"canon_main": {"name": "Tromblon des quais", "slot": "arme", "owner": "artificier", "dmg": 2, "passive": "economie", "rarity": 2},
+	"marteau_forge": {"name": "Marteau de radoub", "slot": "arme", "owner": "artificier", "dmg": 2, "passive": "bouclier", "rarity": 3},
+	"bandes_jade": {"name": "Bandes de filin", "slot": "arme", "owner": "moine", "dmg": 1, "passive": "reflexe", "rarity": 1},
+	"chapelet": {"name": "Chapelet du ressac", "slot": "arme", "owner": "moine", "dmg": 2, "passive": "casseur", "rarity": 2},
+	"gantelets_ressac": {"name": "Poings d'étrave", "slot": "arme", "owner": "moine", "dmg": 2, "passive": "deux_mains", "rarity": 3},
 	"arc_frene": {"name": "Arc de frêne", "slot": "arme", "owner": "trappeur", "dmg": 1, "passive": "concentration", "rarity": 1},
 	"arc_os": {"name": "Arc en os de silure", "slot": "arme", "owner": "trappeur", "dmg": 2, "passive": "absorbe", "rarity": 2},
-	"marteau_forge": {"name": "Marteau de forge", "slot": "arme", "owner": "artificier", "dmg": 2, "passive": "bouclier", "rarity": 3},
-	"gantelets_ressac": {"name": "Gantelets du ressac", "slot": "arme", "owner": "moine", "dmg": 2, "passive": "deux_mains", "rarity": 3},
-	"arbalete_silure": {"name": "Arbalète du silure", "slot": "arme", "owner": "trappeur", "dmg": 2, "passive": "elan", "rarity": 3},
+	"arbalete_silure": {"name": "Arbalète à harpon", "slot": "arme", "owner": "trappeur", "dmg": 2, "passive": "affut", "rarity": 3},
 	"pinceau": {"name": "Pinceau de Sinlaire", "slot": "arme", "owner": "tidiane", "dmg": 1, "passive": "arme_plus", "rarity": 1},
 	"palette": {"name": "Palette Grixis", "slot": "arme", "owner": "tidiane", "dmg": 2, "passive": "absorbe", "rarity": 2},
+	"stylet": {"name": "Stylet de CSP", "slot": "arme", "owner": "tidiane", "dmg": 2, "passive": "elan", "rarity": 3},
 	"pied_biche": {"name": "Pied-de-biche", "slot": "arme", "owner": "receleur", "dmg": 1, "passive": "chasseur", "rarity": 1},
 	"crochets": {"name": "Trousseau de crochets", "slot": "arme", "owner": "receleur", "dmg": 2, "passive": "reflexe", "rarity": 2},
-	"gants_velours": {"name": "Gants de velours", "slot": "arme", "owner": "receleur", "dmg": 2, "passive": "absorbe", "rarity": 3},
-	"stylet": {"name": "Stylet de CSP", "slot": "arme", "owner": "tidiane", "dmg": 2, "passive": "elan", "rarity": 3},
-	"anneau_bouclier": {"name": "Anneau du rempart", "slot": "talisman", "owner": "any", "passive": "bouclier", "rarity": 2},
-	"bottes_heron": {"name": "Bottes de héron", "slot": "talisman", "owner": "any", "passive": "deplacement", "rarity": 1},
-	"sandales_saut": {"name": "Sandales du saut", "slot": "talisman", "owner": "any", "passive": "saut", "rarity": 1},
-	"amulette_regen": {"name": "Amulette de mousse", "slot": "talisman", "owner": "any", "passive": "regen", "rarity": 2},
-	"plume_elan": {"name": "Plume d'élan", "slot": "talisman", "owner": "any", "passive": "elan", "rarity": 2},
-	"ecaille_eau": {"name": "Écaille de carpe", "slot": "talisman", "owner": "any", "passive": "eau", "rarity": 2},
-	"oeil_vigilant": {"name": "Œil vigilant", "slot": "talisman", "owner": "any", "passive": "vigilance", "rarity": 1},
-	"bracelet_fleches": {"name": "Bracelet paraflèches", "slot": "talisman", "owner": "any", "passive": "parade", "rarity": 1},
-	"gantelet": {"name": "Gantelet lesté", "slot": "talisman", "owner": "any", "passive": "arme_plus", "rarity": 2},
-	"miroir": {"name": "Miroir de cuivre", "slot": "talisman", "owner": "any", "passive": "retour", "rarity": 2},
-	"bourse": {"name": "Bourse trouée", "slot": "talisman", "owner": "any", "passive": "chasseur", "rarity": 1},
-	"coeur_pierre": {"name": "Cœur de pierre", "slot": "talisman", "owner": "any", "hp": 8, "passive": "", "rarity": 1},
+	"gants_velours": {"name": "Gants de velours", "slot": "arme", "owner": "receleur", "dmg": 2, "passive": "main_leste", "rarity": 3},
+	"anneau_bouclier": {"name": "Plastron de vanne", "slot": "armure", "owner": "any", "passive": "bouclier", "rarity": 3, "foe": true},
+	"oeil_vigilant": {"name": "Dossière du guetteur", "slot": "armure", "owner": "any", "passive": "vigilance", "rarity": 2, "foe": true},
+	"bracelet_fleches": {"name": "Brassards de roseau", "slot": "armure", "owner": "any", "passive": "parade", "rarity": 2, "foe": true},
+	"coeur_pierre": {"name": "Cotte rouillée", "slot": "armure", "owner": "any", "hp": 6, "passive": "", "rarity": 1, "foe": true},
+	"cuirasse_compagnie": {"name": "Cuirasse de la Compagnie", "slot": "armure", "owner": "any", "block0": 5, "passive": "", "rarity": 1, "foe": true},
+	"cotte_vase": {"name": "Cotte de limon", "slot": "armure", "owner": "any", "hp": 4, "block0": 3, "passive": "", "rarity": 1, "foe": true},
+	"cire_passeur": {"name": "Ciré du batelier", "slot": "armure", "owner": "any", "hp": 3, "passive": "flotte", "rarity": 1, "foe": true},
+	"carapace_ecrevisse": {"name": "Carapace d'écrevisse", "slot": "armure", "owner": "any", "block0": 4, "passive": "contre", "rarity": 2, "foe": true},
+	"mantelet_feuilles": {"name": "Mantelet de feuilles mortes", "slot": "armure", "owner": "any", "hp": 3, "passive": "reflexe", "rarity": 2, "foe": true},
+	"brigandine_noyee": {"name": "Brigandine noyée", "slot": "armure", "owner": "any", "move": -1, "block0": 8, "passive": "", "rarity": 2, "foe": true},
+	"heaume_noye": {"name": "Heaume noyé", "slot": "armure", "owner": "any", "hp": 10, "move": -1, "passive": "", "rarity": 2, "foe": true},
+	"bottes_heron": {"name": "Bottes de héron", "slot": "bottes", "owner": "any", "passive": "deplacement", "rarity": 1, "foe": true},
+	"sandales_saut": {"name": "Semelles de crapaud", "slot": "bottes", "owner": "any", "passive": "saut", "rarity": 1, "foe": true},
+	"ecaille_eau": {"name": "Bottes de liège", "slot": "bottes", "owner": "any", "passive": "eau", "rarity": 2, "foe": true},
+	"echasses_roseau": {"name": "Échasses de roseau", "slot": "bottes", "owner": "any", "move": -1, "jump": 3, "passive": "", "rarity": 1, "foe": true},
+	"sabots_halage": {"name": "Sabots de halage", "slot": "bottes", "owner": "any", "jump": 1, "block0": 2, "passive": "", "rarity": 1, "foe": true},
+	"guetres_eclusier": {"name": "Guêtres d'éclusier", "slot": "bottes", "owner": "any", "hp": 4, "passive": "", "rarity": 1, "foe": true},
+	"bottes_vase": {"name": "Bottes de vase", "slot": "bottes", "owner": "any", "block0": 2, "passive": "ancre", "rarity": 2, "foe": true},
+	"bottes_fuyard": {"name": "Bottes du fuyard", "slot": "bottes", "owner": "any", "move": 1, "jump": 1, "passive": "", "rarity": 2, "foe": true},
+	"pas_passeur": {"name": "Pas du Passeur", "slot": "bottes", "owner": "any", "move": 1, "jump": 1, "passive": "eau", "rarity": 3, "foe": true},
+	"amulette_regen": {"name": "Amulette de mousse", "slot": "bijou", "owner": "any", "passive": "regen", "rarity": 2, "foe": true},
+	"plume_elan": {"name": "Perle de souffle", "slot": "bijou", "owner": "any", "passive": "elan", "rarity": 2},
+	"gantelet": {"name": "Chevalière lestée", "slot": "bijou", "owner": "any", "passive": "arme_plus", "rarity": 3, "foe": true},
+	"miroir": {"name": "Miroir de cuivre", "slot": "bijou", "owner": "any", "passive": "retour", "rarity": 2, "foe": true},
+	"bourse": {"name": "Bourse du naufrageur", "slot": "bijou", "owner": "any", "passive": "chasseur", "rarity": 1},
+	"dent_silure": {"name": "Dent de silure", "slot": "bijou", "owner": "any", "dmg": 1, "passive": "", "rarity": 1, "foe": true},
+	"medaille_rouillee": {"name": "Insigne rouillé", "slot": "bijou", "owner": "any", "hp": 4, "block0": 2, "passive": "", "rarity": 1, "foe": true},
+	"bague_charognard": {"name": "Bague du charognard", "slot": "bijou", "owner": "any", "passive": "charogne", "rarity": 2, "foe": true},
+	"lanterne_brume": {"name": "Lanterne de brume", "slot": "bijou", "owner": "any", "passive": "concentration", "rarity": 2},
+	"croc_brochet": {"name": "Croc de brochet", "slot": "bijou", "owner": "any", "passive": "venin", "rarity": 2, "foe": true},
+	"signet_algue": {"name": "Signet d'algue", "slot": "bijou", "owner": "any", "passive": "prelude", "rarity": 2},
 }
-const ITEM_ICON := {"epee_ecluse": "epee", "masse_os": "masse", "hallebarde": "hallebarde", "dague_ombre": "dague", "kriss": "dagues",
-	"lame_soif": "dague", "baton_braise": "baton", "sceptre_maree": "sceptre", "baton_lotus": "baton", "cle_meca": "cle", "canon_main": "canon",
-	"bandes_jade": "bandes", "chapelet": "bandes", "arc_frene": "arc", "arc_os": "arc", "marteau_forge": "marteau", "gantelets_ressac": "gantelet",
-	"arbalete_silure": "arbalete", "pinceau": "pinceau", "palette": "palette", "stylet": "stylet", "pied_biche": "piedbiche", "crochets": "crochets",
-	"gants_velours": "gants", "anneau_bouclier": "anneau", "bottes_heron": "bottes", "sandales_saut": "sandales", "amulette_regen": "amulette",
-	"plume_elan": "plume", "ecaille_eau": "ecaille", "oeil_vigilant": "oeil", "bracelet_fleches": "bracelet", "gantelet": "gantelet",
-	"miroir": "miroir", "bourse": "bourse", "coeur_pierre": "coeur"}
+const ITEM_ICON := {"epee_ecluse": "epee", "masse_os": "masse", "hallebarde": "hallebarde", "dague_ombre": "dague", "kriss": "dagues", "lame_soif": "dague", "baton_braise": "baton", "sceptre_maree": "sceptre", "baton_lotus": "baton", "cle_meca": "cle", "canon_main": "canon", "marteau_forge": "marteau", "bandes_jade": "bandes", "chapelet": "bandes", "gantelets_ressac": "gantelet", "arc_frene": "arc", "arc_os": "arc", "arbalete_silure": "arbalete", "pinceau": "pinceau", "palette": "palette", "stylet": "stylet", "pied_biche": "piedbiche", "crochets": "crochets", "gants_velours": "gants", "anneau_bouclier": "plastron", "oeil_vigilant": "dossiere", "bracelet_fleches": "brassards", "coeur_pierre": "cotte", "cuirasse_compagnie": "cuirasse_compagnie", "cotte_vase": "cotte_vase", "cire_passeur": "cire_passeur", "carapace_ecrevisse": "carapace_ecrevisse", "mantelet_feuilles": "mantelet_feuilles", "brigandine_noyee": "brigandine_noyee", "heaume_noye": "heaume_noye", "bottes_heron": "bottes", "sandales_saut": "crapaud", "ecaille_eau": "liege", "echasses_roseau": "echasses_roseau", "sabots_halage": "sabots_halage", "guetres_eclusier": "guetres_eclusier", "bottes_vase": "bottes_vase", "bottes_fuyard": "bottes_fuyard", "pas_passeur": "pas_passeur", "amulette_regen": "amulette", "plume_elan": "perle", "gantelet": "chevaliere", "miroir": "miroir", "bourse": "bourse", "dent_silure": "dent_silure", "medaille_rouillee": "medaille_rouillee", "bague_charognard": "bague_charognard", "lanterne_brume": "lanterne_brume", "croc_brochet": "croc_brochet", "signet_algue": "signet_algue"}
+const SLOTS := ["arme", "armure", "bottes", "bijou"]
+const SLOT_NAME := {"arme": "Arme", "armure": "Armure", "bottes": "Bottes", "bijou": "Bijou"}
 const PRICE := {1: 45, 2: 75, 3: 110}
 
 const PROPS := {
@@ -627,7 +651,13 @@ static func item_text(id: String) -> String:
 		parts.append("+%d PV max" % it.hp)
 	if it.passive != "":
 		parts.append("%s : %s" % [PASSIVES[it.passive].name, PASSIVES[it.passive].text])
-	var who: String = "Talisman" if it.slot == "talisman" else "Arme de %s" % HEROES[it.owner].name
+	if it.get("move", 0) != 0:
+		parts.append("%+d déplacement" % it.move)
+	if it.get("jump", 0) != 0:
+		parts.append("%+d saut" % it.jump)
+	if it.get("block0", 0) > 0:
+		parts.append("+%d armure au début du combat" % it.block0)
+	var who: String = "Arme de %s" % HEROES[it.owner].name if it.slot == "arme" else SLOT_NAME[it.slot]
 	return who + "\n" + " · ".join(parts)
 
 

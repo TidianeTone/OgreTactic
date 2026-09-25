@@ -27,7 +27,8 @@ var deck: Array = []
 var relics: Array = []
 var draw_pile: Array = []
 var discard: Array = []
-var played_turn: Array = []  # cartes jouées par le héros actif ce tour (affichées près de l'orbe)
+var played_turn: Array = []
+var _turns_of := {}  # tours joués par chaque héros ce combat (Grimoire humide : les deux premiers)  # cartes jouées par le héros actif ce tour (affichées près de l'orbe)
 var exhausted: Array = []
 var hand: Array = []
 var energy := 3
@@ -220,6 +221,10 @@ func start(hs: Array, foe_ids: Array, deck_ref: Array, relics_ref: Array) -> voi
 		var f: Unit = pool[rng.randi_range(0, pool.size() - 1)]
 		pool.erase(f)
 		f.make_champion(Data.AFFIXES.keys()[rng.randi_range(0, Data.AFFIXES.size() - 1)])
+	var gear_rate: float = clampf(0.08 * (main.fights - 1), 0.0, 0.45) if main.fights >= 2 else 0.0
+	for f in foes:
+		if f.key != "gardien" and not f.data.get("structure", false) and rng.randf() < gear_rate:
+			_equip_foe(f)
 	for f in foes:
 		if f.key != "gardien" and (f.affix != "" or rng.randf() < tool_rate):
 			f.tool = Data.FOE_TOOLS[rng.randi_range(0, Data.FOE_TOOLS.size() - 1)]
@@ -267,6 +272,7 @@ func start(hs: Array, foe_ids: Array, deck_ref: Array, relics_ref: Array) -> voi
 	power_val.clear()
 	bonus.clear()
 	_first_turn.clear()
+	_turns_of.clear()
 	trap_dmg.clear()
 	active = null
 	order = []
@@ -794,6 +800,8 @@ func _hero_turn(h: Unit) -> void:
 		+ (1 if not _first_turn.has(h) and h.trait_id == "matinal" else 0) + (1 if h.trait_id == "sang_chaud" and h.hp * 2 < h.max_hp else 0)
 	if not _first_turn.has(h) and h.trait_id == "costaud":
 		gain_block(h, 6)
+	if not _first_turn.has(h) and h.block0() > 0:
+		gain_block(h, h.block0())
 	if h.trait_id == "lourdaud":
 		gain_block(h, 4)
 	bonus.erase(h)
@@ -819,12 +827,14 @@ func _hero_turn(h: Unit) -> void:
 	hand = pl.keep
 	pl.keep = []
 	played_turn = []
+	_turns_of[h] = int(_turns_of.get(h, 0)) + 1
 	for ci in hand:
 		var cu := int(Data.card(ci).get("charge_up", 0))
 		if cu > 0:
 			ci["chg"] = mini(int(ci.get("chg", 0)) + cu, 3 * cu)
 	_start_draw = true
-	draw(hand_size + (1 if has("grimoire") else 0) + (1 if h.trait_id == "insomniaque" else 0) + ((1 + int(power_val.get("dnb", 0))) if h.key == "tidiane" and powers.has("dnb") else 0)
+	draw(hand_size + (1 if has("grimoire") and int(_turns_of.get(h, 0)) <= 2 else 0) + (1 if h.trait_id == "insomniaque" else 0)
+		+ (1 if h.has_p("prelude") and not _first_turn.has(h) else 0) + ((1 + int(power_val.get("dnb", 0))) if h.key == "tidiane" and powers.has("dnb") else 0)
 		+ (1 if tiles.get(h.cell, "") == "autel" else 0))
 	_extra_move.erase(h)
 	_start_draw = false
@@ -967,9 +977,17 @@ func _foe_turn(f: Unit) -> void:
 		await wait(0.3)
 		if not f.alive:
 			return
+	f.walked = false
 	var arm: int = int(f.data.get("armor", 0)) + f.extra_armor + (4 if mods.has("blindes") else 0)
+	if not _first_turn.has(f):
+		_first_turn[f] = true
+		arm += f.block0()
+	if f.has_p("bouclier"):
+		arm += 3
 	if arm > 0:
 		gain_block(f, arm)
+	if f.has_p("regen") and f.hp < f.max_hp:
+		heal(f, 2)
 	_tile_turn(f)
 	main.focus(f.position)
 	changed.emit()
@@ -1029,7 +1047,7 @@ func select_card(i: int) -> void:
 
 
 func cost_of(c: Dictionary) -> int:
-	if first_free or c.get("free", false):
+	if (first_free and int(Data.def(c.id).get("cost", 0)) == 1) or c.get("free", false):
 		return 0
 	var h := owner_of(c)
 	if h and h.triple and c.kind == "atk":
@@ -1327,7 +1345,8 @@ func play_card(i: int, t: Vector2i) -> void:
 	if cost < int(c.cost) and not first_free and h.has_p("economie"):
 		_eco_used[h] = true
 	energy -= cost
-	first_free = false
+	if int(Data.def(c.id).get("cost", 0)) == 1:
+		first_free = false  # Clepsydre verte : consommée par la première carte à 1
 	if h.triple and c.kind == "atk":
 		cost = 0
 	if c.has("xcost"):
@@ -1945,6 +1964,21 @@ func _dir(a: Vector2i, b: Vector2i) -> Vector2i:
 
 # ------------------------------------------------------------------ dégâts
 
+func _equip_foe(f: Unit) -> void:
+	## Une pièce (jamais une arme de classe), rareté selon l'étage ; elle se voit sur la fiche et se vole.
+	var rar := 1 + int(rng.randf() < 0.15 * main.floor_i) + int(main.floor_i >= 3 and rng.randf() < 0.2)
+	var ids: Array = Data.ITEMS.keys().filter(func(id): return Data.ITEMS[id].get("foe", false) and Data.ITEMS[id].rarity <= rar)
+	if ids.is_empty():
+		return
+	var id: String = ids[rng.randi_range(0, ids.size() - 1)]
+	f.equip[Data.ITEMS[id].slot] = id
+	var it: Dictionary = Data.ITEMS[id]
+	f.max_hp += int(it.get("hp", 0))
+	f.hp = f.max_hp
+	f.move = maxi(1, f.move + int(it.get("move", 0)) + int(it.passive == "deplacement"))
+	f.jump += int(it.get("jump", 0)) + 2 * int(it.passive == "saut")
+
+
 func calc(att: Unit, tgt: Unit, base: int, c := {}) -> Dictionary:
 	var mult := 1.0
 	var flat := att.gear_dmg()
@@ -1989,6 +2023,9 @@ func calc(att: Unit, tgt: Unit, base: int, c := {}) -> Dictionary:
 		flat += 2
 	if att.trait_id == "bagarreur" and not ranged:
 		flat += 2
+	if ranged and att.has_p("affut") and not att.walked:
+		flat += 2
+		notes.append("embusqué +2")
 	if att.trait_id == "fragile":
 		flat += 3
 	if not ranged and att.has_p("arme_plus"):
@@ -2036,6 +2073,8 @@ func damage(u: Unit, amount: int, src: Unit = null, show := true, ranged := fals
 		u.dodge()
 		return
 	var melee_hit: bool = src != null and not ranged and dist(src.cell, u.cell) == 1
+	if melee_hit and amount > 0 and src.side != u.side and src.has_p("venin"):
+		u.poison += 1
 	if u.blastproof and _blast and amount > 0:
 		Fx.number(main, u.position + Vector3(0, 0.6, 0), "Absorbé", Color(0.7, 0.85, 0.95))
 		gain_block(u, amount)
@@ -2142,7 +2181,15 @@ func kill(u: Unit, src: Unit = null) -> void:
 	u.hp = 0
 	u.die()
 	Fx.burst(main, u.position + Vector3(0, 0.5, 0), EMBER, 40, 3.5)
+	if u.side == "foe" and src and src.side != "foe" and src.has_p("charogne"):
+		gain_block(src, 4)
 	if u.side == "foe":
+		for sl in u.equip:
+			if u.equip[sl] != "" and (randf() < 0.1 or (src and src.has_p("main_leste"))):
+				main.bag.append(u.equip[sl])
+				Fx.number(main, u.position + Vector3(0, 1.6, 0), "Butin : " + Data.ITEMS[u.equip[sl]].name, GOLD_FX, true)
+				main.ui.toast("%s rejoint le sac." % Data.ITEMS[u.equip[sl]].name)
+				u.equip[sl] = ""
 		if u.mark > 0 and (u.bounty or trophy):
 			main.gold += (25 if u.bounty else 0) + (10 if trophy else 0)
 			main.ui.set_gold(main.gold)
@@ -2237,6 +2284,10 @@ func push(u: Unit, d: Vector2i, n: int) -> void:
 
 
 func _push_steps(u: Unit, d: Vector2i, n: int) -> void:
+	if u.has_p("ancre") and n > 0:
+		Fx.number(main, u.position, "Ancré", Color(0.7, 0.85, 0.95))
+		damage(u, 3 + crash_bonus)
+		return
 	for i in n:
 		if not u.alive:
 			return
@@ -2264,7 +2315,7 @@ func _push_steps(u: Unit, d: Vector2i, n: int) -> void:
 				Fx.number(main, u.position, "Coulé", Color(0.6, 0.85, 1.0), true)
 				kill(u)
 				return
-			if u.trait_id != "nageur":
+			if u.trait_id != "nageur" and not u.has_p("flotte"):
 				Fx.number(main, u.position, "Noyade", Color(0.6, 0.85, 1.0))
 				damage(u, 8 + (6 if has("cloche") and u.side == "foe" else 0))
 			if u.alive:
@@ -2823,9 +2874,8 @@ func sheet(u: Unit) -> String:
 	if u.side == "hero":
 		L.append("Trait — %s : %s" % [Data.TRAITS[u.trait_id].name, Data.TRAITS[u.trait_id].text])
 		L.append(main.voc_line(u))
-		for slot in ["arme", "talisman"]:
-			var id: String = u.equip[slot]
-			L.append("%s — %s" % [slot.capitalize(), "%s : %s" % [Data.ITEMS[id].name, Data.item_text(id)] if id != "" else "rien"])
+		var worn: Array = Data.SLOTS.filter(func(sl): return u.equip.get(sl, "") != "").map(func(sl): return Data.ITEMS[u.equip[sl]].name)
+		L.append("Équipement — %s" % (", ".join(worn) if worn.size() > 0 else "rien") + " · clic sur son portrait : la fiche")
 		if u.key == "receleur":
 			L.append("Bricole %d / 3" % bricole)
 		if tiles.has(u.cell):
@@ -2836,6 +2886,9 @@ func sheet(u: Unit) -> String:
 	var arm := int(u.data.get("armor", 0)) + u.extra_armor
 	if arm > 0:
 		L.append("Armure +%d à chaque tour" % arm)
+	for sl in u.equip:
+		if u.equip[sl] != "":
+			L.append("⚙ Équipé : %s — %s" % [Data.ITEMS[u.equip[sl]].name, Data.item_text(u.equip[sl]).split("\n")[1]])
 	if u.data.get("arme", "") == "magie":
 		L.append("Magie : ses coups passent sous l'armure.")
 	L.append("Prochaine action : %s" % intent(u))
@@ -3425,6 +3478,16 @@ func _add_bricole(h: Unit, n: int) -> void:
 
 func _steal(h: Unit, f: Unit) -> bool:
 	## Voler rapporte toujours : l'objet porté, sinon ce qui traîne dans ses poches ; besace pleine, on revend.
+	for sl in f.equip:
+		if f.tool == "" and f.equip[sl] != "":
+			var gid: String = f.equip[sl]
+			f.equip[sl] = ""
+			main.bag.append(gid)
+			stolen_turn += 1
+			_fourgue(h, true)
+			Fx.number(main, f.position + Vector3(0, 1.2, 0), "Volé : %s (au sac)" % Data.ITEMS[gid].name, GOLD_FX, true)
+			changed.emit()
+			return true
 	if f.tool == "":
 		var common: Array = Data.TOOLS.keys().filter(func(k): return Data.TOOLS[k].rar == 1)
 		f.tool = common[randi() % common.size()]
@@ -3542,6 +3605,8 @@ func _explode(c: Vector2i, dmg: int, cross := false) -> void:
 	## Explosion : dégâts autour, barils en chaîne, chênes qui flambent, bombes portées qui sautent.
 	if over:
 		return
+	if player_turn and active and active.has_p("meche"):
+		dmg += 2
 	Fx.burst(main, board.world(c) + Vector3(0, 0.6, 0), EMBER, 80, 5.0)
 	Fx.number(main, board.world(c), "Boum", EMBER, true)
 	main.shake(0.5)
