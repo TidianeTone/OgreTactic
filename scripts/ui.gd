@@ -265,7 +265,7 @@ func _build_hud() -> void:
 	for row in [["Clic", "héros, carte, case, objet de besace"], ["Clic ennemi", "épingler / retirer sa fiche"],
 			["Survol", "infos de la case ou de l'objet"], ["Clic droit", "annuler · maintenu : caméra"],
 			["ZQSD", "déplacer la caméra (clic droit tenu)"], ["Q / E · molette", "pivoter · zoomer"],
-			["Espace", "fin du tour"], ["Tab · 1 à 9", "recentrer · jouer une carte"],
+			["Espace · ← →", "fin du tour, puis orientation"], ["Tab · 1 à 9", "recentrer · jouer une carte"],
 			["Alt", "montrer les objets interactifs"], ["P · M", "paquet · musique"], ["H · Échap", "cette aide · menu"]]:
 		var k := _label(row[0], 14, Color("#ffe3a3"), title_f)
 		k.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -706,7 +706,7 @@ func refresh() -> void:
 			pw.append(Data.def(id).name)
 	powers_lbl.text = ("Pouvoirs : " + " · ".join(pw)) if pw.size() > 0 else ""
 	end_btn.disabled = not battle.player_turn or battle.busy
-	end_btn.text = "Fin du tour" if battle.active == null else "Fin · %s" % battle.active.nm
+	end_btn.text = "Fin du tour" if battle.active == null else ("Valider l'orientation" if battle.orienting else "Fin · %s" % battle.active.nm)
 	keys_plate.visible = battle.turn <= 1 or show_keys
 	var bsig := "%s|%d|%d|%d" % [JSON.stringify(battle.besace), battle.tool_sel, battle.besace_cap(), battle.bricole]
 	if bsig != _besace_sig:
@@ -1250,7 +1250,12 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 	for i in options.size():
 		var o: Dictionary = options[i]
 		var w: Control
-		if o.has("card"):
+		if o.has("hidden"):
+			w = Control.new()
+			w.custom_minimum_size = CARD * (0.8 if many else 1.2)
+			card_back(w, o.hidden)
+			w.tooltip_text = "%s à découvrir" % Data.RARITY_NAME[o.hidden]
+		elif o.has("card"):
 			w = make_card(o.card)
 			var holder := Control.new()
 			var sc_k := 0.8 if many else 1.2
@@ -1329,7 +1334,7 @@ func map_screen(title: String, subtitle: String, fmap: Array, step: int, lane: i
 	sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(sl)
 	var area := Control.new()
-	area.custom_minimum_size = Vector2(1000, 440)
+	area.custom_minimum_size = Vector2(1200, 440)
 	area.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var ac := CenterContainer.new()
 	ac.add_child(area)
@@ -1340,7 +1345,7 @@ func map_screen(title: String, subtitle: String, fmap: Array, step: int, lane: i
 	box.add_child(info)
 	var pos := func(k: int, i: int) -> Vector2:
 		var n: int = fmap[k].size()
-		return Vector2(90 + k * 205, 220 + (i - (n - 1) * 0.5) * 150)
+		return Vector2(70 + k * 1060.0 / maxi(1, fmap.size() - 1), 220 + (i - (n - 1) * 0.5) * 150)
 	for k in fmap.size() - 1:
 		for i in fmap[k].size():
 			for j in fmap[k][i].links:
@@ -1482,7 +1487,7 @@ func _close_overlay() -> void:
 	overlay = null
 
 
-func title_screen() -> void:
+func title_screen(resume := "") -> int:
 	_close_overlay()
 	overlay = Control.new()
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -1528,6 +1533,12 @@ func title_screen() -> void:
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	b.custom_minimum_size = Vector2(300, 60)
 	b.pressed.connect(func(): picked.emit(0))
+	var rs: Button
+	if resume != "":
+		rs = b.duplicate(0)
+		rs.text = "Reprendre la partie"
+		rs.pressed.connect(func(): picked.emit(2))
+		box.position.y -= 150
 	var lib := Button.new()
 	lib.text = "Bibliothèque · %d / %d cartes" % [main.library.size(), Data.all_ids().size()]
 	lib.flat = true
@@ -1539,6 +1550,16 @@ func title_screen() -> void:
 	var c := VBoxContainer.new()
 	c.alignment = BoxContainer.ALIGNMENT_CENTER
 	c.add_theme_constant_override("separation", 8)
+	if rs:
+		b.remove_theme_stylebox_override("normal")
+		b.add_theme_stylebox_override("normal", sb(Color(0.1, 0.09, 0.1, 0.9), GOLD, 12, 2, 10))
+		b.add_theme_color_override("font_color", INK)
+		var cr2 := CenterContainer.new()
+		cr2.add_child(rs)
+		c.add_child(cr2)
+		var ri := _shadowed(_label(resume, 15, GOLD), 4)
+		ri.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		c.add_child(ri)
 	var cb := CenterContainer.new()
 	cb.add_child(b)
 	c.add_child(cb)
@@ -1547,9 +1568,10 @@ func title_screen() -> void:
 	c.add_child(cl)
 	box.add_child(c)
 	if Input.get_connected_joypads().size() > 0:
-		b.grab_focus.call_deferred()
+		(rs if rs else b).grab_focus.call_deferred()
+	var k := 0
 	while true:
-		var k: int = await picked
+		k = await picked
 		if k != 1:
 			break
 		overlay.visible = false
@@ -1563,6 +1585,7 @@ func title_screen() -> void:
 	tw.tween_property(overlay, "modulate:a", 0.0, 0.4)
 	await tw.finished
 	_close_overlay()
+	return k
 
 
 func game_over(victory: bool, summary: String) -> void:
@@ -1571,6 +1594,18 @@ func game_over(victory: bool, summary: String) -> void:
 
 
 # ------------------------------------------------------------------ vocation : l'explication
+
+func card_back(holder: Control, rar: int) -> void:
+	## Dos de carte : une carte pas encore découverte, seule sa rareté se devine.
+	var back := _panel(holder, sb(Color("#141216"), Data.RARITY_COL[rar].darkened(0.45), 10, 2, 6))
+	back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var q := _label("?", 48, Data.RARITY_COL[rar].darkened(0.3), title_f)
+	q.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	back.add_child(q)
+
 
 func vocation_intro(h: Unit) -> void:
 	## Premier palier de maîtrise : ce qui se passe, et les sept guildes que ce héros peut former.
@@ -1609,7 +1644,7 @@ func vocation_intro(h: Unit) -> void:
 	txt.text = ("[center]Comme dans Final Fantasy Tactics, [color=#e3b45c]%s choisit une vocation[/color] : une deuxième classe.\n" +
 		"Chaque paire de classes forme une [color=#e3b45c]guilde[/color], avec sa règle et ses cartes à elle : 28 guildes, 168 cartes.\n" +
 		"Ses butins gagnent une [color=#e3b45c]case bonus[/color] : cartes de sa vocation et de sa guilde, sans jamais prendre la place d'une carte de classe.\n" +
-		"[color=#6fb0e0]Maîtrise II[/color] : communes et peu communes de la guilde · [color=#ffcf5a]III[/color] (%d points) : ses trois rares · [color=#ff8a3d]IV[/color] (%d points) : sa légendaire.[/center]") % [h.nm, Data.MASTERY[3], Data.MASTERY[4]]
+		"Et plus il combat, plus la guilde se dévoile.[/center]") % h.nm
 	var tc := CenterContainer.new()
 	tc.add_child(txt)
 	box.add_child(tc)
@@ -1762,13 +1797,7 @@ func library_screen() -> void:
 					holder.add_child(w)
 				else:
 					var rar: int = Data.def(id).get("rar", 1)
-					var back := _panel(holder, sb(Color("#141216"), Data.RARITY_COL[rar].darkened(0.45), 10, 2, 6))
-					back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-					var q := _label("?", 48, Data.RARITY_COL[rar].darkened(0.3), title_f)
-					q.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-					q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-					q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-					back.add_child(q)
+					card_back(holder, rar)
 					holder.tooltip_text = "%s à découvrir" % Data.RARITY_NAME[rar]
 				flow.add_child(holder)
 	for t in [["Classes", "classes"], ["Guildes", "guildes"]]:

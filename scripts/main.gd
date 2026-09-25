@@ -1,7 +1,7 @@
 extends Node3D
 ## Monde (lumière, caméra), boucle de run, entrées, mode capture pour le critique.
 
-const ROOMS_PER_FLOOR := 5
+const ROOMS_PER_FLOOR := 7
 const CENTER := Vector3(7.5, 1.2, 7.5)
 
 var ui: UI
@@ -123,6 +123,8 @@ func _ready() -> void:
 		_cardtest.call_deferred()
 	elif args.has("voctest"):
 		_voctest.call_deferred()
+	elif args.has("savetest"):
+		_savetest.call_deferred()
 	elif args.has("capture"):
 		_capture.call_deferred()
 	else:
@@ -354,7 +356,8 @@ func _feed_units() -> void:
 
 
 func abandon() -> void:
-	## Retour à l'écran titre : la scène repart de zéro.
+	## Retour à l'écran titre : la scène repart de zéro, la sauvegarde avec.
+	_clear_save()
 	get_tree().reload_current_scene()
 
 
@@ -511,8 +514,10 @@ func _unhandled_input(e: InputEvent) -> void:
 			KEY_E:
 				if not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
 					yaw += 90.0
-			KEY_SPACE:
+			KEY_SPACE, KEY_ENTER:
 				battle.end_turn()
+			KEY_LEFT, KEY_RIGHT:
+				battle.turn_facing(1 if e.keycode == KEY_RIGHT else -1)
 			KEY_P:
 				view_deck()
 			KEY_H:
@@ -544,8 +549,10 @@ func _title() -> void:
 	dist = 34.0
 	pitch = 30.0
 	_snap_cam()
-	await ui.title_screen()
+	var k: int = await ui.title_screen(_save_info())
 	orbit = false
+	if k == 2 and _load_run():
+		return
 	new_run()
 
 
@@ -595,6 +602,8 @@ func new_run() -> void:
 	party = await _draft()
 	floor_i = 1
 	step = 0
+	fmap = []
+	_no_save = false
 	fights = 0
 	gold = 40
 	floor_biomes = range(Data.BIOMES.size())
@@ -689,11 +698,13 @@ func _loop() -> void:
 		if type in ["combat", "elite", "boss"]:
 			var won: bool = await _fight(type)
 			if not won:
+				_clear_save()
 				await ui.game_over(false, "Étage %d, %d combats remportés, %d min, difficulté %d/5." % [floor_i, fights, _minutes(), difficulty + 1])
 				new_run.call_deferred()
 				return
 			await _post_fight(type)
 			if type == "boss":
+				_clear_save()
 				await ui.game_over(true, "Le Gardien est tombé : %d combats, %d min, difficulté %d/5." % [fights, _minutes(), difficulty + 1])
 				new_run.call_deferred()
 				return
@@ -707,6 +718,7 @@ func _loop() -> void:
 		if step >= ROOMS_PER_FLOOR:
 			floor_i += 1
 			step = 0
+			fmap = []
 
 
 func _post_fight(type: String) -> void:
@@ -730,9 +742,10 @@ func _post_fight(type: String) -> void:
 
 func _door() -> String:
 	## Carte de l'étage, tirée à la première salle : on voit où mène chaque chemin.
-	if step == 0:
+	if step == 0 and fmap.is_empty():
 		await _ancient()
 		_gen_map()
+	_save_run()
 	var nexts: Array = range(fmap[step].size()) if lane < 0 else fmap[step - 1][lane].links
 	while true:
 		var i := await ui.map_screen("ÉTAGE %d" % floor_i, "%s · salle %d / %d · %d or · difficulté %d/5" % [Data.BIOMES[_biome()].name, step + 1, ROOMS_PER_FLOOR, gold, difficulty + 1],
@@ -757,7 +770,7 @@ func _door() -> String:
 
 
 func _gen_map() -> void:
-	## Trois voies, reliées aux voisines ; marchand au milieu de l'étage, sanctuaire avant le gardien.
+	## Trois voies, reliées aux voisines ; marchand au milieu de l'étage, sanctuaire et second marchand avant le gardien.
 	fmap = []
 	visited = []
 	lane = -1
@@ -771,10 +784,12 @@ func _gen_map() -> void:
 				t = "boss" if floor_i == 3 else "elite"
 			elif k == 0:
 				t = "combat"
-			elif k == 2 and i == 1:
+			elif k == 3 and i == 1:
 				t = "marchand"
 			elif k == ROOMS_PER_FLOOR - 2 and i == 1:
 				t = "sanctuaire"
+			elif k == ROOMS_PER_FLOOR - 2 and i == 2:
+				t = "marchand"  # un dernier passage avant le gardien
 			var arch: String = Board.ARCHETYPES[rng.randi_range(0, 3)]
 			while i > 0 and arch == row[i - 1].arch:
 				arch = Board.ARCHETYPES[rng.randi_range(0, 3)]
@@ -1031,10 +1046,13 @@ func _choose_vocation(h: Unit, second := false) -> void:
 		h.voc = k
 	var g := Guildes.index(h.key, k)
 	var gl: Array = Guildes.LIST[g]
-	var shown: Array = Guildes.cards_of(g, [1, 2] if mastery(h) < 3 and not relics.has("sceau") else [1, 2, 3])
-	shown.append_array(Guildes.cards_of(g, [4]))
-	await ui.choose(gl[2].to_upper(), "%s + %s · %s  —  ces cartes peuvent désormais sortir dans ses butins (la légendaire à la maîtrise IV)." % [h.nm, Data.HEROES[k].name, gl[3]],
-		shown.map(func(id): return {"card": {"id": id, "lvl": 1, "h": h.key}}), true, "En avant")
+	# pas de divulgâchage : ce qui n'est pas encore débloqué reste un dos de carte
+	var open: Array = [1, 2] if mastery(h) < 3 and not relics.has("sceau") else [1, 2, 3]
+	var shown: Array = []
+	for id in Guildes.cards_of(g):
+		var rar: int = Guildes.CARDS[id].rar
+		shown.append({"card": {"id": id, "lvl": 1, "h": h.key}} if open.has(rar) else {"hidden": rar})
+	await ui.choose(gl[2].to_upper(), "%s + %s · %s" % [h.nm, Data.HEROES[k].name, gl[3]], shown, true, "En avant")
 
 
 func _voc_pool(h: Unit) -> Array:
@@ -1129,11 +1147,98 @@ func library_see(id: String) -> void:
 		_save_library.call_deferred()
 
 
+# ------------------------------------------------------------------ sauvegarde de la run
+
+var save_path := "user://partie.sav"
+const HERO_KEEP := ["trait_id", "hp", "base_hp", "base_move", "base_jump", "equip", "pj", "voc", "voc2", "legend_seen"]
+var _no_save := false       # la run est finie : plus rien à reprendre
+
+
+func _save_run() -> void:
+	## Point de reprise entre deux salles : tout l'état de la run, pas le combat en cours.
+	if _testing() or _no_save:
+		return
+	var d := {"v": 1, "mode": mode, "difficulty": difficulty, "pacts": pacts, "party": party, "floor_i": floor_i, "step": step,
+		"fights": fights, "gold": gold, "floor_biomes": floor_biomes, "bag": bag, "relics": relics, "deck": deck, "besace": besace,
+		"besace_max": besace_max, "voc_intro_done": voc_intro_done, "run_seed": run_seed, "rng": rng.state, "minutes": _minutes(),
+		"fmap": fmap, "lane": lane, "visited": visited, "heroes": []}
+	for h in heroes:
+		var hd := {}
+		for k in HERO_KEEP:
+			hd[k] = h.get(k)
+		d.heroes.append(hd)
+	if mode == "aventure" and leader:
+		d["leader"] = leader.cell
+		d["rooms"] = rooms.map(func(r):
+			var c: Dictionary = r.duplicate()
+			c.erase("node")
+			c.erase("fog")
+			return c)
+	var f := FileAccess.open(save_path, FileAccess.WRITE)
+	if f:
+		f.store_string(var_to_str(d))
+
+
+func _read_save() -> Dictionary:
+	if not FileAccess.file_exists(save_path):
+		return {}
+	var d = str_to_var(FileAccess.get_file_as_string(save_path))
+	return d if d is Dictionary and d.get("v", 0) == 1 else {}
+
+
+func _save_info() -> String:
+	var d := _read_save()
+	if d.is_empty():
+		return ""
+	var noms: String = ", ".join(d.party.map(func(k): return Data.HEROES[k].name))
+	return "Étage %d · %s · %s" % [d.floor_i, "Aventure" if d.mode == "aventure" else "Descente", noms]
+
+
+func _clear_save() -> void:
+	_no_save = true
+	if not _testing() and FileAccess.file_exists(save_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(save_path))
+
+
+func _load_run() -> bool:
+	var d := _read_save()
+	if d.is_empty():
+		return false
+	_no_save = false
+	difficulty = int(d.difficulty)  # variable statique : set() ne l'atteint pas
+	for k in ["mode", "pacts", "party", "floor_i", "step", "fights", "gold", "floor_biomes", "bag", "relics", "deck",
+			"besace", "besace_max", "voc_intro_done", "run_seed", "fmap", "lane", "visited"]:
+		set(k, d[k])
+	run_start = Time.get_ticks_msec() - int(d.minutes) * 60000
+	_make_party()
+	for i in heroes.size():
+		for k in HERO_KEEP:
+			heroes[i].set(k, d.heroes[i][k])
+		heroes[i].apply_gear()
+		heroes[i].hp = int(d.heroes[i].hp)
+	rng.seed = run_seed
+	rng.state = d.rng
+	for ci in deck:
+		library_see(ci.id)
+	ui.refresh_relics(relics)
+	ui.set_gold(gold)
+	ui.banner("Reprise", "Étage %d" % floor_i)
+	if mode == "aventure":
+		_adventure(d)
+	else:
+		_loop()
+	return true
+
+
+func _testing() -> bool:
+	## Les essais n'écrivent ni dans la bibliothèque ni dans la sauvegarde du joueur.
+	return ["autoplay", "uitest", "advtest", "capture", "cardtest", "voctest"].any(func(k): return args.has(k))
+
+
 func _save_library() -> void:
 	_lib_dirty = false
-	for k in ["autoplay", "uitest", "advtest", "capture", "cardtest", "voctest"]:
-		if args.has(k):
-			return  # les essais n'écrivent pas dans la bibliothèque du joueur
+	if _testing():
+		return
 	var cf := ConfigFile.new()
 	for id in library:
 		cf.set_value("cartes", id, true)
@@ -1194,21 +1299,22 @@ func _merchant() -> void:
 		var id := _roll_item()
 		if not stock.has(id):
 			stock.append(id)
-	var card := {"id": _card_roll(2), "lvl": 2}
+	var shelf := _shelf_stock()
 	var tstock: Array = [_tool_roll(), _tool_roll(3)]
 	var healed := false
+	await _shelf(shelf)
 	while true:
 		var opts: Array = []
 		for id in stock:
 			opts.append(_item_opt(id, Data.PRICE[Data.ITEMS[id].rarity]))
 		for id in tstock:
 			opts.append({"title": "%s  ·  %d or" % [Data.TOOLS[id].name, _tool_price(id)], "image": "res://assets/ui/tool_%s.png" % id, "text": "Besace — " + Data.TOOLS[id].text, "color": Color("#7fe0c8")})
-		if card:
-			opts.append({"title": "%s niv 2  ·  50 or" % Data.CARDS[card.id].name, "glyph": "✦", "text": Data.card_text(Data.card(card))})
 		if not healed:
 			opts.append({"title": "Soins  ·  35 or", "glyph": "✚", "text": "Chaque héros récupère 50 % de ses PV max."})
 		opts.append({"title": "Épurer  ·  40 or", "glyph": "✂", "text": "Retirer une carte du paquet."})
 		opts.append({"title": "Forge  ·  35 or", "glyph": "⚒", "text": "Une carte du paquet gagne un niveau."})
+		if shelf.size() > 0:
+			opts.append({"title": "Étal de cartes", "glyph": "✦", "text": "Encore %d carte(s) à vendre." % shelf.size(), "color": UI.GOLD})
 		var i := await ui.choose("MARCHAND", "Vous avez %d or" % gold, opts, true)
 		if i < 0:
 			return
@@ -1233,16 +1339,16 @@ func _merchant() -> void:
 			tstock.remove_at(i - stock.size())
 			_gain_tool(tid)
 		else:
-			var rest: Array = ["card", "heal", "purge", "forge"].filter(func(k): return (k != "card" or card) and (k != "heal" or not healed))
+			var rest: Array = ["heal", "purge", "forge", "shelf"].filter(func(k): return (k != "heal" or not healed) and (k != "shelf" or shelf.size() > 0))
 			var k: String = rest[i - stock.size() - tstock.size()]
-			var price: int = {"card": 50, "heal": 35, "purge": 40, "forge": 35}[k]
+			if k == "shelf":
+				await _shelf(shelf)
+				continue
+			var price: int = {"heal": 35, "purge": 40, "forge": 35}[k]
 			if gold < price:
 				ui.toast("Pas assez d'or.")
 				continue
-			if k == "card":
-				deck.append(card)
-				card = {}
-			elif k == "heal":
+			if k == "heal":
 				for h in heroes:
 					h.hp = mini(h.max_hp, h.hp + h.max_hp / 2)
 				healed = true
@@ -1257,6 +1363,50 @@ func _merchant() -> void:
 				deck.remove_at(j)
 			gold -= price
 		ui.set_gold(gold)
+
+
+func _shelf_stock() -> Array:
+	## L'étal à la Slay the Spire : deux communes, deux peu communes, une rare, une carte de guilde si quelqu'un a sa vocation.
+	var out: Array = []
+	for r0 in [1, 1, 2, 2, 3]:
+		var taken: Array = out.map(func(o): return o.card.id)
+		var ids: Array = []
+		var rar: int = r0
+		while ids.is_empty() and rar <= 3:  # les communes sont souvent toutes au paquet de départ : on monte d'un cran
+			ids = Data.CARDS.keys().filter(func(id): return party.has(Data.CARDS[id].owner) and Data.CARDS[id].get("rar", 1) == rar 				and not Data.STARTER[Data.CARDS[id].owner].has(id) and not taken.has(id))
+			if ids.is_empty():
+				rar += 1
+		if ids.size() > 0:
+			out.append({"card": {"id": ids[rng.randi_range(0, ids.size() - 1)], "lvl": 1}, "price": [0, 50, 75, 150][rar] + rng.randi_range(-2, 2) * 5})
+	var hs: Array = heroes.filter(func(u): return u.voc != "")
+	if hs.size() > 0:
+		var h: Unit = hs[rng.randi_range(0, hs.size() - 1)]
+		var pool := _voc_pool(h).filter(func(id): return Data.def(id).get("rar", 1) < 4)
+		if pool.size() > 0:
+			var id: String = pool[rng.randi_range(0, pool.size() - 1)]
+			out.append({"card": {"id": id, "lvl": 1, "h": h.key}, "price": [0, 75, 100, 175][Data.def(id).get("rar", 1)], "voc": "guilde" if Guildes.CARDS.has(id) else "vocation"})
+	if out.size() > 0:
+		var sale: Dictionary = out[rng.randi_range(0, out.size() - 1)]
+		sale.price /= 2
+		sale["sale"] = true
+	return out
+
+
+func _shelf(shelf: Array) -> void:
+	while shelf.size() > 0:
+		var opts: Array = shelf.map(func(o):
+			var who: String = Data.HEROES[Data.holder(o.card)].name
+			return {"card": o.card, "tag": ("✦ %d or · soldée · %s" if o.has("sale") else ("✦ %d or · " + o.voc + " · %s" if o.has("voc") else "%d or · %s")) % [o.price, who]})
+		var i := await ui.choose("ÉTAL DE CARTES", "Vous avez %d or · une carte achetée rejoint le paquet de son héros" % gold, opts, true, "Voir les objets et services")
+		if i < 0:
+			return
+		if gold < shelf[i].price:
+			ui.toast("Pas assez d'or.")
+			continue
+		gold -= shelf[i].price
+		ui.set_gold(gold)
+		deck.append(shelf[i].card)
+		shelf.remove_at(i)
 
 
 func _relic_pick(title: String, subtitle: String) -> void:
@@ -1594,6 +1744,83 @@ func _voctest() -> void:
 	_shot(dir, "6_bibliotheque_guildes")
 	ui.picked.emit(-1)
 	await _frames(10)
+	gold = 240
+	var f5 := func(): await _shelf(_shelf_stock())
+	f5.call()
+	await _frames(40)
+	_shot(dir, "7_etal")
+	ui.picked.emit(-1)
+	await _frames(10)
+	floor_i = 1
+	step = 0
+	lane = -1
+	_gen_map()
+	var f6 := func(): await ui.map_screen("ÉTAGE 1", "test", fmap, step, lane, [0, 1, 2], visited, "Équipement")
+	f6.call()
+	await _frames(40)
+	_shot(dir, "8_carte")
+	ui.picked.emit(0)
+	await _frames(10)
+	var f7 := func(): await ui.title_screen("Étage 2 · Descente · Garde, Lame, Oracle")
+	f7.call()
+	await _frames(40)
+	_shot(dir, "9_titre")
+	ui.picked.emit(0)
+	await _frames(40)
+	ui.show_hud(true)
+	battle.start(heroes, Data.ENCOUNTERS[1][0], deck, relics)
+	while not battle.player_turn:
+		await get_tree().process_frame
+	battle.orienting = true
+	battle._orient_from = battle.active.facing
+	pad = true  # la souris ne reprend pas la main
+	hover = battle.active.cell + Vector2i(1, 0)
+	refresh_hover()
+	focus(battle.active.position)
+	dist = 13.0
+	ui.refresh()
+	await _frames(40)
+	_shot(dir, "10_orientation")
+	get_tree().quit()
+
+
+func _savetest() -> void:
+	## Sauvegarde puis reprise, en Descente et en Aventure, dans un fichier à part.
+	save_path = "user://essai_partie.sav"
+	var fail := func(m): print("ÉCHEC : ", m)
+	run_seed = 7
+	rng.seed = run_seed
+	floor_biomes = [0, 1, 2]
+	deck = Data.starter(party)
+	_make_party()
+	heroes[1].pj = 5
+	heroes[1].voc = "oracle"
+	heroes[0].equip.arme = "masse_os"
+	gold = 123
+	mode = "descente"
+	_gen_map()
+	_save_run()
+	var d := _read_save()
+	if d.is_empty() or d.fmap.size() != ROOMS_PER_FLOOR or d.gold != 123 or d.heroes[1].voc != "oracle":
+		fail.call("descente")
+	mode = "aventure"
+	_gen_dungeon()
+	rooms[1].done = true
+	rooms[2].seen = true
+	var types: Array = rooms.map(func(r): return r.type)
+	if types.count("marchand") < 2:
+		fail.call("second marchand : %s" % [types])
+	_save_run()
+	gold = 0
+	heroes[1].voc = ""
+	_load_run()
+	await _frames(5)
+	if gold != 123 or heroes[1].voc != "oracle" or heroes[1].pj != 5 or heroes[0].equip.arme != "masse_os":
+		fail.call("héros ou or")
+	if rooms.map(func(r): return r.type) != types or not rooms[1].done or not rooms[2].seen:
+		fail.call("donjon")
+	_clear_save()
+	print("SAUVEGARDE OK" if not FileAccess.file_exists(save_path) else "ÉCHEC : fichier resté")
 	get_tree().quit()
 
 
@@ -1851,19 +2078,24 @@ func _pick_mode() -> String:
 	return ["descente", "aventure"][i]
 
 
-func _adventure() -> void:
+func _adventure(saved := {}) -> void:
 	## Trois étages de donjon ; un gardien d'élite garde l'escalier, le Gardien de l'Écluse attend au dernier.
 	while true:
-		_gen_dungeon()
+		_gen_dungeon(saved)
 		_show_dungeon()
-		await _ancient()
+		if saved.is_empty():
+			await _ancient()
+		saved = {}
+		_save_run()
 		_explore_hud()
 		var r: String = await floor_done
 		if r == "lost":
+			_clear_save()
 			await ui.game_over(false, "Étage %d, %d combats remportés, %d min, difficulté %d/5." % [floor_i, fights, _minutes(), difficulty + 1])
 			new_run.call_deferred()
 			return
 		if r == "won":
+			_clear_save()
 			await ui.game_over(true, "Le Gardien est tombé : %d combats, %d min, difficulté %d/5." % [fights, _minutes(), difficulty + 1])
 			new_run.call_deferred()
 			return
@@ -1871,7 +2103,7 @@ func _adventure() -> void:
 		ui.banner("Étage %d" % floor_i, Data.BIOMES[_biome()].name)
 
 
-func _gen_dungeon() -> void:
+func _gen_dungeon(saved := {}) -> void:
 	var b: Dictionary = Data.BIOMES[_biome()]
 	if aboard == null:
 		aboard = Board.new()
@@ -1915,6 +2147,17 @@ func _gen_dungeon() -> void:
 	while deck_types.size() < others.size():
 		deck_types.append(fill[fi % fill.size()])
 		fi += 1
+	# un second marchand dans une salle voisine du gardien : le dernier passage avant le combat
+	for l in aboard.links:
+		var nb: int = l[1] if l[0] == far else (l[0] if l[1] == far else -1)
+		var j := others.find(nb)
+		if j < 0 or j >= others.size():
+			continue
+		var f := range(others.size()).filter(func(x): return x != j and deck_types[x] in ["mystere", "reserve", "vide", "coffre"])
+		if f.size() > 0:
+			deck_types[f[0]] = deck_types[j]
+			deck_types[j] = "marchand"
+		break
 	rooms = []
 	for k in aboard.rects.size():
 		var t: String = "depart"
@@ -1936,9 +2179,15 @@ func _gen_dungeon() -> void:
 			mods.append(Data.MODIFIERS.keys()[rng.randi_range(0, Data.MODIFIERS.size() - 1)])
 		var r := {"rect": aboard.rects[k], "type": t, "cell": aboard._nearest_walkable(aboard.rects[k].get_center()), "ids": ids,
 			"arch": Board.ARCHETYPES[rng.randi_range(0, 3)], "mods": mods, "done": t in ["depart", "vide"], "seen": false, "node": null, "fog": null}
+		if saved.has("rooms"):
+			r = saved.rooms[k].duplicate()  # reprise : le donjon tel qu'on l'a laissé
+			r["node"] = null
+			r["fog"] = null
 		rooms.append(r)
-		r.node = _room_node(r)
-		r.fog = _fog(r.rect)
+		if not r.done:
+			r.node = _room_node(r)
+		if not r.seen:
+			r.fog = _fog(r.rect)
 	leader = Unit.new()
 	leader.setup(party[0], "hero")
 	adv_root.add_child(leader)
@@ -1952,7 +2201,15 @@ func _gen_dungeon() -> void:
 		f.visible = false
 		followers.append(f)
 	trail.clear()
-	_reveal(start_i, true)
+	if saved.has("leader"):
+		leader.place(saved.leader, aboard)
+		for f in followers:
+			f.place(leader.cell, aboard)
+		for k in rooms.size():
+			if rooms[k].seen:
+				_reveal(k, true)
+	else:
+		_reveal(start_i, true)
 
 
 func _room_index(rects: Array, c: Vector2i) -> int:
@@ -2179,6 +2436,8 @@ func _adv_click(goal: Vector2i) -> void:
 			break
 	_adv_busy = false
 	_adv_hover = null
+	if exploring:
+		_save_run()
 
 
 func _adv_trigger(c: Vector2i) -> int:
@@ -2230,6 +2489,10 @@ func _adv_event(k: int) -> void:
 			open_chest(heroes[0])
 			_explore_hud()
 		"marchand":
+			r.done = true  # un seul passage : l'étal ne se regarnit pas
+			if r.node:
+				r.node.queue_free()
+				r.node = null
 			await _merchant()
 			_explore_hud()
 		"sanctuaire":

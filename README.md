@@ -16,10 +16,14 @@ dans Blender par script (`blender/`).
   vocation, 3 rares à la maîtrise III, une légendaire à la maîtrise IV). La carte de vocation arrive dans une case
   bonus du butin, en plus des trois cartes de classe.
 - Bibliothèque (écran titre) : toutes les cartes déjà croisées, gardées d'une partie à l'autre.
+- Fin du tour à la FFT : le héros choisit où il regarde (son dos est exposé) ; les ennemis se tournent vers le héros le plus proche.
+- Marchand : un étal de cartes à la Slay the Spire (dont une carte de guilde et une soldée), objets, soins, épuration, forge.
+  Un seul passage ; un second marchand attend avant le gardien.
+- Étages de 7 salles. La run se sauvegarde entre deux salles : « Reprendre la partie » à l'écran titre.
 
 ## Commandes
 
-- Clic : choisir un héros, une carte, une case · Espace : fin du tour
+- Clic : choisir un héros, une carte, une case · Espace : fin du tour, puis orientation (souris ou ← →, Espace pour valider)
 - Clic droit maintenu : caméra libre (ZQSD) · Q/E : pivoter · molette : zoom
 - P : voir le paquet · M : couper la musique · H : aide · Alt : objets interactifs · Échap : menu
 - Manette Xbox prise en charge
@@ -39,7 +43,8 @@ dans Blender par script (`blender/`).
 - Tests : `godot --headless --script res://tests/check.gd`
 - Partie automatique : `godot --path . -- --autoplay=6`
 - Chaque carte de guilde jouée en combat : `godot --headless --path . -- --cardtest --party=garde,lame,tidiane`
-- Captures des écrans de vocation : `godot --path . -- --voctest=DOSSIER`
+- Captures des écrans de vocation, de l'étal, de la carte, du titre et de l'orientation : `godot --path . -- --voctest=DOSSIER`
+- Sauvegarde et reprise (Descente et Aventure) : `godot --path . -- --savetest`
 - Régénérer les modèles : `blender -b --factory-startup -P blender/gen_chars.py`
 
 Polices libres (SIL OFL / licence Bitstream Vera) : Fraunces, Lato, DejaVu Sans Mono, Noto Sans Math, Noto Emoji.

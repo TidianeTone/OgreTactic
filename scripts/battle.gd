@@ -10,6 +10,9 @@ const EMBER := Color(1.0, 0.55, 0.22)
 const DMG_COL := Color(1.0, 0.93, 0.7)
 
 var main: Node3D
+var orienting := false      # fin du tour à la FFT : le héros choisit où il regarde
+var _orient_from := Vector2i.ZERO
+var _orient_mark: Label3D    # flèche dorée sur la case regardée, visible à travers le décor
 var board: Board
 var units_root: Node3D
 var heroes: Array = []
@@ -568,6 +571,17 @@ func draw(n: int) -> void:
 func end_turn() -> void:
 	if not player_turn or busy or over:
 		return
+	if not orienting and active and active.alive and not main._testing():
+		# d'abord l'orientation : le dos exposé compte (coups de dos, pièges, Tenaille)
+		orienting = true
+		_orient_from = active.facing
+		card_sel = -1
+		tool_sel = -1
+		main.ui.banner("Orientation", "Où regarde %s ? · souris, flèches ou manette, puis clic ou Espace" % active.nm)
+		main.refresh_hover()
+		changed.emit()
+		return
+	orienting = false
 	player_turn = false
 	card_sel = -1
 	tool_sel = -1
@@ -642,6 +656,12 @@ func _foe_turn(f: Unit) -> void:
 		var e: Array = _enclume_q.pop_front()
 		await _enclume(e[0], e[1])
 	f.mark = maxi(0, f.mark - 1)
+	if f.alive:
+		# fin de tour : il se tourne vers le héros le plus proche, comme un joueur prudent
+		var hs := alive_heroes()
+		hs.sort_custom(func(a, b): return dist(a.cell, f.cell) < dist(b.cell, f.cell))
+		if hs.size() > 0:
+			f.face(hs[0].cell - f.cell)
 	await wait(0.2)
 	main.focus(null)
 
@@ -660,7 +680,7 @@ func select(u: Unit) -> void:
 
 
 func select_card(i: int) -> void:
-	if not player_turn or busy or i >= hand.size():
+	if not player_turn or busy or orienting or i >= hand.size():
 		return
 	tool_sel = -1
 	if card_sel == i:
@@ -702,6 +722,11 @@ func cost_of(c: Dictionary) -> int:
 
 func click(c: Vector2i) -> void:
 	if not player_turn or busy or over:
+		return
+	if orienting:
+		if c != active.cell:
+			active.face(c - active.cell)
+		end_turn()
 		return
 	if tool_sel >= 0:
 		if tool_sel < besace.size() and selected and tool_targets(besace[tool_sel], selected).has(c):
@@ -760,7 +785,21 @@ func toggle_inspect(u: Unit) -> void:
 	main.refresh_hover()
 
 
+func turn_facing(s: int) -> void:
+	## Flèches gauche/droite pendant l'orientation : un quart de tour.
+	if orienting:
+		active.facing = Vector2i(-active.facing.y * s, active.facing.x * s)
+		main.pad = true  # la souris ne reprend pas la main tant qu'elle ne bouge pas
+		refresh_highlight(null)
+
+
 func cancel() -> void:
+	if orienting:
+		orienting = false
+		active.facing = _orient_from
+		main.refresh_hover()
+		changed.emit()
+		return
 	if inspect:
 		inspect = null
 		main.refresh_hover()
@@ -1918,6 +1957,33 @@ func foe_strike(f: Unit, h: Unit) -> void:
 func refresh_highlight(hover) -> void:
 	## Pas de grille permanente : contours pour la portée, cases pleines pour les choix.
 	var cells := {}
+	if _orient_mark:
+		_orient_mark.visible = orienting and active != null
+	if orienting and active:
+		if hover != null and hover != active.cell:
+			active.face(hover - active.cell)
+		if _orient_mark == null:
+			_orient_mark = Label3D.new()
+			_orient_mark.text = "⇩"
+			_orient_mark.font = Fx.title_font()
+			_orient_mark.font_size = 120
+			_orient_mark.pixel_size = 0.006
+			_orient_mark.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			_orient_mark.no_depth_test = true
+			_orient_mark.modulate = Color(1.0, 0.82, 0.35)
+			_orient_mark.outline_size = 20
+			_orient_mark.outline_modulate = Color(0.1, 0.05, 0.02, 0.9)
+			_orient_mark.render_priority = 10
+			_orient_mark.outline_render_priority = 9
+			units_root.add_child(_orient_mark)
+		_orient_mark.visible = true
+		var fp := board.world(active.cell + active.facing)
+		_orient_mark.position = Vector3(fp.x, maxf(fp.y, active.position.y) + 0.8, fp.z)
+		for d in Board.DIRS:
+			if board._in(active.cell + d):
+				cells[active.cell + d] = Color(1.0, 0.82, 0.35, 0.95) if d == active.facing else 					(Color(1.0, 0.3, 0.22, 0.45) if d == -active.facing else Color(1, 1, 1, 0.3))
+		board.highlight(cells)
+		return
 	if player_turn and not busy:
 		if tool_sel >= 0 and tool_sel < besace.size() and selected:
 			var tid: String = besace[tool_sel]
