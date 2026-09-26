@@ -89,6 +89,10 @@ var voc_intro_done := false  # l'explication de la vocation déjà montrée pend
 var seen_mech := {}  # mécaniques ennemies déjà vues pendant la run : leur texte ne s'affiche en grand qu'une fois
 
 
+func _exit_tree() -> void:
+	Lang.teardown()
+
+
 func _ready() -> void:
 	if not _globals_ready:  # déjà déclarés si la scène est rechargée après un abandon
 		_globals_ready = true
@@ -98,6 +102,7 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		var kv := a.trim_prefix("--").split("=", true, 1)
 		args[kv[0]] = kv[1] if kv.size() > 1 else "1"
+	Lang.setup(_read_lang() == "en")
 	if args.has("party"):
 		party = Array(args.party.split(","))
 	if args.has("difficulty"):
@@ -894,10 +899,13 @@ func _coach(evt: String, info) -> void:
 			return false
 		tuto_seen[k] = true
 		ui.coach("Leçon %d · %s" % [tuto_lesson, names[tuto_lesson]], t)
+		ui.point(_tuto_target(k))
 		var dir := str(args.get("tutotest", ""))
 		if dir.length() > 4:  # -- --tutotest=DIR : une capture par consigne
 			get_tree().create_timer(0.5 * Engine.time_scale).timeout.connect(func(): _shot(dir, "coach_%d_%s" % [tuto_lesson, k]))
 		return true
+	if evt in ["moved", "played"] or (evt == "turn" and info != null and info.side == "hero" and info != battle.active):
+		ui.point(Callable())  # l'action attendue est faite : la flèche s'efface
 	var notes: Array = info if evt == "hit" else []
 	var has_note := func(p: String) -> bool:
 		return notes.any(func(n): return str(n).begins_with(p))
@@ -939,6 +947,50 @@ func _coach(evt: String, info) -> void:
 					var v: Array = heroes.filter(func(h): return h.voc != "")
 					if v.size() > 0:
 						say.call("voc", "%s a pris %s comme [color=#e3b45c]deuxième classe[/color] : sa guilde, c'est %s + %s. Ses butins mêlent maintenant les deux. [color=#e3b45c]Plus il combat, meilleures seront les cartes.[/color]" % [v[0].nm, Data.HEROES[v[0].voc].name, Data.HEROES[v[0].key].name, Data.HEROES[v[0].voc].name])
+
+
+func _tuto_target(k: String) -> Callable:
+	## Ce que montre la flèche de chaque consigne (évaluée à chaque image : les cibles bougent).
+	var foe_near := func():
+		var h: Unit = battle.active
+		var best: Unit = null
+		for f in battle.alive_foes():
+			if h and (best == null or Battle.dist(f.cell, h.cell) < Battle.dist(best.cell, h.cell)):
+				best = f
+		return best
+	match k:
+		"move":
+			return func():
+				var h: Unit = battle.active
+				var f: Unit = foe_near.call()
+				if h == null or f == null or h.moved:
+					return null
+				var best: Vector2i = h.cell
+				for c in battle.reach(h).cells:
+					if battle.unit_at(c) == null and Battle.dist(c, f.cell) < Battle.dist(best, f.cell):
+						best = c
+				return board.world(best) + Vector3(0, 0.3, 0)
+		"card", "apercu":
+			return func():
+				for i in ui._cards.size():
+					if i < battle.hand.size() and Data.card(battle.hand[i]).kind == "atk":
+						return ui._cards[i]
+				return null
+		"hint", "elite":
+			return func():
+				var f: Unit = foe_near.call() if k == "hint" else battle.alive_foes().filter(func(o): return o.key == "carapace").front()
+				return f.position + Vector3(0, f.head + 0.9, 0) if f else null
+		"chest", "intro":
+			return func(): return board.world(tuto_chest) + Vector3(0, 1.0, 0) if board.props.get(tuto_chest, "") == "coffre" else null
+		"orient":
+			return func(): return battle.active.position + Vector3(0, battle.active.head + 0.9, 0) if battle.active else null
+		"rare":
+			return func():
+				for i in ui._cards.size():
+					if i < battle.hand.size() and battle.hand[i].id == TUTO_CARD:
+						return ui._cards[i]
+				return null
+	return Callable()
 
 
 func tuto_hold(h: Unit) -> String:
@@ -1045,11 +1097,15 @@ func _loop() -> void:
 func _flush_cards() -> void:
 	## Les cartes gagnées en route : on la prend ou on la laisse (un paquet trop gros se dilue).
 	while pending_cards.size() > 0:
-		var id: String = pending_cards.pop_front()
-		var i := await ui.choose("CARTE TROUVÉE", "Un porteur, un vol ou un coffre : ajoutez-la au paquet (%d cartes) ou laissez-la" % deck.size(),
-			[{"card": {"id": id, "lvl": 1}, "tag": Data.HEROES[Data.CARDS[id].owner].name if Data.CARDS.has(id) else ""}], true, "La laisser")
+		var parts: PackedStringArray = str(pending_cards.pop_front()).split("|")  # « id|enchantement » : un défi relevé
+		var id: String = parts[0]
+		var ci := {"id": id, "lvl": 1}
+		if parts.size() > 1:
+			ci["ench"] = parts[1]
+		var i := await ui.choose("CARTE TROUVÉE", ("Défi relevé : la carte arrive enchantée. " if ci.has("ench") else "Un porteur, un vol ou un coffre : ") + "ajoutez-la au paquet (%d cartes) ou laissez-la" % deck.size(),
+			[{"card": ci, "tag": Data.HEROES[Data.CARDS[id].owner].name if Data.CARDS.has(id) else ""}], true, "La laisser")
 		if i >= 0:
-			deck.append({"id": id, "lvl": 1})
+			deck.append(ci)
 
 
 func _post_fight(type: String) -> void:
@@ -1222,6 +1278,7 @@ func _fight(type: String, ids_override: Array = []) -> bool:
 				ids = Data.elite_pick(floor_i, rng, difficulty)
 			elites_seen.append("%d:%s" % [floor_i, ids[0]])
 			size = 18
+			arch = Data.ELITE_ARCH.get(ids[0], arch)
 		"boss":
 			ids = Data.BOSS
 			size = 20
@@ -1326,9 +1383,12 @@ func compose(ids: Array, type: String) -> Array:
 
 func _roll_item(min_rarity := 1) -> String:
 	## Rareté pondérée par l'étage : les objets rares arrivent plus tard.
-	var roll := rng.randf() - 0.04 * pacts.size() + floor_i * 0.15
-	var rar := 3 if roll > 1.05 else (2 if roll > 0.6 else 1)
+	## Rang 4 (mythique) : acte 2 (≈ 8 %), acte 3 (≈ 20 %) ; l'acte 1 reste modeste.
+	var roll := rng.randf() - 0.04 * pacts.size() + (floor_i - 1) * 0.15
+	var rar := 3 if roll > 0.92 else (2 if roll > 0.55 else 1)
 	rar = maxi(rar, min_rarity)
+	if floor_i >= 2 and rng.randf() < (0.08 if floor_i == 2 else 0.2) + (0.1 if min_rarity >= 3 else 0.0):
+		rar = 4
 	var ids: Array = []
 	while ids.is_empty() and rar > 0:
 		ids = Data.ITEMS.keys().filter(func(id): return Data.ITEMS[id].rarity == rar and (Data.ITEMS[id].owner == "any" or party.has(Data.ITEMS[id].owner)))
@@ -1367,6 +1427,7 @@ func open_chest(h: Unit) -> void:
 		Fx.number(self, h.position + Vector3(0, 1.0, 0), "Carte rare !", Color(1.0, 0.85, 0.4), true)
 		ui.coach("Leçon 2 · L'escouade", "Une carte [color=#ffcf5a]rare[/color] : [color=#e3b45c]Pluie de cendres[/color]. " +
 			("Elle est dans la main de l'Oracle, gratuite : jouez-la." if battle.active == o else "Elle attend l'Oracle, gratuite : jouez-la à son tour."))
+		ui.point(_tuto_target("rare"))
 		battle.changed.emit()
 		return
 	# on tire tout, puis une petite fenêtre dit clairement ce que contenait le coffre
@@ -1380,7 +1441,7 @@ func open_chest(h: Unit) -> void:
 	var obj := ""
 	if rng.randf() < 0.35:
 		obj = _obj_roll(3)
-	if rng.randf() < 0.65:
+	if rng.randf() < (0.4 if floor_i == 1 else 0.6):  # acte 1 : moins de pièces, le sac se remplit trop vite
 		var it := _roll_item()
 		_gain_item(it, h)
 		gains.append({"title": Data.ITEMS[it].name, "image": "res://assets/ui/gear_%s.png" % Data.ITEM_ICON.get(it, "anneau"), "text": "%s · %s\n(au sac : s'équiper après le combat)" % [Data.SLOT_NAME[Data.ITEMS[it].slot], Data.item_text(it)], "color": UI.ITEM_COL[Data.ITEMS[it].rarity], "w": 250})
@@ -1786,7 +1847,7 @@ func _item_opt(id: String, price := 0) -> Dictionary:
 	var it: Dictionary = Data.ITEMS[id]
 	var title: String = it.name + ("  ·  %d or" % price if price > 0 else "")
 	return {"title": title, "image": "res://assets/ui/gear_%s.png" % Data.ITEM_ICON.get(id, "anneau"), "text": Data.item_text(id),
-		"color": [UI.GOLD, Color("#8fa3b8"), Color("#6fb0e0"), Color("#d08aff")][it.rarity]}
+		"color": UI.ITEM_COL[it.rarity]}
 
 
 func _equipment() -> void:
@@ -2467,15 +2528,16 @@ func _autoplay() -> void:
 		var ssize: int = 16 if Board.ARCHETYPES[n % 4] in ["cour", "terrasses"] else 18
 		if args.has("oldsize"):  # --oldsize : les tailles d'avant le concile (référence)
 			ssize = [14, 16, 18][n % 3]
-		_build_room(run_seed + n * 101, _biome(), ssize, sarch, true)
 		var ids: Array = Data.BOSS if n == fights_n - 1 and not args.has("floor") else Data.ENCOUNTERS[floor_i][n % Data.ENCOUNTERS[floor_i].size()]
 		if args.has("elite"):  # --elite : les élites de l'acte, à tour de rôle
-			ids = Data.ELITES[floor_i][n % 3]
+			ids = Data.ELITES[floor_i][n % Data.ELITES[floor_i].size()]
 		if args.has("boss"):
 			ids = Data.BOSS
 		if args.has("foes"):
 			ids = Array(args.foes.split(","))
-		else:
+		sarch = Data.ELITE_ARCH.get(ids[0], sarch) if not args.has("tactic") else sarch
+		_build_room(run_seed + n * 101, _biome(), ssize, sarch, true)
+		if not args.has("foes"):
 			ids = compose(ids, "elite" if args.has("elite") else ("boss" if ids == Data.BOSS else "combat"))
 		ui.show_hud(true)
 		battle.start(heroes, ids, deck, relics)
@@ -3609,7 +3671,7 @@ func _obj_price(id: String) -> int:
 
 
 func gain_obj(id: String, hkey: String, lvl := 1) -> Dictionary:
-	## Une carte-objet rejoint le paquet d'un héros. Doublon absorbé : niv 1 -> niv 2 ; niv 2 -> 2 charges ; niv 3 -> or.
+	## Une carte-objet rejoint le paquet d'un héros. Doublon absorbé : +1 charge (3 au plus) ; niv 3 -> or.
 	if relics.has("sacoche"):
 		lvl = maxi(lvl, 2)
 	for ci in deck:
@@ -3619,9 +3681,9 @@ func gain_obj(id: String, hkey: String, lvl := 1) -> Dictionary:
 				ui.set_gold(gold)
 				ui.toast("%s : déjà légendaire, revendu +60 or." % Data.def(id).name)
 				return {}
-			ci["lvl"] = maxi(2, lvl)
-			ci["uses"] = 2
-			ui.toast("%s : doublon absorbé, niveau 2, 2 charges." % Data.def(id).name)
+			# un doublon ne fait plus monter de niveau (le niveau 3 se mérite à la forge) : +1 charge, 3 au plus
+			ci["uses"] = mini(3, int(ci.get("uses", 1)) + 1)
+			ui.toast("%s : doublon absorbé, %d charges." % [Data.def(id).name, ci.uses])
 			return ci
 	var ci := {"id": id, "lvl": lvl, "h": hkey, "uses": mini(lvl, 2)}
 	fight_loot.append(Data.def(id).name)
@@ -3640,7 +3702,7 @@ func _gain_obj_ui(id: String, lvl := 1, title := "OBJET", sub := "") -> void:
 		var has := deck.filter(func(ci): return ci.id == id and ci.get("h", "") == h.key)
 		var note := "Paquet : %d cartes" % deck.filter(func(ci): return Data.holder(ci) == h.key).size()
 		if has.size() > 0:
-			note = "L'a déjà : doublon → niveau 2, 2 charges" if Data.level(has[0]) < 3 else "L'a déjà en légendaire : +60 or"
+			note = "L'a déjà : doublon → +1 charge" if Data.level(has[0]) < 3 else "L'a déjà en légendaire : +60 or"
 		opts.append({"title": h.nm, "image": "res://assets/art/portrait_%s.png" % h.key, "color": Data.CLASS_COLOR[h.key], "text": note, "w": 220, "h": 210})
 	var val := Data.sell_value({"id": id, "lvl": lvl})
 	var i := await ui.choose(title, (sub + " · " if sub != "" else "") + "Tu as trouvé %s !" % Data.def(id).name, opts, true, "Revendre : +%d or" % val, "", {"id": id, "lvl": lvl, "h": heroes[0].key, "uses": mini(lvl, 2)})
@@ -3783,7 +3845,7 @@ func _boon(k: String) -> void:
 
 var seen_events: Array = []   # événements déjà vus pendant la run : on ne les revoit pas
 var companion := ""           # bête apprivoisée qui suit l'escouade (Data.COMPANIONS)
-const EVENTS_NEW := ["passeur", "duel", "miroir", "des", "bibliothecaire", "maitre", "bete", "epave", "glyphes", "rave", "grixis", "mimique"]
+const EVENTS_NEW := ["passeur", "duel", "miroir", "des", "bibliothecaire", "maitre", "bete", "epave", "glyphes", "rave", "grixis", "mimique", "graveur", "sangsue"]
 
 
 func _event_fight(r: Dictionary, type: String, mods: Array, ids: Array = []) -> bool:
@@ -3841,6 +3903,43 @@ func _event_new(ev: String, r: Dictionary) -> bool:
 	var red := Color("#e0583a")
 	var blue := Color("#6fb0e0")
 	match ev:
+		"graveur":
+			# enchantement : le graveur choisit le mot-clé, vous choisissez la carte (ou l'inverse, pour de l'or)
+			var i := await ui.choose("LE GRAVEUR DE RUNES", "Un vieil homme grave des runes sur des pierres de gué. « Ta carte a une voix. Je peux lui en donner une deuxième. » Vous avez %d or." % gold, [
+				{"title": "Graver au hasard", "glyph": "✦", "text": "Une carte au choix reçoit un enchantement tiré au sort, cohérent avec elle.", "color": blue},
+				{"title": "Choisir la rune  ·  75 or", "glyph": "✎", "text": "Trois enchantements proposés pour la carte choisie.", "color": UI.GOLD},
+			], true, "Passer son chemin")
+			if i == 0 or (i == 1 and gold >= 75):
+				var q := await _deck_pick("LE GRAVEUR DE RUNES", "Quelle carte graver ?", func(ci): return Data.ench_roll(ci, rng) != "")
+				if q >= 0:
+					var en := Data.ench_roll(deck[q], rng)
+					if i == 1:
+						gold -= 75
+						ui.set_gold(gold)
+						var ok: Array = Data.ENCHANTS.keys().filter(func(e): return Data.ench_ok(deck[q], e))
+						ok.shuffle()
+						ok = ok.slice(0, 3)
+						var j := await ui.choose("LE GRAVEUR DE RUNES", "Quelle rune ?", ok.map(func(e):
+							var cp: Dictionary = deck[q].duplicate()
+							cp["ench"] = e
+							return {"card": cp}))
+						en = ok[maxi(j, 0)]
+					deck[q]["ench"] = en
+					ui.toast("%s ✦ %s" % [Data.def(deck[q].id).name, Data.ENCHANTS[en].name])
+			elif i == 1:
+				ui.toast("« La pierre se paie. »")
+		"sangsue":
+			var i := await ui.choose("LA SANGSUE D'OR", "Dans une vasque, une sangsue dorée, grosse comme un poing, attend qu'on lui tende une arme.", [
+				{"title": "Lui tendre une attaque", "glyph": "♥", "text": "Une attaque gagne Vol de vie (soigne la moitié des dégâts infligés). Son porteur perd 6 PV max.", "color": red},
+			], true, "Garder son sang")
+			if i == 0:
+				var q := await _deck_pick("LA SANGSUE D'OR", "Quelle attaque ?", func(ci): return Data.ench_ok(ci, "vampire"))
+				if q >= 0:
+					deck[q]["ench"] = "vampire"
+					for h in heroes:
+						if h.key == Data.holder(deck[q]):
+							h.base_hp = maxi(10, h.base_hp - 6)
+							h.apply_gear()
 		"passeur":
 			var free: Array = Data.RELICS.keys().filter(func(k): return not relics.has(k))
 			if free.is_empty():
@@ -4189,6 +4288,27 @@ func set_tactic(on: bool) -> void:
 	cf.set_value("ecran", "tactique", on)
 	cf.save("user://reglages.cfg")
 	ui.toast("Vue tactique %s : dès le prochain combat." % ("activée" if on else "désactivée"))
+
+
+func _read_lang() -> String:
+	## Langue : --lang=en pour forcer ; sinon le réglage ; au premier lancement, celle du système.
+	if args.has("lang"):
+		return args.lang
+	var cf := ConfigFile.new()
+	if cf.load("user://reglages.cfg") == OK and cf.has_section_key("ecran", "langue"):
+		return str(cf.get_value("ecran", "langue"))
+	return "fr" if OS.get_locale_language() == "fr" else "en"
+
+
+func set_lang(code: String) -> void:
+	## Change la langue et relance la scène (tous les textes se refont) ; la partie sauvegardée reste.
+	var cf := ConfigFile.new()
+	cf.load("user://reglages.cfg")
+	cf.set_value("ecran", "langue", code)
+	cf.save("user://reglages.cfg")
+	args.erase("lang")
+	Lang.setup(code == "en")
+	get_tree().reload_current_scene()
 
 
 func _read_mobile() -> bool:

@@ -1740,6 +1740,194 @@ def betes():
     crabe(); crapaud(); harpie(); obelisque()
 
 
+# ------------------------------------------------------------------ crues : la Dame, le Chevrier, la chèvre, le Brûle-Haie
+
+def dame():
+    R = random.Random(81)
+    b, g = Vox(), Vox()
+    robe = rnd_of(R, P("#2f5a52", "#27504a", "#3a6a5e", "#2a4a3e"))
+    vase = rnd_of(R, P("#3f5a3a", "#34502f", "#4a6640"))
+    skin = rnd_of(R, P("#9aa8a4", "#8a9894"))
+    for z in range(0, 22):  # longue robe évasée qui traîne derrière
+        r = 5.6 - z * 0.15
+        ell(b, (0, 0.8 - z * 0.03 if z < 6 else 0, z), (r, r * 0.8 + (1.2 if z < 4 else 0), 0.6),
+            vase if z < 5 else robe)
+    for x in (-3, 0, 3):  # quelques plis
+        line(b, (x, -4.4 + abs(x) * 0.15, 1), (x * 0.5, -2.6, 17), lin("#1e3a34"))
+    ell(b, (0, 0, 21), (2.8, 2.2, 2.0), robe)  # buste étroit
+    ring(b, (0, 0, 20.5), 2.6, lin("#b89a50"))  # ceinture de laiton
+    cap(b, (0, 0, 22), (0, -0.2, 24), 1.0, skin)  # long cou
+    ell(b, (0, -0.4, 26), (1.9, 2.0, 2.3), skin)
+    ell(b, (0, -0.2, 29.5), (2.6, 2.4, 1.6), rnd_of(R, P("#1e3a36", "#18302c")))  # coiffe haute
+    cap(b, (0, 0, 30), (0, 0.8, 34), 1.4, rnd_of(R, P("#1e3a36", "#18302c")), 0.5)
+    voile = rnd_of(R, P("#6a8a84", "#7fa29a", "#5e7c76"))
+    for z in range(17, 30):  # voile : tombe dans le dos jusqu'aux reins
+        w = 2 + (29 - z) // 4
+        ell(b, (0, 2.0 + (29 - z) * 0.1, z), (w, 0.8, 0.6), voile)
+    for x in (-2, -1, 0, 1, 2):  # voile de mousseline devant le bas du visage
+        line(b, (x * 0.8, -2.3, 24.2), (x * 0.8, -2.5, 25.2), lin("#8ab0a8"))
+    px(g, (-0.7, -2.3, 26.6), TEAL[0])
+    px(g, (0.7, -2.3, 26.6), TEAL[0])
+    g[(0, -2, 30)] = TEAL[2]  # joyau de coiffe
+    for s in (-1, 1):  # bras : l'un tient la clé, l'autre pend, hautain
+        cap(b, (2.8 * s, 0, 22), (3.4 * s, -1.5 if s > 0 else 0.5, 16), 0.8, robe)
+    for _ in range(18):  # gouttes lumineuses qui ruissellent de la robe
+        x, z = R.uniform(-4.5, 4.5), R.uniform(2, 18)
+        r = 5.6 - z * 0.15
+        line(g, (x, -r * 0.8 - 0.4, z), (x, -r * 0.8 - 0.4, z - R.uniform(0.5, 2)), R.choice(TEAL))
+    for k in range(10):
+        a = k / 10 * math.tau
+        px(g, (math.cos(a) * 6.5, math.sin(a) * 5.2, 0.3), TEAL[2])  # flaque autour d'elle
+    for _ in range(12):
+        b[(R.randint(-5, 5), R.randint(-4, 4), R.randint(0, 3))] = R.choice(ALG)
+    ky = Vox()  # grande clé d'écluse, manivelle en T, plus haute qu'elle
+    for z in range(-16, 14):
+        ky[(0, 0, z)] = tone(RUST[1], R.uniform(0.9, 1.1))
+    for x in range(-3, 4):
+        ky[(x, 0, 14)] = tone(RUST[2], 1.05)
+    for x in (-3, 3):
+        ky[(x, 0, 15)] = tone(RUST[2], 1.0)
+    ell(ky, (0, 0, -16), (1.2, 1.2, 1.4), IRON[2])  # douille carrée
+    kg = Vox()
+    for z in (-6, 2, 10):
+        px(kg, (0, -0.6, z), TEAL[1])
+    unit("dame", shade(b, R), ky, grip=(3.4, -1.5, 16), glow=g, wglow=kg)
+
+
+def chevrier():
+    R = random.Random(82)
+    b, g = Vox(), Vox()
+    peau = rnd_of(R, P("#8a7a62", "#7a6a54", "#9a8a70", "#6a5c48"))
+    laine = rnd_of(R, P("#4a3e30", "#403428", "#56483a"))
+    skin = rnd_of(R, P("#a07a5c", "#8e6c50"))
+    for s in (-1, 1):  # jambes torses, guêtres en peau
+        cap(b, (2.6 * s, 0, 0), (2.8 * s, 0, 9), 1.7, rnd_of(R, P("#3a3028", "#2e2620")))
+        ell(b, (2.7 * s, -0.3, 4), (1.9, 1.9, 2.2), peau)
+    ell(b, (0, 0, 14), (5.6, 4.2, 6.0), laine)  # carrure lourde
+    ell(b, (0, 0.5, 19), (6.2, 4.6, 3.6), laine)
+    ring(b, (0, 0, 12), 5.3, lin("#2a2016"))  # ceinture
+    px(b, (0, -4.6, 12), lin("#b89a50"))
+    for z in range(8, 22):  # cape en peau de chèvre, poil hirsute
+        for x in range(-6, 7):
+            if R.random() < 0.9:
+                b[(x, 4 + (z % 3 == 0), z)] = peau(x, 4, z)
+    for x in range(-7, 8):  # col de fourrure sur les épaules
+        for y in (-3, 3):
+            if R.random() < 0.8:
+                b[(x, y, 21 + (abs(x) < 4))] = peau(x, y, 21)
+    ell(b, (0, -1, 24.5), (2.8, 2.8, 2.9), skin)
+    ell(b, (0, -3.0, 22.4), (2.2, 1.0, 1.6), rnd_of(R, P("#5a4636", "#4a3a2c")))  # barbe drue
+    ell(b, (0, -0.8, 27), (3.1, 3.1, 1.8), rnd_of(R, P("#6a2a22", "#5a241c")), keep=lambda x, y, z: z >= 26)  # bonnet
+    cap(b, (0, 0, 28), (1.5, 2.5, 30), 1.1, rnd_of(R, P("#6a2a22", "#5a241c")), 0.5)
+    ring(b, (0, -0.8, 26.2), 3.1, lin("#8a7a62"))
+    g[(-1, -4, 25)] = AMBR[0]
+    g[(1, -4, 25)] = AMBR[0]
+    horn = lin("#d8c8a0")  # corne de berger à la ceinture
+    cap(b, (-5, -2, 12), (-6.5, -3, 8), 1.1, horn, 0.5)
+    ell(b, (-4.8, -1.8, 12.4), (1.1, 1.1, 1.1), lin("#b89a50"))
+    line(b, (-5.2, -1.5, 13), (-2, -4.2, 18), lin("#2a2016"))  # lanière en bandoulière
+    for s in (-1, 1):
+        cap(b, (6 * s, 0, 19), (7 * s, -3, 11), 1.7, laine)
+    ax = Vox()  # hache de bûcheron à long manche
+    for z in range(-8, 20):
+        ax[(0, 0, z)] = tone(lin("#6a4a30"), R.uniform(0.9, 1.1))
+    for z in range(14, 21):  # fer : large, en croissant, tranchant vers -y
+        w = 5 - abs(z - 17) // 2 - (abs(z - 17) == 3)  # croissant : plus large au milieu
+        for y in range(-w, 1):
+            ax[(0, y, z)] = tone(lin("#c8d0d6") if y == -w else lin("#6b6f78"), R.uniform(0.95, 1.08))
+    for y in (1, 2):  # talon du fer
+        ax[(0, y, 16)] = tone(lin("#6b6f78"), 1.0)
+        ax[(0, y, 17)] = tone(lin("#6b6f78"), 1.0)
+    unit("chevrier", shade(b, R), ax, grip=(7, -3, 11), glow=g)
+
+
+def chevre():
+    R = random.Random(83)
+    b, g = Vox(), Vox()
+    poil = rnd_of(R, P("#a89c86", "#b8ab90", "#9a8e7a", "#c4b89c"), 0.95, 1.05)
+    sabot = lin("#2a2420")
+    for sx in (-1, 1):  # pattes fines
+        for sy in (-1, 1):
+            cap(b, (2.2 * sx, 4 * sy, 0.5), (2.2 * sx, 4 * sy, 7), 0.9, poil)
+            ell(b, (2.2 * sx, 4 * sy, 0.5), (1.0, 1.0, 0.6), sabot)
+    ell(b, (0, 0.5, 9.5), (3.8, 6.0, 3.6), poil)  # corps
+    ell(b, (0, 3, 11), (3.0, 3.0, 2.8), poil)
+    for _ in range(16):  # toison hirsute, crinière claire le long du dos
+        y = R.uniform(-5, 6)
+        px(b, (R.uniform(-1.5, 1.5), y, 13 + R.uniform(-0.3, 0.4)), lin("#6a6052"))
+    cap(b, (0, -4.5, 11), (0, -6.5, 15), 1.6, poil)  # cou
+    ell(b, (0, -7.5, 15.5), (1.8, 2.2, 2.0), poil)  # tête
+    cap(b, (0, -8.5, 15), (0, -10.5, 14), 1.2, poil, 0.9)  # museau
+    px(b, (0, -11.4, 14.2), lin("#2a2420"))
+    line(b, (0, -9.5, 13), (0, -9.8, 11), lin("#d8ccb0"))  # barbiche
+    px(b, (0, -10, 11.2), lin("#d8ccb0"))
+    for s in (-1, 1):
+        cap(b, (1.8 * s, -7, 16.5), (3 * s, -6.5, 15.5), 0.5, poil)  # oreilles
+        pts = [(0.9 * s, -7.6, 17.2), (1.6 * s, -6.5, 19.5), (2.6 * s, -4.5, 20), (3.4 * s, -3.5, 18.2), (3.2 * s, -4.5, 16.8)]
+        for i, (a, c) in enumerate(zip(pts, pts[1:])):  # cornes recourbées annelées
+            cap(b, a, c, 0.75 - i * 0.12, lambda x, y, z: tone(lin("#6a5a44") if z % 2 else lin("#4e4232"), 1.0))
+        g[(s, -9, 16)] = AMBR[0]
+    cap(b, (0, 6, 11), (0, 7.5, 13), 0.7, lin("#c8bca0"))  # queue dressée
+    unit("chevre", shade(b, R), glow=g)
+
+
+def brule_haie():
+    R = random.Random(84)
+    b, g = Vox(), Vox()
+    hail = rnd_of(R, P("#5a4636", "#4a3a2e", "#6a5040", "#3e3026"))
+    brul = rnd_of(R, P("#1a1614", "#221c18"))
+    for s in (-1, 1):
+        cap(b, (2 * s, 0, 0), (2.2 * s, 0.5, 9), 1.2, brul)
+    for z in range(8, 21):  # haillons en couches, bas effiloché
+        ell(b, (0, 0.3 * (z > 15), z), (3.6 - (z - 8) * 0.06, 2.8, 0.6), hail)
+    for x in range(-4, 5):
+        for k in range(R.randint(1, 4)):
+            px(b, (x, -2.8 + R.uniform(-0.3, 0.3), 7.5 - k * 0.5), hail(0, 0, 0))
+        if R.random() < 0.6:
+            px(g, (x, -3, 8 + R.uniform(0, 5)), R.choice(EMBER))  # bords roussis qui rougeoient
+    ell(b, (0, 0.3, 23), (2.8, 3.0, 3.0), hail)  # capuche
+    cap(b, (0, 1.5, 24.5), (0.5, 4.5, 26.5), 1.5, hail, 0.4)
+    ell(b, (0, -1.8, 22.8), (1.7, 0.9, 1.7), lin("#0c0a0a"))  # ombre du visage
+    g[(-1, -3, 23)] = lin("#ff6a2a")
+    g[(1, -3, 23)] = lin("#ff6a2a")
+    line(b, (-2, -2.6, 20.5), (2, -2.6, 20.5), lin("#6a5040"))  # foulard noué
+    wd = rnd_of(R, WOOD)
+    cap(b, (0, 3.8, 11), (0, 3.8, 18), 2.4, rnd_of(R, P("#2a2a2e", "#222226")))  # bidon de poix dans le dos
+    for zz in (12, 17):
+        ring(b, (0, 3.8, zz), 2.6, RUST[1])
+    ell(b, (0, 3.8, 18.8), (2.0, 2.0, 0.8), lin("#0e0c0a"))
+    for k in range(4):  # la poix coule
+        line(b, (k - 1.5, 3.8 - 2.3, 18), (k - 1.5, 3.8 - 2.6, 15 - R.random() * 3), lin("#0a0808"))
+    line(b, (-2.5, -2.4, 20), (2.5, 3, 16), lin("#5a4030"))  # sangle
+    for s in (-1, 1):
+        cap(b, (3.4 * s, 0, 19), (4.2 * s, -2.5, 13), 1.0, hail)
+    for _ in range(20):  # braises qui volent autour
+        a = R.uniform(0, math.tau)
+        rr = R.uniform(4.5, 7.5)
+        px(g, (math.cos(a) * rr, math.sin(a) * rr, R.uniform(2, 26)), R.choice(EMBER + [lin("#ff6a2a")]))
+    for _ in range(14):
+        px(b, (R.uniform(-3, 3), -2.9, R.uniform(9, 19)), lin("#120e0c"))  # brûlures
+    tc = Vox()  # fagot enflammé au bout d'un bâton
+    for z in range(-4, 10):
+        tc[(0, 0, z)] = wd(0, 0, z)
+    for k in range(6):
+        a = k / 6 * math.tau
+        line(tc, (0, 0, 8), (math.cos(a) * 1.4, math.sin(a) * 1.4, 13), wd(0, 0, 0))
+    ring(tc, (0, 0, 9.5), 1.2, lin("#8a7a4a"))  # lien de paille
+    fl = Vox()
+    for z in range(11, 20):
+        rr = max(0.4, 2.2 - abs(z - 13) * 0.35)
+        c = lin("#ffd07a") if z < 14 else (lin("#ff9a2e") if z < 17 else lin("#ff5a2a"))
+        ell(fl, (R.uniform(-0.3, 0.3), R.uniform(-0.3, 0.3), z), (rr, rr, 0.6), c)
+    for _ in range(6):
+        px(fl, (R.uniform(-2, 2), R.uniform(-2, 2), R.uniform(19, 23)), R.choice(EMBER))
+    unit("brule_haie", shade(b, R), tc, grip=(4.2, -2.5, 13), glow=g, wglow=fl)
+
+
+def crues():
+    dame(); chevrier(); chevre(); brule_haie()
+
+
 # ------------------------------------------------------------------ insignes de vocation
 # Une pièce portée dans le dos (le héros regarde vers -y) : la classe apprise se voit sur le modèle.
 

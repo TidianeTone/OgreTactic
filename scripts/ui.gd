@@ -523,6 +523,8 @@ func toast(text: String) -> void:
 
 
 var coach_plate: PanelContainer
+var tuto_arrow: Label
+var arrow_to: Callable = Callable()   # initiation : renvoie la cible de la flèche (Vector3 du monde, Control, ou null)
 var coach_kick: Label
 var coach_txt: RichTextLabel
 func coach(kicker: String, text: String) -> void:
@@ -560,6 +562,35 @@ func coach(kicker: String, text: String) -> void:
 	coach_plate.scale = Vector2.ONE
 	var tw := create_tween()
 	tw.tween_property(coach_plate, "modulate:a", 1.0, 0.3)
+
+
+func point(to: Callable) -> void:
+	## Initiation : une flèche qui rebondit au-dessus de ce qu'on attend du joueur (case, ennemi, carte, coffre).
+	arrow_to = to
+	if tuto_arrow == null:
+		tuto_arrow = _label("▼", 58, GOLD, title_f)
+		tuto_arrow.add_theme_color_override("font_outline_color", Color("#2a1606"))
+		tuto_arrow.add_theme_constant_override("outline_size", 14)
+		tuto_arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tuto_arrow.size = Vector2(60, 70)
+		tuto_arrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		root.add_child(tuto_arrow)
+	tuto_arrow.visible = false
+
+
+func _place_arrow() -> void:
+	if tuto_arrow == null:
+		return
+	var t = arrow_to.call() if arrow_to.is_valid() else null
+	var p = null
+	if t is Vector3 and not main.cam.is_position_behind(t):
+		p = main.cam.unproject_position(t)
+	elif t is Control and is_instance_valid(t) and t.is_visible_in_tree():
+		p = t.global_position + Vector2(t.size.x * t.scale.x * 0.5, 0)
+	tuto_arrow.visible = p != null and overlay == null
+	if p != null:
+		var bob := absf(sin(Time.get_ticks_msec() * 0.006)) * 16.0
+		tuto_arrow.position = p - Vector2(30, 74 + bob)
 
 
 func announce(c: Dictionary) -> void:
@@ -658,7 +689,7 @@ func toggle_menu() -> void:
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(t)
 	var first: Button
-	for e in [["Reprendre", func(): toggle_menu()], ["Bibliothèque", func(): library_screen()], ["Mode portable : %s" % ("oui" if big else "non"), func(): main.set_mobile(not big)], ["Vue tactique : %s" % ("oui" if main.tactic else "non"), func(): main.set_tactic(not main.tactic)], ["Abandonner la run", func(): main.abandon()], ["Quitter le jeu", func(): get_tree().quit()]]:
+	for e in [["Reprendre", func(): toggle_menu()], ["Bibliothèque", func(): library_screen()], ["Mode portable : %s" % ("oui" if big else "non"), func(): main.set_mobile(not big)], ["Vue tactique : %s" % ("oui" if main.tactic else "non"), func(): main.set_tactic(not main.tactic)], ["Langue : Français" if not Lang.on else "Language: English", func(): main.set_lang("fr" if Lang.on else "en")], ["Abandonner la run", func(): main.abandon()], ["Quitter le jeu", func(): get_tree().quit()]]:
 		var b := Button.new()
 		b.text = e[0]
 		b.add_theme_font_override("font", title_f)
@@ -1171,6 +1202,10 @@ func make_card(ci: Dictionary) -> Control:
 	live.position = Vector2(-3, -3)
 	live.size = CARD + Vector2(6, 6)
 	live.visible = false
+	# derrière la carte : son ombre ne voile plus l'illustration (la carte « bonus actif » paraissait éteinte)
+	(live.get_theme_stylebox("panel") as StyleBoxFlat).shadow_color = Color(1.0, 0.7, 0.25, 0.55)
+	(live.get_theme_stylebox("panel") as StyleBoxFlat).shadow_offset = Vector2.ZERO
+	card.move_child(live, 0)
 	card.set_meta("live", live)
 	card.tooltip_text = ""
 	card.set_meta("kwcard", ci)
@@ -1222,7 +1257,7 @@ func make_card(ci: Dictionary) -> Control:
 	if rg[1] > 1 and c.get("target", "foe") != "self":
 		stats.add_child(_chip("portee", "%d-%d" % [maxi(rg[0], 1), rg[1]] if rg[0] > 1 else str(rg[1])))
 	var txt := Data.card_brief(c)
-	var tt := Data.trig_text(c)
+	var tt := Lang.t(Data.trig_text(c))
 	var body := VBoxContainer.new()
 	body.position = txt_r.position + Vector2(-4, 0)
 	body.size = txt_r.size + Vector2(8, 0)
@@ -1233,10 +1268,12 @@ func make_card(ci: Dictionary) -> Control:
 	var long := txt.length() + tt.length()
 	if txt != "":
 		var r := _rich(kw_bbcode(txt), 13 if long <= 50 else (12 if long <= 80 else 11), INK)
+		r.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED  # déjà traduit, mots-clés compris
 		r.custom_minimum_size.x = txt_r.size.x + 8
 		body.add_child(r)
 	if tt != "":
 		var r2 := _rich(kw_bbcode(tt), 11 if long <= 80 else 10, Color("#ffd98a"))
+		r2.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 		r2.custom_minimum_size.x = txt_r.size.x + 8
 		body.add_child(r2)
 	return card
@@ -1257,12 +1294,21 @@ func _rich(bb: String, size: int, col: Color) -> RichTextLabel:
 
 
 static var _kw_keys: Array = []
+static var _kw_disp := {}      # mot affiché -> clé de Data.KW_ICON
+static var _kw_lang := false
 static var _kw_rx := {}
 static func kw_bbcode(t: String) -> String:
 	## Chaque mot-clé précédé de son idéogramme (game-icons.net repassées en pixel art).
-	if _kw_keys.is_empty():
+	if _kw_keys.is_empty() or _kw_lang != Lang.on:
+		# en anglais, on cherche les mots-clés traduits (même idéogramme)
+		_kw_lang = Lang.on
 		_kw_keys = Data.KW_ICON.keys()
+		_kw_disp.clear()
+		for k in _kw_keys:
+			_kw_disp[Lang.t(k)] = k
+		_kw_keys = _kw_disp.keys()
 		_kw_keys.sort_custom(func(a, b): return a.length() > b.length())
+		_kw_rx.clear()
 	t = t.replace("[", "[lb]")
 	var used: Array = []
 	for k: String in _kw_keys:
@@ -1275,7 +1321,7 @@ static func kw_bbcode(t: String) -> String:
 				t = nt
 				used.append(k)
 	for i in used.size():
-		t = t.replace("§%d¤" % i, "[img=15x15]res://assets/ui/kw_%s.png[/img][color=#ffe3a3]%s[/color]" % [Data.KW_ICON[used[i]], used[i]])
+		t = t.replace("§%d¤" % i, "[img=15x15]res://assets/ui/kw_%s.png[/img][color=#ffe3a3]%s[/color]" % [Data.KW_ICON[_kw_disp[used[i]]], used[i]])
 	return t
 
 
@@ -1440,6 +1486,7 @@ func _kw_place(tgt: Control) -> void:
 
 func _process(dt: float) -> void:
 	_kw_update()
+	_place_arrow()
 	if big:
 		_fit_screen(overlay)
 		_fit_screen(sheet_layer)
@@ -2313,6 +2360,7 @@ func title_screen(resume := "") -> int:
 	entries.append([1, "Bibliothèque  %d / %d" % [main.library.size(), Data.all_ids().size()], "bibliotheque", "Toutes les cartes déjà croisées, par classe et par guilde."])
 	if OS.has_feature("web") or main.args.has("portable"):
 		entries.append([4, "Mode portable : %s" % ("oui" if big else "non"), "portable", "Interface agrandie, gestes tactiles (deux doigts : zoom et rotation ; toucher = viser, retoucher = valider), rendu allégé."])
+	entries.append([5, "Langue : Français" if not Lang.on else "Language: English", "langue", "Français / English : les textes changent tout de suite, la partie en cours reste."])
 	if not OS.has_feature("web"):
 		entries.append([7, "Quitter", "quitter", "Refermer l'Écluse."])
 	var bubble := PanelContainer.new()
@@ -2379,6 +2427,9 @@ func title_screen(resume := "") -> int:
 		k = await picked
 		if k == 4:
 			main.set_mobile(not big)
+			return -1
+		if k == 5:
+			main.set_lang("fr" if Lang.on else "en")
 			return -1
 		if k == 7:
 			get_tree().quit()
@@ -2616,7 +2667,9 @@ func _lib_focus(id: String) -> void:
 	var tl := _shadowed(_label(d.name, 38, INK, wide_f), 8)
 	tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(tl)
-	var sl := _shadowed(_label("%s · les trois niveaux de la forge" % Data.RARITY_NAME[d.get("rar", 1)], 16, Data.RARITY_COL[d.get("rar", 1)]), 5)
+	# le niveau 3 d'une carte-objet est un secret : absent tant qu'on ne l'a pas forgé
+	var top: int = 2 if d.has("tool") and not main.library.has(id + "#3") else Data.MAX_LVL
+	var sl := _shadowed(_label("%s · les niveaux de la forge" % Data.RARITY_NAME[d.get("rar", 1)], 16, Data.RARITY_COL[d.get("rar", 1)]), 5)
 	sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(sl)
 	var row := HBoxContainer.new()
@@ -2626,7 +2679,7 @@ func _lib_focus(id: String) -> void:
 	box.add_child(row)
 	var k := minf(1.35, (root.size.y - 260.0) / CARD.y)
 	var prev := {}
-	for lv in range(1, Data.MAX_LVL + 1):
+	for lv in range(1, top + 1):
 		var col := VBoxContainer.new()
 		col.add_theme_constant_override("separation", 8)
 		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2645,8 +2698,6 @@ func _lib_focus(id: String) -> void:
 		holder.add_child(w)
 		col.add_child(holder)
 		var diff := Data.upgrade_diff(prev, ci) if lv > 1 else ""
-		if Data.def(id).has("tool") and lv == 3 and not main.library.has(id + "#3"):
-			diff = "Légendaire : ???"
 		var dl := _label(diff, 14, Color("#bfe8a8"))
 		dl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		dl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -2724,7 +2775,7 @@ func _fill_bestiary(list: VBoxContainer) -> void:
 
 # ------------------------------------------------------------------ équipement
 
-const ITEM_COL := [GOLD, Color("#8fa3b8"), Color("#6fb0e0"), Color("#d08aff")]
+const ITEM_COL := [GOLD, Color("#8fa3b8"), Color("#6fb0e0"), Color("#d08aff"), Color("#ff8a3d")]
 
 
 func _gear_tile(id: String, sz: int, col: Color) -> PanelContainer:
@@ -2826,7 +2877,7 @@ func equipment_screen(heroes: Array, bag: Array) -> Dictionary:
 		c_name.text = it.name
 		c_name.add_theme_color_override("font_color", ITEM_COL[it.rarity].lightened(0.25))
 		var lines: PackedStringArray = Data.item_text(id).split("\n")
-		c_kind.text = "%s · %s%s" % [lines[0], Data.RARITY_NAME[it.rarity], ("  ·  " + note) if note != "" else ""]
+		c_kind.text = "%s · %s%s" % [lines[0], ("Mythique" if it.rarity == 4 else Data.RARITY_NAME[it.rarity]), ("  ·  " + note) if note != "" else ""]
 		var fx: Array = []
 		for part in lines[1].split(" · "):
 			var kv := part.split(" : ", true, 1)

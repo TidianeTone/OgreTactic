@@ -74,6 +74,15 @@ const FOES := {
 	"noye_ancien": {"name": "Noyé ancien", "model": "lancier", "hp": 30, "speed": 3, "move": 3, "jump": 2, "dmg": 8, "range": [1, 1], "ai": "melee", "armor": 3, "passives": ["eau", "flotte"], "ancre_si_eau": true},
 	"porte_etendard": {"name": "Porte-étendard noyé", "model": "lancier", "hp": 22, "speed": 4, "move": 3, "jump": 2, "dmg": 6, "range": [1, 1], "ai": "melee", "armor": 2, "aura": "etendard"},
 	"fouisseur": {"name": "Fouisseur des fondations", "model": "crabe", "hp": 16, "speed": 7, "move": 4, "jump": 3, "dmg": 7, "range": [1, 1], "ai": "burrow"},
+	# --- les crues (26/09) : trois boss de terrain, dans l'esprit de Grelin (une mécanique à casser ou à contourner)
+	"chevrier": {"name": "Le Chevrier des ponts", "hp": 50, "speed": 6, "move": 4, "jump": 4, "dmg": 8, "range": [1, 1], "ai": "chevrier", "arme": "tranchant",
+		"no_champion": true, "paliers": [0.5], "titre": "Le Chevrier des ponts", "ligne": "Il coupe les ponts derrière vous. Ses chèvres font le reste."},
+	"chevre": {"name": "Chèvre des ponts", "hp": 9, "speed": 8, "move": 4, "jump": 5, "dmg": 3, "range": [1, 1], "ai": "melee", "shove": 1},
+	"dame": {"name": "La Dame des Vannes", "hp": 60, "speed": 5, "move": 3, "jump": 2, "dmg": 7, "range": [2, 4], "ai": "dame", "arme": "magie",
+		"no_champion": true, "paliers": [0.5], "titre": "La Dame des Vannes", "ligne": "La crue monte d'un cran à chaque tour. Qu'elle s'y noie."},
+	"vanne_dame": {"name": "Vanne de la Dame", "model": "vanne", "hp": 18, "speed": 1, "move": 0, "jump": 0, "dmg": 0, "range": [0, 0], "ai": "totem", "armor": 2, "passives": ["ancre"], "structure": true, "on_death": "vanne_dame"},
+	"brule_haie": {"name": "Brûle-Haie", "hp": 60, "speed": 6, "move": 4, "jump": 3, "dmg": 7, "range": [1, 3], "ai": "brule", "arme": "magie",
+		"no_champion": true, "paliers": [0.5], "titre": "Brûle-Haie", "ligne": "Il met le feu aux haies. Coupez-les avant la flamme."},
 }
 # PV des ennemis par étage (chaque héros joue son propre tour) ; plancher d'équipement ennemi par étage
 const FOE_HP := [1.6, 1.9, 2.2]
@@ -128,6 +137,11 @@ const FOE_TIPS := {
 	"noye_ancien": "Dans l'eau : ancré et +3. Tiré à terre : Asséché, sans armure. Pas de noyade possible.",
 	"porte_etendard": "À 2 cases de lui, rien ne se pousse. L'abattre d'abord.",
 	"fouisseur": "La case qu'il frappe s'effondre au round suivant. Ne pas y rester.",
+	"chevrier": "Coupe le pont le plus proche de vous à chaque tour. Abattre un arbre au bord de l'eau jette un tronc en travers.",
+	"chevre": "Frappe peu, mais repousse d'une case : gare aux berges.",
+	"dame": "La crue avance d'un rang par tour. Casser ses vannes l'arrête ; poussée dans l'eau, elle s'y noie (lourdement).",
+	"vanne_dame": "Nourrit la crue de la Dame. Toutes cassées : l'eau cesse de monter.",
+	"brule_haie": "Fait couver l'arbre le plus proche de vous : il flambe au round suivant et gagne ses voisins. Abattre la haie avant la flamme.",
 }
 
 # kind : atk | skill | move. target : foe (défaut pour atk) | self | ally | tile | line
@@ -433,12 +447,12 @@ const KEYWORDS := {
 	"Niveau": "Forge ou fusion de deux doubles : +1 niveau (3 au maximum). Chaque niveau change la carte.",
 	"perd": "Coût en PV : ne peut pas tuer le héros (il reste à 1).",
 	"Vole": "Prend l'objet que porte l'ennemi : sa carte arrive dans ta main.",
-	"Fabrique": "Crée des cartes-objets Éphémères dans ta main (rarement, un légendaire).",
+	"Fabrique": "Crée des cartes-objets Éphémères dans ta main.",
 	"Démonte": "Retire une carte-objet de ta main sans jouer son effet : elle perd 1 charge.",
 	"Recharge": "+1 charge à une carte-objet de ta main (3 au plus, une fois par combat et par carte ; jamais une Fiole).",
 	"Lance": "Joue une carte-objet de ta main sur la cible de la carte.",
 	"Stock": "Cartes-objets de l'escouade encore en jeu (pioche, main, défausse), Éphémères exclues. 4 au plus.",
-	"Charges": "Carte-objet, gratuite. Jouée, elle perd 1 charge et quitte le combat ; à 0, elle quitte le paquet. Niveau 3 : légendaire, inépuisable, une fois par combat. Un doublon ajoute une charge.",
+	"Charges": "Carte-objet, gratuite. Jouée, elle perd 1 charge et quitte le combat ; à 0, elle quitte le paquet.",
 	"Conservé": "Reste en main à la fin du tour au lieu d'aller en défausse.",
 	"Éphémère": "Épuisée si elle est encore en main à la fin du tour.",
 	"Égide": "Le prochain coup reçu ne fait aucun dégât.",
@@ -458,6 +472,7 @@ const KEYWORDS := {
 	"Présage": "Marque une case : au début de ton prochain tour, l'ennemi qui s'y tient encaisse, armure ignorée.",
 	"Conservé chargé": "Chaque tour passé en main, la carte gagne des dégâts (3 fois au plus).",
 	"Exposée": "Le prochain coup qu'elle reçoit d'un héros compte de dos.",
+	"Vol de vie": "Soigne le héros de la moitié des dégâts qu'il inflige avec cette carte.",
 }
 # Outils : effets des cartes-objets (o_*) et des objets portés par les ennemis.
 # target : self | ally | foe | free (case libre) | tile. foe_ai : ce que fait un ennemi qui le porte.
@@ -664,10 +679,15 @@ const ENCOUNTERS := {
 const EXTRAS := {1: ["husk", "guetteur", "pavoiseur"], 2: ["lancier", "bretteur", "guetteur", "husk"], 3: ["lancier", "noye_ancien", "bretteur", "guetteur"]}
 # élites par acte : la première est tirée une fois sur deux aux actes 1-2 (Grelin, les Amarreurs), 1/3 chacune à l'acte 3
 const ELITES := {
-	1: [["grelin", "treuil", "treuil", "husk", "guetteur"], ["fanal", "sentinelle", "pavoiseur", "frondeur", "chaman"], ["capitaine", "pavoiseur", "pavoiseur", "frondeur", "anguille"]],
-	2: [["hale", "brasse", "pisteuse", "husk"], ["capitaine", "tenant", "mage", "lancier", "danseuse"], ["bitte", "sentinelle", "bretteur", "penitente", "guetteur"]],
-	3: [["capitaine", "porte_etendard", "noye_ancien", "lancier", "mage"], ["vanne", "noye_ancien", "crapaud", "danseuse", "guetteur"], ["fanal", "pilori", "baliste", "bretteur", "danseuse"]],
+	1: [["grelin", "treuil", "treuil", "husk", "guetteur"], ["fanal", "sentinelle", "pavoiseur", "frondeur", "chaman"], ["capitaine", "pavoiseur", "pavoiseur", "frondeur", "anguille"],
+		["chevrier", "chevre", "chevre", "guetteur"]],
+	2: [["hale", "brasse", "pisteuse", "husk"], ["capitaine", "tenant", "mage", "lancier", "danseuse"], ["bitte", "sentinelle", "bretteur", "penitente", "guetteur"],
+		["dame", "vanne_dame", "vanne_dame", "lancier", "mage"]],
+	3: [["capitaine", "porte_etendard", "noye_ancien", "lancier", "mage"], ["vanne", "noye_ancien", "crapaud", "danseuse", "guetteur"], ["fanal", "pilori", "baliste", "bretteur", "danseuse"],
+		["brule_haie", "lancier", "chaman", "frondeur"]],
 }
+# arène imposée par certaines élites : des ponts pour le Chevrier
+const ELITE_ARCH := {"chevrier": "ilots", "dame": "ecluse", "brule_haie": "cour"}
 const BOSS := ["gardien", "chaman", "husk", "husk", "fanal"]
 # couches défensives absorbantes et règles de terrain : une seule de chaque par combat
 const LAYERS := ["bitte", "tenant", "porte_etendard"]
@@ -678,7 +698,8 @@ static func elite_pick(fl: int, r: RandomNumberGenerator, diff: int) -> Array:
 	## Tirage pondéré de l'élite d'un acte ; difficulté 4+ : un renfort.
 	var L: Array = ELITES.get(fl, ELITES[3])
 	var x := r.randf()
-	var i := (0 if x < 0.5 else (1 if x < 0.75 else 2)) if fl < 3 else mini(2, int(x * 3.0))
+	# actes 1-2 : le boss de terrain (Grelin ou le Chevrier, les Amarreurs ou la Dame) une fois sur deux, en alternance
+	var i: int = (([0, 3][r.randi_range(0, 1)]) if x < 0.5 else (1 if x < 0.75 else 2)) if fl < 3 else mini(3, int(x * 4.0))
 	var ids: Array = L[i].duplicate()
 	if diff >= 3 and fl == 2 and i == 0:
 		ids.append("lancier")
@@ -785,11 +806,30 @@ const ITEMS := {
 	"lanterne_brume": {"name": "Lanterne de brume", "slot": "bijou", "owner": "any", "passive": "concentration", "rarity": 2},
 	"croc_brochet": {"name": "Croc de brochet", "slot": "bijou", "owner": "any", "passive": "venin", "rarity": 2, "foe": true},
 	"signet_algue": {"name": "Signet d'algue", "slot": "bijou", "owner": "any", "passive": "prelude", "rarity": 2},
+	# rang 4, « mythique » : pas avant l'acte 2 ; deux passifs (passive2)
+	"masse_digue": {"name": "Masse de la digue", "slot": "arme", "owner": "garde", "dmg": 3, "passive": "contre", "passive2": "bouclier", "rarity": 4},
+	"derniere_arche": {"name": "Dague de la dernière arche", "slot": "arme", "owner": "lame", "dmg": 3, "passive": "reflexe", "passive2": "venin", "rarity": 4},
+	"sceptre_vive": {"name": "Sceptre de braise vive", "slot": "arme", "owner": "oracle", "dmg": 3, "passive": "concentration", "passive2": "economie", "rarity": 4},
+	"canon_mere": {"name": "Canon de la vanne-mère", "slot": "arme", "owner": "artificier", "dmg": 3, "passive": "meche", "passive2": "economie", "rarity": 4},
+	"poings_crue": {"name": "Poings de la crue", "slot": "arme", "owner": "moine", "dmg": 3, "passive": "deux_mains", "passive2": "reflexe", "rarity": 4},
+	"arc_chevrier": {"name": "Arc du Chevrier", "slot": "arme", "owner": "trappeur", "dmg": 3, "passive": "affut", "passive2": "concentration", "rarity": 4},
+	"geste_parfait": {"name": "Le Geste parfait", "slot": "arme", "owner": "tidiane", "dmg": 3, "passive": "arme_plus", "passive2": "absorbe", "rarity": 4},
+	"passe_partout": {"name": "Passe-partout", "slot": "arme", "owner": "receleur", "dmg": 3, "passive": "main_leste", "passive2": "chasseur", "rarity": 4},
+	"cuirasse_gardien": {"name": "Cuirasse du Gardien", "slot": "armure", "owner": "any", "hp": 8, "block0": 6, "passive": "contre", "passive2": "ancre", "rarity": 4},
+	"voile_dame": {"name": "Voile de la Dame", "slot": "armure", "owner": "any", "hp": 6, "passive": "flotte", "passive2": "regen", "rarity": 4},
+	"manteau_cendre": {"name": "Manteau de cendre", "slot": "armure", "owner": "any", "block0": 4, "passive": "retour", "passive2": "reflexe", "rarity": 4},
+	"bottes_chevrier": {"name": "Bottes du chevrier", "slot": "bottes", "owner": "any", "move": 1, "jump": 2, "passive": "vigilance", "rarity": 4},
+	"grandes_eaux": {"name": "Bottes des grandes eaux", "slot": "bottes", "owner": "any", "move": 1, "passive": "eau", "passive2": "ancre", "rarity": 4},
+	"coeur_ecluse": {"name": "Cœur de l'Écluse", "slot": "bijou", "owner": "any", "hp": 8, "passive": "elan", "passive2": "absorbe", "rarity": 4},
+	"oeil_paupiere": {"name": "Œil sans paupière", "slot": "bijou", "owner": "any", "passive": "vigilance", "passive2": "concentration", "rarity": 4},
+	"sceau_compagnie": {"name": "Sceau de la Compagnie", "slot": "bijou", "owner": "any", "dmg": 2, "passive": "charogne", "passive2": "arme_plus", "rarity": 4},
 }
-const ITEM_ICON := {"epee_ecluse": "epee", "masse_os": "masse", "hallebarde": "hallebarde", "dague_ombre": "dague", "kriss": "dagues", "lame_soif": "dague", "baton_braise": "baton", "sceptre_maree": "sceptre", "baton_lotus": "baton", "cle_meca": "cle", "canon_main": "canon", "marteau_forge": "marteau", "bandes_jade": "bandes", "chapelet": "bandes", "gantelets_ressac": "gantelet", "arc_frene": "arc", "arc_os": "arc", "arbalete_silure": "arbalete", "pinceau": "pinceau", "palette": "palette", "stylet": "stylet", "pied_biche": "piedbiche", "crochets": "crochets", "gants_velours": "gants", "anneau_bouclier": "plastron", "oeil_vigilant": "dossiere", "bracelet_fleches": "brassards", "coeur_pierre": "cotte", "cuirasse_compagnie": "cuirasse_compagnie", "cotte_vase": "cotte_vase", "cire_passeur": "cire_passeur", "carapace_ecrevisse": "carapace_ecrevisse", "mantelet_feuilles": "mantelet_feuilles", "brigandine_noyee": "brigandine_noyee", "heaume_noye": "heaume_noye", "bottes_heron": "bottes", "sandales_saut": "crapaud", "ecaille_eau": "liege", "echasses_roseau": "echasses_roseau", "sabots_halage": "sabots_halage", "guetres_eclusier": "guetres_eclusier", "bottes_vase": "bottes_vase", "bottes_fuyard": "bottes_fuyard", "pas_passeur": "pas_passeur", "amulette_regen": "amulette", "plume_elan": "perle", "gantelet": "chevaliere", "miroir": "miroir", "bourse": "bourse", "dent_silure": "dent_silure", "medaille_rouillee": "medaille_rouillee", "bague_charognard": "bague_charognard", "lanterne_brume": "lanterne_brume", "croc_brochet": "croc_brochet", "signet_algue": "signet_algue"}
+const ITEM_ICON := {"epee_ecluse": "epee", "masse_os": "masse", "hallebarde": "hallebarde", "dague_ombre": "dague", "kriss": "dagues", "lame_soif": "dague", "baton_braise": "baton", "sceptre_maree": "sceptre", "baton_lotus": "baton", "cle_meca": "cle", "canon_main": "canon", "marteau_forge": "marteau", "bandes_jade": "bandes", "chapelet": "bandes", "gantelets_ressac": "gantelet", "arc_frene": "arc", "arc_os": "arc", "arbalete_silure": "arbalete", "pinceau": "pinceau", "palette": "palette", "stylet": "stylet", "pied_biche": "piedbiche", "crochets": "crochets", "gants_velours": "gants", "anneau_bouclier": "plastron", "oeil_vigilant": "dossiere", "bracelet_fleches": "brassards", "coeur_pierre": "cotte", "cuirasse_compagnie": "cuirasse_compagnie", "cotte_vase": "cotte_vase", "cire_passeur": "cire_passeur", "carapace_ecrevisse": "carapace_ecrevisse", "mantelet_feuilles": "mantelet_feuilles", "brigandine_noyee": "brigandine_noyee", "heaume_noye": "heaume_noye", "bottes_heron": "bottes", "sandales_saut": "crapaud", "ecaille_eau": "liege", "echasses_roseau": "echasses_roseau", "sabots_halage": "sabots_halage", "guetres_eclusier": "guetres_eclusier", "bottes_vase": "bottes_vase", "bottes_fuyard": "bottes_fuyard", "pas_passeur": "pas_passeur", "amulette_regen": "amulette", "plume_elan": "perle", "gantelet": "chevaliere", "miroir": "miroir", "bourse": "bourse", "dent_silure": "dent_silure", "medaille_rouillee": "medaille_rouillee", "bague_charognard": "bague_charognard", "lanterne_brume": "lanterne_brume", "croc_brochet": "croc_brochet", "signet_algue": "signet_algue",
+	"masse_digue": "masse", "derniere_arche": "dague", "sceptre_vive": "sceptre", "canon_mere": "canon", "poings_crue": "gantelet", "arc_chevrier": "arc", "geste_parfait": "pinceau", "passe_partout": "crochets",
+	"cuirasse_gardien": "cuirasse_compagnie", "voile_dame": "cire_passeur", "manteau_cendre": "mantelet_feuilles", "bottes_chevrier": "bottes_fuyard", "grandes_eaux": "liege", "coeur_ecluse": "amulette", "oeil_paupiere": "dossiere", "sceau_compagnie": "medaille_rouillee"}
 const SLOTS := ["arme", "armure", "bottes", "bijou"]
 const SLOT_NAME := {"arme": "Arme", "armure": "Armure", "bottes": "Bottes", "bijou": "Bijou"}
-const PRICE := {1: 45, 2: 75, 3: 110}
+const PRICE := {1: 45, 2: 75, 3: 110, 4: 170}
 
 const PROPS := {
 	"coffre": {"name": "Coffre", "text": "Frappez-le avec une attaque, ou ouvrez-le au contact sans perdre votre déplacement."},
@@ -807,8 +847,9 @@ static func item_text(id: String) -> String:
 		parts.append("+%d dégâts" % it.dmg)
 	if it.get("hp", 0) > 0:
 		parts.append("+%d PV max" % it.hp)
-	if it.passive != "":
-		parts.append("%s : %s" % [PASSIVES[it.passive].name, PASSIVES[it.passive].text])
+	for pk in ["passive", "passive2"]:
+		if it.get(pk, "") != "":
+			parts.append("%s : %s" % [PASSIVES[it[pk]].name, PASSIVES[it[pk]].text])
 	if it.get("move", 0) != 0:
 		parts.append("%+d déplacement" % it.move)
 	if it.get("jump", 0) != 0:
@@ -983,9 +1024,15 @@ static func level(ci: Dictionary) -> int:
 	return clampi(int(ci.get("lvl", 1 + int(ci.get("up", 0)))) + int(ci.get("bump", 0)), 1, MAX_LVL)
 
 
+# Cartes créées en combat seulement : jamais au butin, ni en bibliothèque.
+const TOKENS := {
+	"murmure": {"name": "Murmure", "g": 7, "rar": 1, "cost": 0, "kind": "atk", "range": [1, 3], "dmg": 4, "pierce": true, "text": "Inflige {dmg}, armure ignorée.", "up": [{"dmg": 2}]},
+}
+
+
 static func def(id: String) -> Dictionary:
 	## Définition d'une carte, de classe ou de guilde.
-	return CARDS[id] if CARDS.has(id) else Guildes.CARDS[id]
+	return CARDS[id] if CARDS.has(id) else (TOKENS[id] if TOKENS.has(id) else Guildes.CARDS[id])
 
 
 static func all_ids() -> Array:
@@ -1013,7 +1060,7 @@ static func card(ci: Dictionary) -> Dictionary:
 	var lv := level(ci)
 	c["lvl"] = lv
 	c["st"] = ci.get("st", false)
-	for k in ["free", "cut", "eph"]:
+	for k in ["free", "cut", "eph", "ench"]:
 		if ci.has(k):
 			c[k] = ci[k]
 	var ups: Array = UPGRADES.get(ci.id, c.get("up", []))
@@ -1027,7 +1074,63 @@ static func card(ci: Dictionary) -> Dictionary:
 				c[key] = maxi(0, c.get(key, 0) + v) if v is int else c.get(key, 0.0) + v
 			else:
 				c[key] = v
+	if ci.has("ench") and ENCHANTS.has(ci.ench):
+		# enchantement (événement, défi) : un mot-clé greffé sur la carte, par-dessus ses niveaux
+		var en: Dictionary = ENCHANTS[ci.ench]
+		for key in en.add:
+			var v = en.add[key]
+			c[key] = maxi(0, int(c.get(key, 0)) + v) if key == "cost" else v
+		if en.has("text"):
+			c.text = c.text + " " + en.text
+		c.name = c.name + " ✦"
 	return c
+
+
+# Enchantements : greffés sur une carte par un événement ou un défi. « need » dit sur quelles cartes
+# ils ont un sens (une attaque peut recevoir Coup de grâce, jamais un baril).
+const ENCHANTS := {
+	"vampire": {"name": "Vampirique", "text": "Vol de vie.", "add": {"lifesteal": true}, "need": "dmg"},
+	"perce": {"name": "Perçante", "text": "Ignore l'armure.", "add": {"pierce": true}, "need": "dmg"},
+	"conserve": {"name": "Tenace", "text": "Conservé.", "add": {"retain": true}, "need": "any"},
+	"allegee": {"name": "Allégée", "add": {"cost": -1}, "need": "cost2"},
+	"grace": {"name": "Bourreau", "add": {"trig": {"on": "grace", "energy": 1}}, "need": "atk"},
+	"mur": {"name": "Désespoir", "add": {"trig": {"on": "mur", "dmg": 5}}, "need": "atk"},
+	"proie": {"name": "Traqueur", "add": {"trig": {"on": "proie", "dmg": 4}}, "need": "atk"},
+	"revers": {"name": "Ombre", "add": {"trig": {"on": "dos", "draw": 1}}, "need": "melee"},
+	"premier": {"name": "Ouverture", "add": {"trig": {"on": "premier", "draw": 1}}, "need": "any"},
+	"enchaine": {"name": "Rythme", "add": {"trig": {"on": "enchaine", "block": 4}}, "need": "any"},
+}
+
+
+static func ench_ok(ci: Dictionary, en: String) -> bool:
+	## L'enchantement a-t-il un sens sur cette carte (à tous ses niveaux) ?
+	var d := def(ci.id)
+	if d.has("tool") or TOKENS.has(ci.id) or ci.has("ench") or d.get("kind", "") == "power":
+		return false
+	var ups: Array = UPGRADES.get(ci.id, d.get("up", []))
+	var trig_any: bool = d.has("trig") or ups.any(func(u): return u.has("trig"))
+	var add: Dictionary = ENCHANTS[en].add
+	if add.has("trig") and trig_any:
+		return false
+	var c := card(ci)
+	if add.has("pierce") and c.get("pierce", false) or add.has("retain") and c.get("retain", false):
+		return false
+	match ENCHANTS[en].need:
+		"dmg":
+			return int(c.get("dmg", 0)) > 0
+		"atk":
+			return c.kind == "atk" and int(c.get("dmg", 0)) > 0
+		"melee":
+			return c.kind == "atk" and int(c.get("dmg", 0)) > 0 and int(c.get("range", [1, 1])[1]) <= 1
+		"cost2":
+			return int(c.get("cost", 0)) >= 2 and not c.has("xcost")
+	return true
+
+
+static func ench_roll(ci: Dictionary, r: RandomNumberGenerator) -> String:
+	## Un enchantement cohérent au hasard pour cette carte, "" s'il n'y en a aucun.
+	var ok: Array = ENCHANTS.keys().filter(func(e): return ench_ok(ci, e))
+	return "" if ok.is_empty() else ok[r.randi_range(0, ok.size() - 1)]
 
 
 const DIFF_NAME := {"cost": "Coût", "dmg": "Dégâts", "block": "Armure", "heal": "Soin", "heal_all": "Soin de groupe", "draw": "Pioche",
@@ -1134,7 +1237,7 @@ static func card_brief(c: Dictionary) -> String:
 	if t.begins_with("au Garde et aux alliés voisins"):
 		t = "Aussi aux alliés voisins."
 	t = t.replace("{poison} de poison", "+{poison} poison")
-	t = fill(t, c)
+	t = fill(Lang.t(t), c)
 	# majuscule en tête de chaque phrase
 	var parts := t.split(". ")
 	for i in parts.size():
@@ -1155,7 +1258,8 @@ static func keyword_tip(c: Dictionary) -> String:
 			out.append("%s : %s" % [kw, KEYWORDS[kw]])
 	if c.has("tool"):
 		out.insert(1, "Charges : " + KEYWORDS["Charges"])
-		out.append("Niveau 3 : %s" % ("légendaire, une fois par combat" if c.get("legend", false) else "légendaire (à découvrir à la forge)"))
+		if c.get("legend", false):  # le niveau 3 est un secret : on n'en parle qu'une fois obtenu
+			out.append("Légendaire : inépuisable, une fois par combat.")
 		return "\n".join(out)
 	if c.has("guild"):
 		var gl: Array = Guildes.LIST[c.g]
@@ -1181,7 +1285,8 @@ static func keyword_list(c: Dictionary) -> Array:
 		return "niveau"
 	if c.has("tool"):
 		out.append({"icon": "fabrique", "title": "Carte-objet", "text": "Gratuite, et elle reste en main d'un tour à l'autre. Jouée, elle perd une charge ; à zéro, elle quitte le paquet."})
-		out.append({"icon": "niveau", "title": "Niveau 3 : légendaire", "text": "Inépuisable : une fois par combat, effet nettement plus fort." if c.get("legend", false) else "À découvrir à la forge : inépuisable et bien plus fort."})
+		if c.get("legend", false):
+			out.append({"icon": "niveau", "title": "Légendaire", "text": "Inépuisable : une fois par combat, effet nettement plus fort."})
 	var txt: String = card_text(c) + " " + KIND_WORD.get(c.kind, "")
 	for kw in KEYWORDS:
 		if kw in ["Niveau", "Charges"]:
@@ -1193,6 +1298,8 @@ static func keyword_list(c: Dictionary) -> Array:
 	if c.has("trig"):
 		var tr: Dictionary = TRIGGERS[c.trig.on]
 		out.append({"icon": ic.call(tr.name), "title": tr.name, "text": "Bonus " + tr.text + "."})
+	if c.has("ench") and ENCHANTS.has(c.ench):
+		out.append({"icon": "niveau", "title": "✦ Enchantée : " + ENCHANTS[c.ench].name, "text": "Un mot-clé greffé sur la carte ; il reste à tous ses niveaux."})
 	if c.has("guild"):
 		var gl: Array = Guildes.LIST[c.g]
 		out.append({"icon": "grixis", "title": gl[2], "text": "%s + %s : %s" % [HEROES[gl[0]].name, HEROES[gl[1]].name, gl[3]]})

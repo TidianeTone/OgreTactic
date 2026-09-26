@@ -189,7 +189,7 @@ func setup(k: String, s: String) -> void:
 	# anneau au sol : or pour les héros, braise pour les ennemis
 	ring = MeshInstance3D.new()
 	var q := QuadMesh.new()
-	q.size = Vector2(1.0, 1.0) * {"gardien": 2.0, "grelin": 1.5, "hale": 1.5, "brasse": 1.5}.get(k, 1.0)
+	q.size = Vector2(1.0, 1.0) * {"gardien": 2.0, "grelin": 1.5, "hale": 1.5, "brasse": 1.5, "chevrier": 1.5, "dame": 1.5, "brule_haie": 1.5}.get(k, 1.0)
 	q.orientation = PlaneMesh.FACE_Y
 	ring.mesh = q
 	var m := ShaderMaterial.new()
@@ -253,8 +253,9 @@ func passives() -> Array:
 	var out: Array = data.get("passives", []).duplicate() + extra_passives
 	for slot in equip:
 		var id: String = equip[slot]
-		if id != "" and Data.ITEMS[id].passive != "":
-			out.append(Data.ITEMS[id].passive)
+		for pk in ["passive", "passive2"]:
+			if id != "" and Data.ITEMS[id].get(pk, "") != "":
+				out.append(Data.ITEMS[id][pk])
 	return out
 
 

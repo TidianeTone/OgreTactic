@@ -68,5 +68,30 @@ func _init() -> void:
 					print("damier asymétrique ", s2)
 					fails += 1
 	b.free()
+	# enchantements : chaque carte enchantable garde un texte résolu ; jamais sur une carte-objet
+	var n_en := 0
+	for id in Data.all_ids():
+		for en in Data.ENCHANTS:
+			if Data.ench_ok({"id": id, "lvl": 1}, en):
+				n_en += 1
+				var c := Data.card({"id": id, "lvl": 3, "ench": en})
+				if Data.card_text(c).contains("{") or c.has("tool"):
+					print("enchantement : ", id, " ", en)
+					fails += 1
+	if n_en < 200:
+		print("trop peu de cartes enchantables : ", n_en)
+		fails += 1
+	# anglais : correspondance exacte, recollage de phrases voisines, chemins d'image intacts
+	var L := Lang.new()
+	L.load_dict("res://assets/i18n/en.json")
+	for pair in [["Fin du tour", "End turn"], ["[img=15x15]res://assets/ui/kw_dos.png[/img]", "[img=15x15]res://assets/ui/kw_dos.png[/img]"]]:
+		var got := String(L._get_message(pair[0], ""))
+		if got != pair[1]:
+			print("traduction : ", pair[0], " -> ", got)
+			fails += 1
+	var mix := String(L._get_message("Survolez pour lire l'effet · un objet du sac, puis un héros · clic", ""))
+	if not mix.begins_with("Hover to read the effect · an item from the bag, then a hero"):
+		print("recollage : ", mix)
+		fails += 1
 	print("OK" if fails == 0 else "ÉCHECS : %d" % fails)
 	quit(1 if fails else 0)

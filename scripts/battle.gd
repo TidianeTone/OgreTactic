@@ -93,6 +93,7 @@ var oak_max := {}           # case -> PV de départ (barre de vie)
 var smolder := {}           # case -> l'arbre couve : il flambe au round suivant (nœud de la flamme)
 var loot := {}              # case -> [objet, nœud] lâché par un ennemi
 var _blast := false         # les dégâts en cours viennent d'une explosion
+var _lifesteal := false     # la carte en cours porte « Vol de vie » (enchantement)
 # multiclasse : cartes de guilde
 var power_owner := {}       # pouvoir -> héros qui l'a joué
 var booms := 0              # barils sautés ce tour (Poudre, 174 BPM)
@@ -116,6 +117,7 @@ var sold_gold := 0          # or de revente de ce combat (30 au plus)
 var last_exhausted := {}    # héros -> dernière carte épuisée jouée (Flashback)
 var curee_turn := 0
 var drawn_turn := 0         # cartes piochées ce tour hors début de tour (Ouï-dire)
+var nyxa_turn := 0          # Murmures soufflés ce tour (Nyxa)
 var heal_turn := false      # un héros a regagné des PV ce tour (Regain)
 var omens := {}             # case -> {dmg, owner, node} : Présage
 var exhaust_n := {}         # héros -> cartes épuisées ce combat
@@ -249,6 +251,7 @@ func start(hs: Array, foe_ids: Array, deck_ref: Array, relics_ref: Array) -> voi
 		u.face(center - u.cell)
 	for f in foes:
 		_place_special(f)
+	_boss_terrain()
 	var pool: Array = foes.filter(func(f): return not f.data.get("no_champion", false) and not f.data.get("structure", false))
 	for i in mini(champions, pool.size()):
 		var f: Unit = pool[rng.randi_range(0, pool.size() - 1)]
@@ -365,6 +368,40 @@ func _place_special(f: Unit) -> void:
 	elif f.data.get("water_only", false):
 		var from2 := f.cell
 		_relocate(f, func(c): return -dist(c, from2) - (99.0 if _hero_dist(c) < 4 else 0.0), true)
+
+
+func _boss_terrain() -> void:
+	## Le terrain que réclament les boss de crue : des arbres au bord de l'eau (Chevrier), des haies (Brûle-Haie).
+	var keys: Array = foes.map(func(o): return o.key)
+	if keys.has("chevrier"):
+		var banks: Array = board.walkable_cells().filter(func(c): return unit_at(c) == null and not board.props.has(c) and _hero_dist(c) >= 2 \
+				and Board.DIRS.any(func(d): return board.kind.get(c + d, "") == "water" and board._in(c + d)))
+		banks.shuffle()
+		var n := 0
+		for c in banks:
+			if n >= 6 or oaks.keys().any(func(o): return dist(o, c) < 3):
+				continue
+			_plant(c, 10, 0, 0, false, false)
+			n += 1
+	if keys.has("brule_haie"):
+		var hc := Vector2.ZERO
+		var fc := Vector2.ZERO
+		for h in heroes:
+			hc += Vector2(h.cell)
+		for o in foes:
+			fc += Vector2(o.cell)
+		hc /= maxi(1, heroes.size())
+		fc /= maxi(1, foes.size())
+		var ax := Vector2i(signi(int(fc.x - hc.x)), 0) if absf(fc.x - hc.x) >= absf(fc.y - hc.y) else Vector2i(0, signi(int(fc.y - hc.y)))
+		var side := Vector2i(ax.y, ax.x)
+		var n := 0
+		for k in [4, 7]:  # deux haies en travers, entre l'escouade et lui : le feu court le long d'une ligne
+			var mid: Vector2i = Vector2i(roundi(hc.x), roundi(hc.y)) + ax * k
+			for j in range(-6, 7):
+				var c: Vector2i = mid + side * j
+				if n < 16 and board.walkable(c) and unit_at(c) == null and not board.props.has(c) and not oaks.has(c):
+					_plant(c, 10, 0, 0, false, false)
+					n += 1
 
 
 func _relocate(f: Unit, score: Callable, water := false) -> void:
@@ -676,6 +713,14 @@ func _next_round() -> void:
 	else:
 		main.ui.banner("Round %d" % turn, "Du plus rapide au plus lent")
 		await wait(0.5)
+	# un porteur de carte : on l'annonce d'entrée, caméra sur lui (le défi se découvre, il ne se rate pas)
+	var bearer: Array = alive_foes().filter(func(f): return f.card_id != "") if turn == 1 else []
+	if bearer.size() > 0:
+		var b: Unit = bearer[0]
+		main.focus(b.position)
+		main.ui.banner("🃏 %s" % Data.CARD_CONDS[b.card_cond].name, "%s garde une carte : %s. %s%s" % [b.nm, Data.def(b.card_id).name, Data.CARD_CONDS[b.card_cond].text, "" if b.card_cond == "fuite" else " Relevé, le défi l'enchante."])
+		await wait(2.2)
+		main.focus(null)
 	await _advance()
 
 
@@ -715,7 +760,7 @@ func _foe_omen(kind: String, cells: Array, owner: Unit, extra := {}) -> Dictiona
 		if not board._in(c):
 			continue
 		var l3 := Label3D.new()
-		l3.text = {"suinte": "≋", "fissure": "⚒", "baril": "✹", "chasse": "≋", "digue": "⚠"}.get(kind, "!") + " 1"
+		l3.text = {"suinte": "≋", "fissure": "⚒", "baril": "✹", "chasse": "≋", "digue": "⚠", "coupe": "✂"}.get(kind, "!") + " 1"
 		l3.font = Fx.title_font()
 		l3.font_size = 64
 		l3.pixel_size = 0.0045
@@ -754,7 +799,7 @@ func _resolve_omens() -> void:
 	var muts: Array = []
 	for om in foe_omens.duplicate():
 		match om.kind:
-			"suinte":
+			"suinte", "coupe":
 				for c in om.cells:
 					muts.append({"cell": c, "kind": "water"})
 				_drop_omen(om)
@@ -823,7 +868,9 @@ func _fall_water(u: Unit) -> void:
 	if u.trait_id != "nageur" and not u.has_p("flotte"):
 		Fx.number(main, u.position, "Noyade", Color(0.6, 0.85, 1.0))
 		_cause = "eau"
-		damage(u, 8 + (6 if has("cloche") and u.side == "foe" else 0))
+		if u.key == "dame":
+			Fx.number(main, u.position + Vector3(0, 1.2, 0), "Noyée dans sa crue !", Color(0.6, 0.85, 1.0), true)
+		damage(u, 8 + (6 if has("cloche") and u.side == "foe" else 0) + (int(u.max_hp * 0.2) if u.key == "dame" else 0))
 		_cause = ""
 	if u.alive:
 		var free := _nearest_free(u.cell)
@@ -872,6 +919,14 @@ func _phase(u: Unit, p: int) -> void:
 	main.shake(0.8)
 	u.data = u.data.duplicate(true)
 	match u.key:
+		"chevrier":
+			main.ui.banner("La corne sonne !", "Deux chèvres de plus ; il coupe deux ponts par tour")
+			for i in 2:
+				await _summon(u, "chevre")
+		"dame":
+			main.ui.banner("Les vannes hurlent", "La crue monte de deux rangs par tour")
+		"brule_haie":
+			main.ui.banner("Tout brûle", "Il fait couver deux arbres par tour")
 		"grelin":
 			main.ui.banner("Les vannes cèdent !", "Grelin perd son pavois ; la Chasse d'eau revient tous les 2 tours")
 			u.data.passives = u.data.passives.filter(func(q): return q != "pavois_face")
@@ -1091,6 +1146,7 @@ func _hero_turn(h: Unit) -> void:
 	used_turn = 0
 	curee_turn = 0
 	drawn_turn = 0
+	nyxa_turn = 0
 	heal_turn = false
 	item_echo = null
 	h.fuse = 0
@@ -1232,18 +1288,12 @@ func draw(n: int) -> void:
 	if got > 0 and powers.has("ignar"):
 		for f in alive_foes():
 			damage(f, got * int(power_val.get("ignar", 1)), null, true, true)
-	if got > 0 and not _start_draw and powers.has("nyxa"):
-		for k in got:
-			var live := alive_foes()
-			if live.size() > 0:
-				var v: Unit = live[randi() % live.size()]
-				v.poison += int(power_val.get("nyxa", 2))
-				Fx.number(main, v.position + Vector3(0, 0.4, 0), "☠ +%d" % int(power_val.get("nyxa", 2)), Color(0.6, 0.9, 0.3))
 
 
 func end_turn() -> void:
 	if not player_turn or busy or over:
 		return
+	_lifesteal = false
 	var nope: String = main.tuto_hold(active) if main.tuto else ""
 	if nope != "":
 		main.ui.toast(nope)
@@ -1744,6 +1794,7 @@ func play_card(i: int, t: Vector2i) -> void:
 	var cost := cost_of(c)
 	if energy < cost or (c.has("xcost") and energy - cost < 1):
 		return
+	_lifesteal = c.get("lifesteal", false)
 	coach.emit("played", ci.id)
 	if int(c.get("pay_gold", 0)) > main.gold:
 		main.ui.toast("Pas assez d'or.")
@@ -2412,7 +2463,9 @@ func _card_mark(f: Unit) -> void:
 func _card_won(f: Unit, how: String) -> void:
 	if f.card_id == "":
 		return
-	main.pending_cards.append(f.card_id)
+	# un défi relevé (pas un simple fuyard abattu) : la carte arrive avec un enchantement cohérent
+	var en := Data.ench_roll({"id": f.card_id, "lvl": 1}, rng) if f.card_cond != "fuite" else ""
+	main.pending_cards.append(f.card_id + ("|" + en if en != "" else ""))
 	Fx.number(main, f.position + Vector3(0, 1.8, 0), "%s : %s" % [how, Data.def(f.card_id).name], GOLD_FX, true)
 	log_add("🃏 %s — %s" % [how, Data.def(f.card_id).name])
 	f.card_id = ""
@@ -2708,6 +2761,8 @@ func damage(u: Unit, amount: int, src: Unit = null, show := true, ranged := fals
 	main.shake(0.06 + rest * 0.012)
 	if src and src.affix == "vampire" and rest > 1 and src.alive:
 		heal(src, rest / 2)
+	if _lifesteal and player_turn and src and src == active and rest > 1 and src.alive:
+		heal(src, rest / 2)
 	if _blast and u.tool == "bombe":
 		# la bombe qu'il portait lui saute entre les mains
 		u.tool = ""
@@ -2828,6 +2883,12 @@ func _foe_death(u: Unit, src: Unit) -> void:
 					o.remove_meta("amarre")
 					_delay(o, 1)
 					_first("largues", o.position, "Largués !", Color(0.55, 0.6, 1.0), "la Bitte brisée, ses amarrés jouent en dernier au round suivant.")
+		"vanne_dame":
+			if not alive_foes().any(func(o): return o.key == "vanne_dame"):
+				for d in alive_foes().filter(func(o): return o.key == "dame"):
+					d.set_meta("sec", true)
+					gone.call(func(om): return om.owner == d and om.kind == "suinte")
+					main.ui.banner("La crue retombe", "Plus de vanne : l'eau cesse de monter")
 		"vanne":
 			gone.call(func(om): return om.owner == u and om.kind == "suinte")
 			_first("reflux", u.position, "Reflux", Color(0.6, 0.9, 1.0), "la vanne cassée, l'eau annoncée ne monte pas.")
@@ -3091,7 +3152,7 @@ func _intent(f: Unit) -> String:
 		"anguille":
 			return "≈ %d" % dmg
 		"totem":
-			return "☀ Veille" if f.key == "fanal" else "⚙ +3 armure à Grelin"
+			return "☀ Veille" if f.key == "fanal" else ("≋ Crue" if f.key == "vanne_dame" else "⚙ +3 armure à Grelin")
 		"tether":
 			return "⛓ Amarre ×2"
 		"flood":
@@ -3100,6 +3161,12 @@ func _intent(f: Unit) -> String:
 			var ch := chain_target(f)
 			var who: String = ch.nm if ch else "personne"
 			return ("⛓ → %s" % who) if nx % 2 == 0 else ("⛓ dans 1 tour → %s" % who)
+		"chevrier":
+			return "✂ Pont · ⚔ %d" % dmg
+		"dame":
+			return ("≋ Crue · ➶ %d" % dmg) if not f.has_meta("sec") else "➶ %d" % dmg
+		"brule":
+			return ("♨ Haie · ➶ %d" % dmg) if oaks.size() > 0 else "➶ %d" % dmg
 		"eclusier":
 			return "≋ Chasse d'eau" if nx % (2 if f.get_meta("phase", 0) >= 1 else 3) == 1 else "⚔ %d" % dmg
 		"guard":
@@ -3150,6 +3217,14 @@ func foe_act(f: Unit) -> void:
 			return
 	elif ai == "eclusier" and f.turns % (2 if f.get_meta("phase", 0) >= 1 else 3) == 1:
 		await _set_line(f, "chasse")
+		return
+	if ai == "chevrier":
+		await _cut_bridge(f)
+	elif ai == "dame" and not f.has_meta("sec") and f.turns >= 2:  # un tour de grâce pour se placer
+		await _crue(f)
+	elif ai == "brule":
+		await _kindle(f)
+	if not f.alive or over:
 		return
 	elif ai == "boss" and f.get_meta("phase", 0) >= 2 and f.turns % 2 == 0:
 		await _set_line(f, "digue")
@@ -3593,6 +3668,76 @@ func _flush(f: Unit) -> void:
 		m.face(f.cell - m.cell)
 		Fx.burst(main, m.position + Vector3(0, 0.5, 0), Color(0.6, 0.85, 1.0), 30, 2.0, 6.0)
 	await wait(0.2)
+
+
+func _cut_bridge(f: Unit) -> void:
+	## Le Chevrier : le pont le plus proche d'un héros tombe à l'eau au prochain round (deux en phase 2).
+	var pending := omen_cells()
+	for k in (2 if f.get_meta("phase", 0) >= 1 else 1):
+		var br: Array = board.h.keys().filter(func(c): return board._in(c) and board.kind[c] == "bridge" and not pending.has(c))
+		if br.is_empty():
+			if alive_foes().filter(func(o): return o.key == "chevre").size() < 3 and f.turns % 2 == 0:
+				await _summon(f, "chevre")  # plus de pont : il siffle une chèvre
+			return
+		br.sort_custom(func(a, b): return _hero_dist(a) < _hero_dist(b))
+		var cells: Array = [br[0]]
+		for c in br:
+			if c != br[0] and dist(c, br[0]) == 1 and cells.size() < 2:
+				cells.append(c)
+		for c in cells:
+			pending[c] = true
+		f.face(_dir(f.cell, br[0]))
+		await f.cast()
+		_foe_omen("coupe", cells, f)
+		_first("coupe", board.world(br[0]), "✂ Pont coupé", Color(1.0, 0.7, 0.4), "au prochain round, ce pont tombe à l'eau avec ce qui s'y tient. Abattre un arbre au bord de l'eau jette un tronc en travers.")
+
+
+func _crue(f: Unit) -> void:
+	## La Dame : la crue gagne un rang (deux en phase 2) depuis le bord de l'arène le plus proche de l'escouade.
+	if not f.has_meta("crue_dir"):
+		var hc := Vector2.ZERO
+		for h in heroes:
+			hc += Vector2(h.cell)
+		hc /= maxi(1, heroes.size())
+		var sides := {Vector2i(1, 0): hc.x, Vector2i(-1, 0): board.dim - 1 - hc.x, Vector2i(0, 1): hc.y, Vector2i(0, -1): board.dim - 1 - hc.y}
+		var best := Vector2i(1, 0)
+		for d in sides:
+			if sides[d] < sides[best]:
+				best = d
+		f.set_meta("crue_dir", best)  # sens de la montée : du bord vers l'intérieur
+		f.set_meta("crue_row", 0)
+	var d: Vector2i = f.get_meta("crue_dir")
+	var row: int = f.get_meta("crue_row")
+	var took: Array = []
+	for k in (2 if f.get_meta("phase", 0) >= 1 else 1):
+		if row >= board.dim - 3:
+			break
+		var r := row if (d.x > 0 or d.y > 0) else board.dim - 1 - row
+		for j in board.dim:
+			var c := Vector2i(r, j) if d.x != 0 else Vector2i(j, r)
+			if board._in(c) and board.kind[c] in ["land", "bridge"]:
+				took.append(c)
+		row += 1
+	f.set_meta("crue_row", row)
+	if took.is_empty():
+		return
+	await f.cast()
+	_foe_omen("suinte", took, f)
+	_first("crue", board.world(took[0]), "≋ La crue monte", Color(0.6, 0.85, 1.0), "ce rang sera sous l'eau au prochain round, pour tout le monde. Cassez ses vannes, ou poussez-la dedans.")
+
+
+func _kindle(f: Unit) -> void:
+	## Brûle-Haie : l'arbre le plus proche de l'escouade se met à couver ; il flambe au round suivant.
+	var cand: Array = oaks.keys().filter(func(c): return not smolder.has(c) and not oak_fp.has(c))
+	if cand.is_empty():
+		return
+	cand.sort_custom(func(a, b): return _hero_dist(a) < _hero_dist(b))
+	await f.cast()
+	for c in cand.slice(0, 2 if f.get_meta("phase", 0) >= 1 else 1):
+		Fx.bolt(main, f.position + Vector3(0, 0.8, 0), board.world(c) + Vector3(0, 0.8, 0), EMBER)
+		smolder[c] = _ember_mark(c)
+	_first("couve", board.world(cand[0]), "♨ La haie couve", EMBER, "cet arbre flambe au round suivant (6 dégâts autour) et gagne les arbres collés. Abattez la haie avant la flamme.")
+	changed.emit()
 
 
 func _flood_mark(f: Unit) -> void:
@@ -4106,6 +4251,8 @@ func _intent_text(f: Unit) -> String:
 			return "Éclaire 3 cases : pas de coup de dos sur ses alliés, +1 portée à leurs tireurs. Éteint, il les laisse exposés."
 		"treuil":
 			return "Donne +3 d'armure à Grelin à chacun de ses tours. Cassé, il expose Grelin."
+		"vanne_dame":
+			return "Nourrit la crue de la Dame. Toutes les vannes cassées, l'eau cesse de monter."
 	match f.data.ai:
 		"melee":
 			return "Avance et frappe au contact : %d dégâts." % dmg
@@ -4142,6 +4289,12 @@ func _intent_text(f: Unit) -> String:
 			return "Inonde 2 cases de berge près de vous au prochain round, pour tout le monde (8 cases au plus)."
 		"pilori":
 			return "Un tour sur deux, enchaîne un héros à 6 cases (le provocateur d'abord) : entravé, Provocation suspendue."
+		"chevrier":
+			return "Chaque tour, coupe le pont le plus proche de vous (il tombe à l'eau au round suivant), puis frappe %d. À mi-vie, sonne la corne : deux chèvres." % dmg
+		"dame":
+			return "Chaque tour, la crue avance d'un rang depuis un bord de l'arène (deux à mi-vie) tant qu'une vanne tient. Magie : %d. Poussée dans l'eau, elle s'y noie." % dmg
+		"brule":
+			return "Chaque tour, fait couver l'arbre le plus proche de vous : il flambe au round suivant (6 autour) et gagne ses voisins. Magie : %d." % dmg
 		"eclusier":
 			return "Frappe %d à 1-2 cases. Tous les 3 tours (2 en phase 2), annonce une Chasse d'eau : la ligne rouge est poussée de 2 cases, ses alliés compris." % dmg
 		"guard":
@@ -4622,7 +4775,7 @@ func _recharge(h: Unit, n: int) -> void:
 
 
 func _craft(n: int, h: Unit = null, min_rar := 1, tool := "") -> void:
-	## Fabrique : des cartes-objets Éphémères dans la main (commune 75 %, peu commune 20 %, rare 3 %, légendaire 2 %).
+	## Fabrique : des cartes-objets Éphémères dans la main (commune 75 %, peu commune 20 %, rare 5 %) ; jamais de légendaire.
 	if h == null:
 		h = active
 	if h == null:
@@ -4632,18 +4785,13 @@ func _craft(n: int, h: Unit = null, min_rar := 1, tool := "") -> void:
 		var lvl := 1
 		if id == "":
 			var roll := rng.randf()
-			if roll < 0.02:
-				lvl = 3
 			var rar := 3 if roll < 0.05 else (2 if roll < 0.25 else 1)
 			rar = maxi(rar, min_rar)
-			var ids: Array = Data.CARDS.keys().filter(func(x): return Data.CARDS[x].has("tool") and (lvl == 3 or Data.CARDS[x].rar == rar))
+			var ids: Array = Data.CARDS.keys().filter(func(x): return Data.CARDS[x].has("tool") and Data.CARDS[x].rar == rar)
 			id = ids[rng.randi_range(0, ids.size() - 1)]
 		if hand.size() >= 10:
 			break
 		hand.append({"id": id, "lvl": lvl, "h": h.key, "eph": true})
-		if lvl == 3:
-			main.library_see(id + "#3")
-			main.ui.banner("Coup de chance !", "%s fabrique un légendaire : %s" % [h.nm, Data.card({"id": id, "lvl": 3, "h": h.key}).name])
 		Fx.number(main, h.position + Vector3(0, 1.0 + k * 0.35, 0), "+ " + Data.card({"id": id, "lvl": lvl, "h": h.key}).name, GOLD_FX)
 	changed.emit()
 
@@ -5129,6 +5277,28 @@ func _fell(c: Vector2i, why: String, fire := false) -> void:
 	var tw := node.create_tween()
 	tw.tween_property(node, "scale", Vector3(1.2, 0.05, 1.2), 0.4)
 	tw.tween_callback(node.queue_free)
+	if not fire:
+		_log_bridge(c)
+
+
+func _log_bridge(c: Vector2i) -> void:
+	## L'arbre abattu tombe dans l'eau voisine : une case de pont, de préférence celle qui rejoint une autre rive.
+	var best := Vector2i.ZERO
+	for d in Board.DIRS:
+		var w := c + d
+		if not board._in(w) or board.kind.get(w, "") != "water":
+			continue
+		if best == Vector2i.ZERO or board.kind.get(w + d, "water") != "water":
+			best = d
+	if best == Vector2i.ZERO:
+		return
+	var w := c + best
+	board.kind[w] = "bridge"
+	board.h[w] = maxi(1, board.h[c])
+	board.along_x[w] = best.x != 0
+	board.build_visuals()
+	_sim("tronc")
+	_first("tronc", board.world(w), "Tronc en travers", Color(0.75, 0.95, 0.55), "un arbre abattu au bord de l'eau y tombe : un passage de fortune.")
 
 
 func _burn(c: Vector2i) -> void:
@@ -5487,6 +5657,11 @@ func _on_hit(h: Unit, f: Unit, back: bool) -> void:
 	if h.side != "hero":
 		return
 	h.hits += 1
+	# Nyxa : un coup de dos souffle un Murmure dans la main de celui qui l'a porté (4 par tour)
+	if back and powers.has("nyxa") and nyxa_turn < 4 and hand.size() < 10:
+		nyxa_turn += 1
+		hand.append({"id": "murmure", "lvl": 2 if int(power_val.get("nyxa", 0)) >= 2 else 1, "h": h.key, "eph": true})
+		Fx.number(main, h.position + Vector3(0, 1.3, 0), "+ Murmure", Color(0.75, 0.55, 1.0))
 	if h.bph > 0:
 		gain_block(h, h.bph)
 	if h.inner > 0 and dist(h.cell, f.cell) == 1:
