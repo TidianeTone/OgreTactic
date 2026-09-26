@@ -29,3 +29,9 @@ blender/kie_cartes/planches_menus/
 work/
 blender/kie_ui/anciens/
 blender/kie_cartes/planches_objets/*.png
+
+# références de style envoyées par Tidiane (œuvres d autres artistes) : locales, jamais publiées
+blender/kie_ui/refs_items/
+
+# cadres de guilde peints (sources KIE) : seules les découpes frame_g_* sont publiées
+blender/kie_ui/guildes/
