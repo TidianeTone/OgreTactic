@@ -1113,16 +1113,16 @@ static func card(ci: Dictionary) -> Dictionary:
 # Enchantements : greffés sur une carte par un événement ou un défi. « need » dit sur quelles cartes
 # ils ont un sens (une attaque peut recevoir Coup de grâce, jamais un baril).
 const ENCHANTS := {
-	"vampire": {"name": "Vampirique", "text": "Vol de vie.", "add": {"lifesteal": true}, "need": "dmg"},
-	"perce": {"name": "Perçante", "text": "Ignore l'armure.", "add": {"pierce": true}, "need": "dmg"},
-	"conserve": {"name": "Tenace", "text": "Conservé.", "add": {"retain": true}, "need": "any"},
-	"allegee": {"name": "Allégée", "add": {"cost": -1}, "need": "cost2"},
-	"grace": {"name": "Bourreau", "add": {"trig": {"on": "grace", "energy": 1}}, "need": "atk"},
-	"mur": {"name": "Désespoir", "add": {"trig": {"on": "mur", "dmg": 5}}, "need": "atk"},
-	"proie": {"name": "Traqueur", "add": {"trig": {"on": "proie", "dmg": 4}}, "need": "atk"},
-	"revers": {"name": "Ombre", "add": {"trig": {"on": "dos", "draw": 1}}, "need": "melee"},
-	"premier": {"name": "Ouverture", "add": {"trig": {"on": "premier", "draw": 1}}, "need": "any"},
-	"enchaine": {"name": "Rythme", "add": {"trig": {"on": "enchaine", "block": 4}}, "need": "any"},
+	"vampire": {"name": "Vampirique", "text": "Vol de vie.", "desc": "Soigne le héros de la moitié des dégâts infligés.", "add": {"lifesteal": true}, "need": "dmg"},
+	"perce": {"name": "Perçante", "text": "Ignore l'armure.", "desc": "Les dégâts ignorent l'armure de la cible.", "add": {"pierce": true}, "need": "dmg"},
+	"conserve": {"name": "Tenace", "text": "Conservé.", "desc": "Ne part pas à la défausse en fin de tour : elle reste en main.", "add": {"retain": true}, "need": "any"},
+	"allegee": {"name": "Allégée", "desc": "Coûte 1 de moins.", "add": {"cost": -1}, "need": "cost2"},
+	"grace": {"name": "Bourreau", "desc": "+1 énergie si la carte tue.", "add": {"trig": {"on": "grace", "energy": 1}}, "need": "atk"},
+	"mur": {"name": "Désespoir", "desc": "+5 dégâts si le héros est sous 30 % de ses PV.", "add": {"trig": {"on": "mur", "dmg": 5}}, "need": "atk"},
+	"proie": {"name": "Traqueur", "desc": "+4 dégâts si la cible est marquée ou entravée.", "add": {"trig": {"on": "proie", "dmg": 4}}, "need": "atk"},
+	"revers": {"name": "Ombre", "desc": "Pioche 1 si le coup part dans le dos de la cible.", "add": {"trig": {"on": "dos", "draw": 1}}, "need": "melee"},
+	"premier": {"name": "Ouverture", "desc": "Pioche 1 si c'est la première carte jouée du tour.", "add": {"trig": {"on": "premier", "draw": 1}}, "need": "any"},
+	"enchaine": {"name": "Rythme", "desc": "+4 armure si une autre carte a déjà été jouée ce tour.", "add": {"trig": {"on": "enchaine", "block": 4}}, "need": "any"},
 }
 
 
@@ -1323,7 +1323,7 @@ static func keyword_list(c: Dictionary) -> Array:
 		var tr: Dictionary = TRIGGERS[c.trig.on]
 		out.append({"icon": ic.call(tr.name), "title": tr.name, "text": "Bonus " + tr.text + "."})
 	if c.has("ench") and ENCHANTS.has(c.ench):
-		out.append({"icon": "niveau", "title": "✦ Enchantée : " + ENCHANTS[c.ench].name, "text": "Un mot-clé greffé sur la carte ; il reste à tous ses niveaux."})
+		out.append({"icon": "niveau", "title": "✦ Enchantée : " + ENCHANTS[c.ench].name, "text": ENCHANTS[c.ench].desc + " Enchantement gagné en défi ou en événement : il reste à tous les niveaux de la carte."})
 	if c.has("guild"):
 		var gl: Array = Guildes.LIST[c.g]
 		out.append({"icon": "grixis", "title": gl[2], "text": "%s + %s : %s" % [HEROES[gl[0]].name, HEROES[gl[1]].name, gl[3]]})

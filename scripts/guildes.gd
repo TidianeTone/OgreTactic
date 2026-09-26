@@ -35,6 +35,38 @@ const LIST := [
 	["tidiane", "receleur", "Chaos Agent", "Braquage : piocher dans un paquet qui n'est pas le tien.", "Grixis Heist · Magic Arena (Heist)"],
 ]
 
+# Le paragraphe de chaque guilde (écran de vocation), dans l'ordre de LIST : plus long que la philosophie d'une classe.
+const DESC := [
+	"Le Garde plante l'ennemi sur place, la Lame vient le cueillir dans le dos. Provocation, échanges de place et appâts ouvrent la tenaille : dès qu'une cible est prise entre deux héros sur des cases opposées, les coups redoublent. Le jeu se lit en duo, un bloc qui encaisse et une ombre qui finit.",
+	"Des prêtres en armure qui soignent au-delà du nécessaire, parce que rien ne se perd : le soin en trop se change en armure, doublée. Ils bénissent, dressent des Sources sous leurs pieds et frappent de loin avec l'acier accumulé. Lent au départ, ce duo devient un mur que personne ne traverse.",
+	"Des sapeurs qui transforment la tranchée en piège. Sacs de sable, barils, piliers fendus et béliers : l'armure encaisse le premier coup, la poudre répond au second. On pose le décor, on charge l'ennemi contre un baril, et l'explosion fait le reste.",
+	"Une discipline de fer où l'armure n'est pas un abri mais une réserve de coups. Chaque frappe du tour épaissit la garde, puis la garde revient en dégâts : paume de fer, posture du roc, élan vers un allié. Plus le combat dure, plus ce héros cogne fort.",
+	"Des gardes forestiers qui choisissent le terrain avant la bataille. Ils posent pièges, épieux et palissades, puis repoussent la proie droit dedans : un piège qui mord deux fois, un ennemi marqué, une armure qui monte. Le combat se joue sur la carte avant de se jouer sur les PV.",
+	"Ceux qui avancent en encaissant. Chaque PV perdu endurcit : douches froides, cartes conservées, parade parfaite qui renvoie le coup. Ce duo paie en vie pour gagner en armure et en énergie, et refuse de tomber quand il le devrait.",
+	"Des agents du port qui taxent tout ce qui passe. Chaque carte-objet gardée en réserve devient un bouclier, chaque ennemi au contact doit céder ce qu'il porte ou le payer. On vole, on stocke, on tient la ligne derrière une montagne de marchandises saisies.",
+	"Des lames qui écoutent les ombres. Piocher plus, c'est frapper plus : chaque carte en trop nourrit une attaque, un poison qui double, un allié qui surgit dans le dos de la cible. Discret, fragile, mais chaque tour bien pioché se termine en hécatombe.",
+	"Des saboteurs qui frappent dans le dos et laissent un cadeau derrière eux. Amorces, fumée, charges collées à l'ennemi : le coup de poignard n'est que le début, le baril voisin finit le travail. Il faut jouer le placement autant que la lame.",
+	"Une école où se téléporter vaut un coup. Rafales, pas du vent, tourbillons d'acier : ce duo enchaîne les cartes, disparaît et réapparaît dans le dos de ses cibles. Un tour réussi ressemble à une tempête de lames que l'ennemi ne voit jamais venir.",
+	"Des chasseurs qui mettent un prix sur chaque tête. Une cible marquée devient une prime : poison doublé, or à la clé, énergie rendue quand elle tombe. On repère, on piège, on attend le bon moment pour encaisser le contrat.",
+	"Des duellistes de l'instant parfait. Ils punissent l'erreur de l'ennemi, repoussent son tour dans l'initiative et jouent dans la fenêtre où tout passe : un premier coup qui triple, une rafale de sept frappes, une parade au bon moment. Exigeant, et dévastateur quand la lecture est juste.",
+	"La pègre des docks, qui se glisse derrière vous et repart les poches pleines. Chaque coup de dos vide une poche ennemie, chaque objet volé fait piocher et rend de l'énergie. Le butin devient poison, projectile ou soin : rien de ce qui est pris n'est gaspillé.",
+	"Des mages-forgerons qui paient plus cher pour tout brûler. La surcharge étend un sort à tous les ennemis, les barils sautent en chaîne et les braseros s'allument sur le terrain. Ce duo consume son énergie d'un coup pour transformer l'arène en fournaise.",
+	"Des sages pour qui chaque coup porté est un soin donné. Ils frappent au contact et la vie circule vers l'allié le plus blessé ; ils méditent, piochent et soignent tout le groupe. Un duo qui tient une escouade debout sans jamais cesser d'attaquer.",
+	"Des devins-archers qui voient le coup avant de le tirer. Ils marquent, lisent les présages, gravent des runes et tirent à la portée exacte pour déclencher leurs bonus. Chaque tour prépare le suivant : quand la flèche part, l'issue est déjà écrite.",
+	"Des diaristes qui relisent leurs pages pour rejouer ce qui a marché. Défausse rappelée en main, cartes déjà jouées qui reviennent, pioches payées en PV : ce duo vit de ses cycles, rechute et reprise, et trouve sa force dans la répétition.",
+	"Des collectionneurs pour qui un objet vaut un sort. Ils fabriquent des fioles, démontent leurs trouvailles pour en tirer des dégâts et font agir deux fois leur plus bel objet. Plus la réserve est pleine, plus la main est riche.",
+	"Des combattants aux poings chargés de poudre. Chaque coup au contact allume une mèche : barils posés au pied de l'ennemi, gantelets qui repoussent, explosion au troisième coup du tour. Un duo brutal qui fait de la mêlée une démolition.",
+	"Des artilleurs camouflés qui transforment la brousse en champ de tir. Leurres, mines à fil, tourelles et balistes : les pièges explosent, les tourelles marquent, et les ennemis marchent exactement là où on les attend.",
+	"Des artisans pour qui le geste compte plus que l'inspiration. Chaque geste technique affûte l'outil : une carte qui gagne un niveau le temps du combat, un croquis qui explose, un rythme qui monte à chaque baril qui saute. Ils construisent leur tour pièce par pièce, comme on règle une mécanique.",
+	"Des ferrailleurs pour qui tout se recycle : un objet devient un baril, un baril devient un objet. Ils démontent, fabriquent, rechargent et posent des tourelles de récupération. La réserve ne se vide jamais, elle change seulement de forme.",
+	"Des coureurs des rives qui traquent à mains nues. Balayages, garrots et bonds de prédateur : la proie est entravée, puis frappée plus fort parce qu'elle ne peut plus fuir. Mobile et sauvage, ce duo chasse au contact.",
+	"Un dojo où le combo se travaille frame par frame. Chaque carte jouée rend la suivante plus forte, jusqu'au coup final qui frappe une fois de plus par carte déjà jouée. Tout est dans l'ordre et le rythme : un tour bien construit peut effacer un ennemi de la vie pleine à zéro.",
+	"Des acrobates de foire qui volent en pleine voltige. Ils bondissent, prennent l'objet au passage et le relancent aussitôt sur la cible : chaque objet volé nourrit le combo. Un duo spectaculaire qui joue avec l'inventaire de l'ennemi.",
+	"Des chasseurs qui lisent le monstre avant de le frapper. Repérage, roulade, esquive au bon moment, puis la fenêtre d'attaque : ce duo patiente, apprend le pattern et frappe fort quand l'ouverture se présente. Achever une grande proie rapporte un trophée.",
+	"Des braconniers pour qui chaque piège est une poche de plus. Collets, filets et appâts dorés : la proie est entravée et perd son objet dans la main du héros. Les pièges rapportent de l'or, des objets et des dégâts, tout à la fois.",
+	"Des agents du chaos qui piochent dans un paquet qui n'est pas le leur. Braquage : on regarde les cartes d'une classe absente de l'escouade et on en garde une, moins chère. Copies, objets démontés pour de l'énergie, plans improvisés : jamais deux fois le même coup.",
+]
+
 # « g » : indice dans LIST. « up » : niveaux 2 et 3, comme Data.UPGRADES.
 const CARDS := {
 	# 0 · La Tenaille

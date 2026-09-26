@@ -26,6 +26,8 @@ var hud: Control
 var hand_layer: Control
 var header: Label
 var sub: Label
+var challenge_lbl: Label
+var team_on := false       # écrans de choix hors combat (sanctuaire, Ancien) : les portraits de l'équipe ouvrent leur fiche   # défi du porteur de carte, tant qu'il court
 var energy_lbl: Label
 var bpm_lbl: Label
 var pile_lbl: Label
@@ -210,6 +212,14 @@ func _build_hud() -> void:
 	sub = _shadowed(_label("", 14, GOLD), 5)
 	head.add_child(header)
 	head.add_child(sub)
+	# le défi du porteur : en haut au centre, sous la frise d'initiative (à gauche il mordait sur les fiches)
+	challenge_lbl = _shadowed(_label("", 17, Color("#ffd27a")), 5)
+	challenge_lbl.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	challenge_lbl.size = Vector2(900, 26)
+	challenge_lbl.position = Vector2(-450, 84)
+	challenge_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	challenge_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(challenge_lbl)
 
 	gold_lbl = _shadowed(_label("", 20, Color("#ffd27a"), title_f), 6)
 	gold_lbl.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
@@ -637,6 +647,10 @@ func announce(c: Dictionary) -> void:
 
 func set_gold(g: int) -> void:
 	gold_lbl.text = "%d or" % g
+
+
+func set_challenge(t: String) -> void:
+	challenge_lbl.text = t
 
 
 func set_header(title: String, subtitle: String) -> void:
@@ -1908,6 +1922,23 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 		(row2 if split and not o.has("card") else row).add_child(w)
 		if i == 0 and Input.get_connected_joypads().size() > 0:
 			w.grab_focus.call_deferred()
+	if team_on and main.heroes.size() > 0:
+		var team := HBoxContainer.new()
+		team.position = Vector2(28, 24)
+		team.add_theme_constant_override("separation", 8)
+		overlay.add_child(team)
+		var team_lbl := _shadowed(_label("Équipe", 16, GOLD), 5)
+		team_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		team.add_child(team_lbl)
+		for h in main.heroes:
+			var tb := TextureButton.new()
+			tb.texture_normal = load("res://assets/art/portrait_%s.png" % h.key)
+			tb.ignore_texture_size = true
+			tb.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+			tb.custom_minimum_size = Vector2(56, 56)
+			tb.tooltip_text = "Fiche de %s" % h.nm
+			tb.pressed.connect(hero_sheet.bind(h))
+			team.add_child(tb)
 	if allow_skip:
 		var sk := Button.new()
 		sk.text = skip_text
@@ -2786,8 +2817,9 @@ func vocation_screen(h: Unit, picks: Array) -> int:
 		var g := Guildes.index(h.key, k)
 		var gl: Array = Guildes.LIST[g]
 		var kc: Color = Data.CLASS_COLOR[k]
-		info.text = "[center][font_size=22][color=#%s]%s + %s[/color][/font_size]\n[color=#e3b45c]Guilde : %s[/color] — %s\n\n[/center]%s" % [
-			kc.lightened(0.3).to_html(false), Data.HEROES[h.key].name, Data.HEROES[k].name, gl[2], gl[3], Data.PHILO.get(k, Data.HEROES[k].role)]
+		info.text = "[center][font_size=22][color=#%s]%s + %s[/color][/font_size]\n[color=#e3b45c]Guilde : %s[/color] — %s[/center]\n%s\n\n[color=#%s]%s[/color]" % [
+			kc.lightened(0.3).to_html(false), Data.HEROES[h.key].name, Data.HEROES[k].name, gl[2], gl[3], Guildes.DESC[g],
+			DIM.to_html(false), Data.PHILO.get(k, Data.HEROES[k].role)]
 	var btns: Array = []
 	for n in picks.size():
 		var k: String = picks[n]

@@ -1,4 +1,4 @@
-# Cadres par classe (planche cadres_classes.png, 3x3) et par guilde (moitié gauche d'une classe, moitié droite de l'autre).
+# Cadres par classe (planche cadres_classes.png, 3x3) et par guilde (guildes/<a>_<b>.png, un cadre peint par paire).
 # Chaque cadre est recalé sur la carte du jeu : sa fenêtre d'illustration tombe sur F_ART (ui.gd), le bas de sa fenêtre
 # de texte sur le bas de F_TXT. On l'enregistre sur une toile plus grande que la carte (MARGE de chaque côté) :
 # les ornements qui débordent (flammes, pinceaux) restent visibles.
@@ -73,16 +73,9 @@ for i, name in enumerate(NAMES):
 	Image.fromarray(canvas).save(os.path.join(OUT, "frame_c_%s.png" % name))
 	meta["c_" + name] = [round(div[0], 4), round(div[1], 4)]
 for a, b in PAIRS:
-	ca, da = canv[a]
-	cb, db = canv[b]
-	w = ca.shape[1]
-	t = np.clip((np.arange(w) - w * 0.47) / (w * 0.06), 0, 1)[None, :, None]  # fondu de 6 % au milieu
-	# le bandeau du titre et son ornement restent entiers, à la première classe ; la seconde prend le flanc droit dessous
-	ytop = int(CARD[1] * (MARGE + F_ART[1]))
-	v = np.clip((np.arange(ca.shape[0]) - ytop - 50) / 40.0, 0, 1)[:, None, None]
-	t = t * v
-	g = (ca * (1 - t) + cb * t).astype(np.uint8)
-	Image.fromarray(g).save(os.path.join(OUT, "frame_g_%s_%s.png" % (a, b)))
-	meta["g_%s_%s" % (a, b)] = [round(min(da[0], db[0]), 4), round(max(da[1], db[1]), 4)]
+	# un cadre peint par paire (gen_ui.py guildes) : les deux styles fondus, plus deux moitiés recollées
+	canvas, div = fit(key(Image.open(os.path.join(HERE, "guildes", "%s_%s.png" % (a, b)))))
+	Image.fromarray(canvas).save(os.path.join(OUT, "frame_g_%s_%s.png" % (a, b)))
+	meta["g_%s_%s" % (a, b)] = [round(div[0], 4), round(div[1], 4)]
 json.dump(meta, open(os.path.join(OUT, "frames.json"), "w"), indent=1)
 print(json.dumps({k: v for k, v in meta.items() if k.startswith("c_")}, indent=0))

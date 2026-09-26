@@ -8,11 +8,11 @@ GREEN = ("Every empty area — the whole background outside the frames AND the w
          "no gradient, no texture, no shadow on the green. The frames themselves contain no green at all.")
 
 
-def still(prompt, out, ar, refs=()):
+def still(prompt, out, ar, refs=(), extra=()):
 	if os.path.exists(out):
 		print("déjà là", out)
 		return
-	cmd = ["node", K, "still", prompt, out, "--ar", ar]
+	cmd = ["node", K, "still", prompt, out, "--ar", ar] + list(extra)
 	for ref in refs:
 		cmd += ["--ref", ref]
 	r = subprocess.run(cmd, capture_output=True, text=True, cwd=r"G:\Mes APP\scrollcraft")
@@ -116,6 +116,47 @@ def etages(only):
 			os.path.join(HERE, "etage_%s.png" % k), "16:9")
 
 
+# Un cadre par paire de classes (26/09) : les deux styles fondus sur tout le pourtour, pas deux moitiés recollées.
+# 4 planches 3x3 : les 28 paires, puis 8 secondes prises des premières (on garde la meilleure au découpage).
+FUSE = {
+	"garde": "royal-blue enamelled iron, round shield bosses, small battlements",
+	"lame": "blackened steel with crimson lacquer, crossed curved daggers, crescent moons, smoke wisps",
+	"oracle": "dark bronze with violet enamel, licking ember flames, a small open eye",
+	"artificier": "riveted copper and brass pipes, gears, a tiny powder keg with lit fuse, teal gauges",
+	"moine": "carved light wood and jade, prayer beads, wave crests, green silk ribbon",
+	"trappeur": "knotted rope and bone, small antlers, arrowheads, ochre leather straps",
+	"tidiane": "gilded wood splattered with magenta, blue, red and black paint, paintbrushes, a cracked porcelain mask",
+	"receleur": "tarnished silver with slate enamel, hanging keys, coins, a small padlock",
+}
+PAIRS = [("garde", "lame"), ("garde", "oracle"), ("garde", "artificier"), ("garde", "moine"), ("garde", "trappeur"), ("garde", "tidiane"), ("garde", "receleur"),
+	("lame", "oracle"), ("lame", "artificier"), ("lame", "moine"), ("lame", "trappeur"), ("lame", "tidiane"), ("lame", "receleur"),
+	("oracle", "artificier"), ("oracle", "moine"), ("oracle", "trappeur"), ("oracle", "tidiane"), ("oracle", "receleur"),
+	("artificier", "moine"), ("artificier", "trappeur"), ("artificier", "tidiane"), ("artificier", "receleur"),
+	("moine", "trappeur"), ("moine", "tidiane"), ("moine", "receleur"), ("trappeur", "tidiane"), ("trappeur", "receleur"), ("tidiane", "receleur")]
+EMB = {"garde": "the helmet crest", "lame": "the crossed curved daggers", "oracle": "the small open eye", "artificier": "the tiny powder keg",
+	"moine": "the jade gem with prayer beads", "trappeur": "the small antlers", "tidiane": "the cracked porcelain mask", "receleur": "the small padlock"}
+
+
+def guildes(only=()):
+	"""Un cadre par image (qualité basic, 7,5 crédits) avec les deux cadres de classe en référence : à quatre par planche,
+	le modèle recopiait un des deux cadres au lieu de les fondre."""
+	from concurrent.futures import ThreadPoolExecutor
+	def one(p):
+		a, b = p
+		still("One ornate trading card frame for a fantasy tactics card game, portrait, centered, same layout as the two reference frames: "
+			"decorated outer border about 4 percent of the width thick, a slightly wider title plate band across the top, ornamented corners, a large "
+			"empty picture window in the upper two thirds and an empty text box in the lower third, separated by a thin divider. The frame is ONE "
+			"harmonious hybrid of the two reference frames: %s (first reference) interlaced along the WHOLE border with %s (second reference); "
+			"colours blend smoothly all around, motifs of both in every corner, %s and %s merged into a single new emblem at the top. Not split into "
+			"halves, not a copy of either reference. Game UI asset, stylized hand-painted materials, front view. No text, no picture inside. "
+			"The background and the inside of the frame are flat uniform pure chroma green #00FF00, the frame contains no green." % (FUSE[a], FUSE[b], EMB[a], EMB[b]),
+			os.path.join(HERE, "guildes", "%s_%s.png" % (a, b)), "3:4",
+			[os.path.join(HERE, "ref_c_%s.png" % a), os.path.join(HERE, "ref_c_%s.png" % b)], ["--quality", "basic"])
+	os.makedirs(os.path.join(HERE, "guildes"), exist_ok=True)
+	with ThreadPoolExecutor(4) as ex:
+		list(ex.map(one, [p for p in PAIRS if not only or "%s_%s" % p in only]))
+
+
 if __name__ == "__main__":
 	what = sys.argv[1]
-	{"cadres": cadres, "orbes": orbes, "classes": classes}.get(what, lambda: etages(sys.argv[2:]))()
+	{"cadres": cadres, "orbes": orbes, "classes": classes, "guildes": lambda: guildes(sys.argv[2:])}.get(what, lambda: etages(sys.argv[2:]))()

@@ -2201,7 +2201,7 @@ func _shelf(shelf: Array) -> void:
 		shelf.remove_at(i)
 
 
-func _relic_pick(title: String, subtitle: String) -> void:
+func _relic_pick(title: String, subtitle: String, back := false) -> bool:
 	var free: Array = Data.RELICS.keys().filter(func(r): return not relics.has(r))
 	var opts: Array = []
 	var ids: Array = []
@@ -2212,9 +2212,12 @@ func _relic_pick(title: String, subtitle: String) -> void:
 		ids.append(r)
 		opts.append({"title": Data.RELICS[r].name, "image": "res://assets/ui/relic_%s.png" % r, "text": Data.RELICS[r].text})
 	if opts.is_empty():
-		return
-	var i := await ui.choose(title.to_upper(), subtitle, opts)
+		return true
+	var i := await ui.choose(title.to_upper(), subtitle, opts, back, "← Retour")
+	if i < 0:
+		return false
 	await _add_relic(ids[i])
+	return true
 
 
 func _add_relic(r: String) -> void:
@@ -2248,6 +2251,12 @@ func _sanctuary() -> void:
 
 
 func _sanctuary_menu() -> void:
+	ui.team_on = true
+	await _sanctuary_loop()
+	ui.team_on = false
+
+
+func _sanctuary_loop() -> void:
 	while true:
 		var i := await ui.choose("SANCTUAIRE", "Une eau calme sous les arches", [
 			{"title": "Se reposer", "glyph": "✚", "text": "Chaque héros récupère 35 % de ses PV max."},
@@ -2276,14 +2285,30 @@ func _forge(title: String, subtitle: String, budget := -1) -> bool:
 	if idx.is_empty():
 		ui.toast("Tout le paquet est déjà au niveau 3.")
 		return false
-	var j := await ui.choose(title, subtitle, idx.map(func(k): return {"card": deck[k]}), true)
+	var j := await ui.choose(title, subtitle, idx.map(func(k): return {"card": deck[k]}), true, "← Retour")
 	if j < 0:
 		return false
-	if not await _confirm_upgrade(deck[idx[j]], {"id": deck[idx[j]].id, "lvl": Data.level(deck[idx[j]]) + 1}):
+	if not await _confirm_upgrade(deck[idx[j]], _next_lvl(deck[idx[j]])):
 		return await _forge(title, subtitle, budget)
 	_level_up(idx[j])
 	ui.toast("%s passe au niveau %d." % [Data.def(deck[idx[j]].id).name, deck[idx[j]].lvl])
 	return true
+
+
+func _next_lvl(ci: Dictionary) -> Dictionary:
+	## La carte au niveau suivant, avec tout ce qu'elle porte (enchantement, propriétaire, charges) : l'aperçu dit vrai.
+	var nc: Dictionary = ci.duplicate()
+	nc["lvl"] = mini(Data.level(ci) + 1, Data.MAX_LVL)
+	nc.erase("up")
+	return nc
+
+
+func _fused(pr: Array) -> Dictionary:
+	## Deux exemplaires fondus : le niveau suivant, et l'enchantement de l'un ou de l'autre survit.
+	var nc := _next_lvl(deck[pr[0]])
+	if not nc.has("ench") and deck[pr[1]].has("ench"):
+		nc["ench"] = deck[pr[1]].ench
+	return nc
 
 
 func _confirm_upgrade(before: Dictionary, after: Dictionary) -> bool:
@@ -2328,13 +2353,11 @@ func _fuse() -> bool:
 	if pairs.is_empty():
 		ui.toast("Aucun double de même niveau à fusionner (les cartes de départ ne fusionnent pas).")
 		return false
-	var j := await ui.choose("FUSION", "Deux exemplaires deviennent un seul, au niveau suivant", pairs.map(func(pr): return {"card": {"id": deck[pr[0]].id, "lvl": Data.level(deck[pr[0]]) + 1}}), true)
+	var j := await ui.choose("FUSION", "Deux exemplaires deviennent un seul, au niveau suivant", pairs.map(func(pr): return {"card": _fused(pr)}), true, "← Retour")
 	if j < 0:
 		return false
 	var pr: Array = pairs[j]
-	var fused := {"id": deck[pr[0]].id, "lvl": Data.level(deck[pr[0]]) + 1}
-	if deck[pr[0]].has("h"):
-		fused["h"] = deck[pr[0]].h
+	var fused := _fused(pr)
 	if not await _confirm_upgrade(deck[pr[0]], fused):
 		return await _fuse()
 	deck.remove_at(pr[1])
@@ -3764,20 +3787,26 @@ func _ancient() -> void:
 		pool[j] = t
 	var picks: Array = pool.slice(0, 3)
 	var opts: Array = picks.map(func(b): return {"title": Data.BOONS[b].name, "glyph": Data.BOONS[b].glyph, "art": "res://assets/ui/boon_%s.png" % b, "text": Data.BOONS[b].text, "color": an.col})
-	var i := await ui.choose("%s  %s" % [an.glyph, an.name.to_upper()], "%s · « %s »" % [an.title, an.line], opts, false, "", "res://assets/art/ancien_%s.png" % keys[posmod(run_seed + floor_i, keys.size())])
-	await _boon(picks[i])
+	ui.team_on = true
+	while true:
+		var i := await ui.choose("%s  %s" % [an.glyph, an.name.to_upper()], "%s · « %s »" % [an.title, an.line], opts, false, "", "res://assets/art/ancien_%s.png" % keys[posmod(run_seed + floor_i, keys.size())])
+		if await _boon(picks[i], true):
+			break
+	ui.team_on = false
 	ui.refresh_relics(relics)
 	ui.set_gold(gold)
 
 
-func _boon(k: String) -> void:
+func _boon(k: String, back := false) -> bool:
+	## back : le sous-écran propose « ← Retour » et rend false si on revient au choix du bienfait.
 	match k:
 		"relique":
 			var free: Array = Data.RELICS.keys().filter(func(r): return not relics.has(r))
 			if free.size() > 0:
 				await _add_relic(free[rng.randi_range(0, free.size() - 1)])
 		"relique_sang":
-			await _relic_pick("RELIQUE DE SANG", "Chaque héros perd 5 PV max")
+			if not await _relic_pick("RELIQUE DE SANG", "Chaque héros perd 5 PV max", back):
+				return false
 			for h in heroes:
 				h.base_hp = maxi(10, h.base_hp - 5)
 				h.apply_gear()
@@ -3789,12 +3818,16 @@ func _boon(k: String) -> void:
 				var id := _card_roll(3)
 				if not opts.any(func(o): return o.card.id == id):
 					opts.append({"card": {"id": id, "lvl": 1}})
-			var j := await ui.choose("SAVOIR INTERDIT", "Une carte rare pour le paquet", opts, true)
+			var j := await ui.choose("SAVOIR INTERDIT", "Une carte rare pour le paquet", opts, true, "← Retour" if back else "Passer")
+			if j < 0 and back:
+				return false
 			if j >= 0:
 				deck.append(opts[j].card)
 		"epure":
 			for n in 2:
-				var j := await ui.choose("OUBLI", "Retirer une carte (%d / 2)" % (n + 1), deck.map(func(c): return {"card": c}), true, "Garder le reste")
+				var j := await ui.choose("OUBLI", "Retirer une carte (%d / 2)" % (n + 1), deck.map(func(c): return {"card": c}), true, "← Retour" if back and n == 0 else "Garder le reste")
+				if j < 0 and back and n == 0:
+					return false
 				if j < 0:
 					break
 				deck.remove_at(j)
@@ -3817,7 +3850,9 @@ func _boon(k: String) -> void:
 			ui.toast("Plus fortes : " + ", ".join(names))
 		"racines":
 			var hopts: Array = heroes.map(func(h): return {"title": h.nm, "image": "res://assets/art/portrait_%s.png" % h.key, "text": "Ses cartes de départ gagnent un niveau.", "color": Data.CLASS_COLOR[h.key]})
-			var j := await ui.choose("RACINES", "Quel héros ?", hopts)
+			var j := await ui.choose("RACINES", "Quel héros ?", hopts, back, "← Retour")
+			if j < 0:
+				return false
 			for q in deck.size():
 				if deck[q].get("st", false) and Data.holder(deck[q]) == heroes[j].key and Data.level(deck[q]) < Data.lvl_cap(deck[q]):
 					_level_up(q)
@@ -3850,6 +3885,7 @@ func _boon(k: String) -> void:
 		"memoire":
 			for h in heroes:
 				await _gain_pj(h, 3)
+	return true
 
 
 # ------------------------------------------------------------------ événements (salles « ? »)

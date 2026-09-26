@@ -154,6 +154,7 @@ func start(hs: Array, foe_ids: Array, deck_ref: Array, relics_ref: Array) -> voi
 	heroes = hs
 	deck = deck_ref
 	relics = relics_ref
+	main.ui.set_challenge("")
 	for f in foes + _gone:
 		if is_instance_valid(f):
 			f.queue_free()
@@ -721,6 +722,7 @@ func _next_round() -> void:
 		main.ui.banner("🃏 %s" % Data.CARD_CONDS[b.card_cond].name, "%s garde une carte : %s. %s%s" % [b.nm, Data.def(b.card_id).name, Data.CARD_CONDS[b.card_cond].text, "" if b.card_cond == "fuite" else " Relevé, le défi l'enchante."])
 		await wait(2.2)
 		main.focus(null)
+	_challenge_hud()
 	await _advance()
 
 
@@ -2469,6 +2471,25 @@ func _card_mark(f: Unit) -> void:
 	tw.tween_property(l3, "position:y", 2.1, 0.8).set_trans(Tween.TRANS_SINE)
 
 
+const CHALLENGE_SHORT := {"vite": "abattre %s avant la fin du round 2", "eau": "faire tomber %s à l'eau",
+	"piege": "achever %s avec un piège", "marque": "achever %s pendant qu'il est Marqué"}
+
+
+func _challenge_hud() -> void:
+	## Le défi en cours reste écrit sous le titre : l'annonce d'entrée ne suffit pas à s'en souvenir.
+	var t := ""
+	for f in alive_foes():
+		if f.card_id == "" or (f.card_cond == "vite" and turn > 2):
+			continue
+		var nm: String = Data.def(f.card_id).name
+		if f.card_cond == "fuite":
+			t = "✦ Fuyard : %s s'enfuit avec « %s » dans %d tour(s)" % [f.nm, nm, 3 - f.flee_n]
+		else:
+			t = "✦ %s · %s · « %s » enchantée" % [Data.CARD_CONDS[f.card_cond].name, CHALLENGE_SHORT[f.card_cond] % f.nm, nm]
+		break
+	main.ui.set_challenge(t)
+
+
 func _card_won(f: Unit, how: String) -> void:
 	if f.card_id == "":
 		return
@@ -2480,6 +2501,7 @@ func _card_won(f: Unit, how: String) -> void:
 	f.card_id = ""
 	if f.has_node("CardMark"):
 		f.get_node("CardMark").queue_free()
+	_challenge_hud()
 
 
 func _flee(f: Unit) -> void:
@@ -2816,6 +2838,7 @@ func kill(u: Unit, src: Unit = null) -> void:
 			_card_won(u, "Carte gagnée")
 		else:
 			Fx.number(main, u.position + Vector3(0, 1.8, 0), "Carte perdue", Color(0.7, 0.7, 0.75))
+		_challenge_hud()
 	if u.side == "foe" and src and src.side != "foe" and src.has_p("charogne"):
 		gain_block(src, 4)
 	if u.side == "foe":
