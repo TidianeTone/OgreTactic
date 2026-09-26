@@ -118,6 +118,83 @@ def mesh(name, vox, v, origin=(0, 0, 0), ao=True, skip=(), glow=False):
     return ob
 
 
+def mesh_merged(name, vox, v, ao=True, skip=(), glow=False):
+    """Comme mesh(), mais les faces planes (quatre coins de même couleur) d'un même plan et d'une même couleur
+    sont fusionnées en rectangles (greedy meshing). Même rendu, bien moins de sommets : indispensable au voxel fin."""
+    verts, faces, cols = [], [], []
+    planes = {}
+    for (x, y, z), c in vox.items():
+        for n, corners in FACES.items():
+            if n in skip or (x + n[0], y + n[1], z + n[2]) in vox:
+                continue
+            a = 0 if n[0] else (1 if n[1] else 2)
+            a1, a2 = [i for i in range(3) if i != a]
+            p = (x + n[0], y + n[1], z + n[2])
+            fs = []
+            for cr in corners:
+                f = 1.0
+                if ao:
+                    s1 = 1 if cr[a1] else -1
+                    s2 = 1 if cr[a2] else -1
+                    q1 = list(p); q1[a1] += s1
+                    q2 = list(p); q2[a2] += s2
+                    q3 = list(q1); q3[a2] += s2
+                    o1, o2, o3 = tuple(q1) in vox, tuple(q2) in vox, tuple(q3) in vox
+                    f = AO[0 if (o1 and o2) else 3 - (o1 + o2 + o3)]
+                    if n[2] == -1:
+                        f *= 0.78
+                fs.append(f)
+            xyz = (x, y, z)
+            if fs[0] == fs[1] == fs[2] == fs[3]:
+                key = (round(c[0] * fs[0], 4), round(c[1] * fs[0], 4), round(c[2] * fs[0], 4))
+                planes.setdefault((n, xyz[a]), {})[(xyz[a1], xyz[a2])] = key
+                continue
+            base = len(verts)
+            for cr, f in zip(corners, fs):
+                verts.append(((x + cr[0]) * v, (y + cr[1]) * v, (z + cr[2]) * v))
+                cols.append((c[0] * f, c[1] * f, c[2] * f, 1.0))
+            faces.append((base, base + 1, base + 2, base + 3))
+    for (n, k), cells in planes.items():
+        a = 0 if n[0] else (1 if n[1] else 2)
+        a1, a2 = [i for i in range(3) if i != a]
+        corners = FACES[n]
+        seen = set()
+        for (u, w0) in sorted(cells, key=lambda t: (t[1], t[0])):
+            if (u, w0) in seen:
+                continue
+            col = cells[(u, w0)]
+            wu = 1
+            while (u + wu, w0) in cells and (u + wu, w0) not in seen and cells[(u + wu, w0)] == col:
+                wu += 1
+            hv = 1
+            while all((u + i, w0 + hv) in cells and (u + i, w0 + hv) not in seen and cells[(u + i, w0 + hv)] == col for i in range(wu)):
+                hv += 1
+            for i in range(wu):
+                for j in range(hv):
+                    seen.add((u + i, w0 + j))
+            base = len(verts)
+            for cr in corners:
+                q = [0, 0, 0]
+                q[a] = k + cr[a]
+                q[a1] = u + cr[a1] * wu
+                q[a2] = w0 + cr[a2] * hv
+                verts.append((q[0] * v, q[1] * v, q[2] * v))
+                cols.append((col[0], col[1], col[2], 1.0))
+            faces.append((base, base + 1, base + 2, base + 3))
+    me = bpy.data.meshes.new(name)
+    me.from_pydata(verts, [], faces)
+    attr = me.color_attributes.new("Col", "FLOAT_COLOR", "CORNER")
+    attr.data.foreach_set("color", [q for c in cols for q in c])
+    me.materials.append(material("DelveGlow", True) if glow else material())
+    old = bpy.data.objects.get(name)
+    if old:
+        bpy.data.objects.remove(old, do_unlink=True)
+    ob = bpy.data.objects.new(name, me)
+    coll().objects.link(ob)
+    return ob
+
+
+_slot = [0]
 _slot = [0]
 
 

@@ -4,25 +4,86 @@
 import bpy, random, math, os, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from gen_assets import lin, tone, mesh, export, coll, OUT, EMBER, AUTUMN, MOSS
+from gen_assets import lin, tone, mesh_merged as mesh, export, coll, OUT, EMBER, AUTUMN, MOSS
 
 VC = 1 / 20
+DOWN = ((0, 0, -1),)
 
 
 def P(*h):
     return [lin(x) for x in h]
 
 
+class Vox(dict):
+    """Un dict de voxels de construction (1/20 m) qui garde aussi l'histoire de sa géométrie : ellipsoïdes, voxels posés,
+    voxels retirés. realize() la rejoue à une résolution K fois plus fine : les volumes deviennent vraiment ronds,
+    les couleurs restent celles de la construction."""
+    def __init__(self, *a):
+        dict.__init__(self, *a)
+        self.ops = []
+        self.shading = None
+        self.fine_only = set()  # cases qui n'existent que par des voxels fins (px)
+
+    def __setitem__(self, k, v):
+        self.ops.append(("set", k, k in self))
+        dict.__setitem__(self, k, v)
+
+    def pop(self, k, *d):
+        if k in self:
+            self.ops.append(("del", k))
+        return dict.pop(self, k, *d)
+
+    def __delitem__(self, k):
+        self.ops.append(("del", k))
+        dict.__delitem__(self, k)
+
+    def clone(self):
+        v = Vox(self)
+        v.ops = list(self.ops)
+        v.shading = self.shading
+        v.fine_only = set(self.fine_only)
+        return v
+
+
 def ell(vox, c, r, col, R=None, keep=None):
     cx, cy, cz = c
     rx, ry, rz = r
+    put = dict.__setitem__ if isinstance(vox, Vox) else (lambda d, k, v: d.__setitem__(k, v))
+    kept = set() if keep else None
+    if isinstance(vox, Vox):
+        vox.ops.append(("ell", (cx, cy, cz), (rx, ry, rz), kept))  # keep se rejoue par case : il peut être aléatoire
     for x in range(int(cx - rx) - 1, int(cx + rx) + 2):
         for y in range(int(cy - ry) - 1, int(cy + ry) + 2):
             for z in range(int(cz - rz) - 1, int(cz + rz) + 2):
                 if ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 + ((z - cz) / rz) ** 2 <= 1.0:
                     if keep and not keep(x, y, z):
                         continue
-                    vox[(x, y, z)] = col(x, y, z) if callable(col) else col
+                    if kept is not None:
+                        kept.add((x, y, z))
+                    put(vox, (x, y, z), col(x, y, z) if callable(col) else col)
+
+
+def px(vox, p, col):
+    """Un voxel FIN (demi-voxel de construction) : rivets, barreaux, chaînons, yeux. p en coordonnées de construction,
+    au demi près. Sur un dict simple (K = 1), il tombe dans la case entière."""
+    if isinstance(vox, Vox) and K > 1:
+        fk = (math.floor(p[0] * K + 0.5), math.floor(p[1] * K + 0.5), math.floor(p[2] * K + 0.5))
+        vox.ops.append(("px", fk, col))
+        cz = (fk[0] // K, fk[1] // K, fk[2] // K)
+        if cz not in vox:
+            vox.fine_only.add(cz)
+    else:
+        vox[(int(round(p[0])), int(round(p[1])), int(round(p[2])))] = col
+
+
+def line(vox, a, b, col, step=None):
+    """Trait d'un voxel fin de a vers b (cordes, chaînes, barreaux, hampes fines)."""
+    L = math.dist(a, b)
+    n = max(1, int(L * (K if K > 1 else 1) * 1.5))
+    for i in range(n + 1):
+        t = i / n
+        q = [a[k] + (b[k] - a[k]) * t for k in range(3)]
+        px(vox, q, col(q) if callable(col) else col)
 
 
 def cap(vox, a, b, rad, col, rad_b=None):
@@ -38,7 +99,11 @@ def cap(vox, a, b, rad, col, rad_b=None):
 
 
 def shade(vox, R, lo=0.8, hi=1.12, jitter=0.035):
-    """Trois valeurs : dessus éclairés, dessous sombres, bruit léger."""
+    """Trois valeurs : dessus éclairés, dessous sombres, bruit léger. Sur un Vox, l'ombrage se fait au voxel fin (realize)."""
+    if isinstance(vox, Vox):
+        v = vox.clone()
+        v.shading = (lo, hi, jitter)
+        return v
     out = {}
     for (x, y, z), c in vox.items():
         f = 1.0
@@ -67,25 +132,141 @@ def cracks(vox, glow, R, n, length, palette=None):
                 p = q
 
 
+# Finition v4 : chaque voxel de construction (1/20 m) est redécoupé en K³ voxels fins. Les arêtes vives des volumes
+# pleins sont chanfreinées d'un voxel fin (silhouettes arrondies), les voxels fins reçoivent leur propre grain et un
+# liseré de lumière sur les arêtes hautes : le détail du modèle est deux fois plus fin sans rien redessiner.
+# Les dessous (normale -z) ne sont jamais vus par la caméra du jeu : on ne les exporte pas.
+K = int(os.environ.get("DELVE_K", "2"))
+N6 = ((1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1))
+
+
+def refine(vox, seed, bevel=True):
+    """Suréchantillonne en K³ en lissant l'occupation : un voxel fin existe si la présence des voxels grossiers,
+    interpolée à son centre, dépasse un seuil. Les coins s'arrondissent, les escaliers se lissent ; les pièces fines
+    (au plus deux voisins : bâtons, lames, cordes) sont gardées telles quelles."""
+    if K == 1 or not vox:
+        return vox
+    R = random.Random(seed)
+    occ = lambda q: 1.0 if q in vox else 0.0
+    thin = {p for p in vox if sum((p[0] + d[0], p[1] + d[1], p[2] + d[2]) in vox for d in N6) <= 2}
+    out = {}
+    cells = set(vox)
+    if bevel:
+        for (x, y, z) in vox:  # les voisins vides peuvent se remplir (creux lissés)
+            for d in N6:
+                cells.add((x + d[0], y + d[1], z + d[2]))
+    for (x, y, z) in cells:
+        own = (x, y, z) in vox
+        for i in range(K):
+            for j in range(K):
+                for l in range(K):
+                    fp = (x * K + i, y * K + j, z * K + l)
+                    if own and (not bevel or (x, y, z) in thin):
+                        out[fp] = vox[(x, y, z)]
+                        continue
+                    # centre du voxel fin en coordonnées grossières, relatif au centre de la case
+                    u = ((i + 0.5) / K - 0.5, (j + 0.5) / K - 0.5, (l + 0.5) / K - 0.5)
+                    sx, sy, sz = (1 if u[0] >= 0 else -1), (1 if u[1] >= 0 else -1), (1 if u[2] >= 0 else -1)
+                    ax, ay, az = abs(u[0]), abs(u[1]), abs(u[2])
+                    f = 0.0
+                    for ox in (0, 1):
+                        for oy in (0, 1):
+                            for oz in (0, 1):
+                                w = (ax if ox else 1 - ax) * (ay if oy else 1 - ay) * (az if oz else 1 - az)
+                                f += w * occ((x + ox * sx, y + oy * sy, z + oz * sz))
+                    if (own and f >= 0.6) or (not own and f >= 0.7):
+                        if own:
+                            out[fp] = vox[(x, y, z)]
+                        else:  # couleur du voisin plein le plus proche
+                            best = max(((x + dx, y + dy, z + dz) for dx in (0, sx) for dy in (0, sy) for dz in (0, sz) if (x + dx, y + dy, z + dz) in vox),
+                                       key=lambda q: -abs(q[0] - x) - abs(q[1] - y) - abs(q[2] - z), default=None)
+                            if best:
+                                out[fp] = vox[best]
+    fin = {}
+    for p, c in out.items():
+        f = R.uniform(0.955, 1.045)
+        up = (p[0], p[1], p[2] + 1) not in out
+        if up and any((p[0] + d[0], p[1] + d[1], p[2]) not in out for d in N6[:4]):
+            f *= 1.12  # arête haute : liseré de lumière
+        elif up:
+            f *= 1.03
+        fin[p] = tone(c, f)
+    return fin
+
+
+def realize(vox, seed):
+    """Rejoue l'histoire d'un Vox à la résolution fine ; un dict simple passe par refine (lissage d'occupation)."""
+    if K == 1 or not isinstance(vox, Vox):
+        return refine(vox, seed)
+    fine = set()
+    pxc = {}  # voxels fins posés un par un, avec leur couleur
+    blk = lambda k: [(k[0] * K + i, k[1] * K + j, k[2] * K + l) for i in range(K) for j in range(K) for l in range(K)]
+    for op in vox.ops:
+        if op[0] == "ell":
+            (cx, cy, cz), (rx, ry, rz), keep = op[1], op[2], op[3]
+            for X in range(math.floor((cx - rx - 1) * K), math.ceil((cx + rx + 1) * K) + 1):
+                xc = ((X + 0.5) / K - 0.5 - cx) / rx
+                if xc * xc > 1:
+                    continue
+                for Y in range(math.floor((cy - ry - 1) * K), math.ceil((cy + ry + 1) * K) + 1):
+                    yc = ((Y + 0.5) / K - 0.5 - cy) / ry
+                    if xc * xc + yc * yc > 1:
+                        continue
+                    for Z in range(math.floor((cz - rz - 1) * K), math.ceil((cz + rz + 1) * K) + 1):
+                        zc = ((Z + 0.5) / K - 0.5 - cz) / rz
+                        if xc * xc + yc * yc + zc * zc <= 1.0 and (keep is None or (X // K, Y // K, Z // K) in keep):
+                            fine.add((X, Y, Z))
+        elif op[0] == "set":
+            if not op[2]:
+                fine.update(blk(op[1]))
+        elif op[0] == "px":
+            fine.add(op[1])
+            pxc[op[1]] = op[2]
+        else:
+            fine.difference_update(blk(op[1]))
+    cz_ = lambda f: (f[0] // K, f[1] // K, f[2] // K)
+    fine = {f for f in fine if cz_(f) in vox or f in pxc}
+    have = {cz_(f) for f in fine}
+    for k in vox:
+        if k not in have:
+            fine.update(blk(k))  # un détail plus petit qu'un voxel fin : gardé entier
+    lo, hi, jit = vox.shading or (1.0, 1.0, 0.0)
+    R = random.Random(seed)
+    jc = {}
+    out = {}
+    for f in sorted(fine):
+        k = cz_(f)
+        c = pxc.get(f) or vox[k]
+        up = (f[0], f[1], f[2] + 1) not in fine
+        t = hi if up else (lo if (f[0], f[1], f[2] - 1) not in fine else 1.0)
+        t *= jc.setdefault(k, R.uniform(1 - jit, 1 + jit))  # grain par voxel de construction : les faces fines fusionnent
+        if up and any((f[0] + d[0], f[1] + d[1], f[2]) not in fine for d in N6[:4]):
+            t *= 1.08  # arête haute : liseré de lumière
+        out[f] = tone(c, t)
+    return out
+
+
 HYB = None  # vocation en cours : le héros est exporté en version hybride u_<classe>__<vocation>
 
 
 def unit(name, body, weapon=None, grip=(0, 0, 0), glow=None, wglow=None):
     fname = "u_" + name
     if HYB:
-        body, glow = hybrid(name, body, dict(glow or {}), HYB)
+        body, glow = hybrid(name, body, glow.clone() if isinstance(glow, Vox) else dict(glow or {}), HYB)
         fname = "u_%s__%s" % (name, HYB)
-    objs = [mesh(name + "_body", body, VC)]
+    sd = sum(map(ord, fname))
+    v = VC / K
+    objs = [mesh(name + "_body", realize(body, sd), v, skip=DOWN)]
     if weapon:
-        w = mesh(name + "_weapon", weapon, VC)
+        w = mesh(name + "_weapon", realize(weapon, sd + 1), v)
         w.location = (grip[0] * VC, grip[1] * VC, grip[2] * VC)
         objs.append(w)
         if wglow:
-            wg = mesh(name + "_weaponglow", wglow, VC, ao=False, glow=True)
+            wg = mesh(name + "_weaponglow", realize(wglow, 0) if isinstance(wglow, Vox) else refine(wglow, 0, False), v, ao=False, glow=True)
             wg.parent = w
             objs.append(wg)
     if glow:
-        objs.append(mesh(name + "_glow", glow, VC, ao=False, glow=True))
+        objs.append(mesh(name + "_glow", realize(glow, 0) if isinstance(glow, Vox) else refine(glow, 0, False), v, ao=False, glow=True))
     export(fname, objs)
 
 
@@ -96,7 +277,7 @@ def garde():
     STL, STM, STD = P("#d4dbe0", "#98a4ad", "#56606a")
     BLU, BLD = P("#3d63e0", "#233a90")
     GOLD, LEA, WHT = P("#e6b84f", "#5c3f2c", "#f1ede2")
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     for s in (-1, 1):
         ell(b, (3 * s, -0.5, 2), (2.4, 3.2, 2.2), STD)
         cap(b, (3 * s, 0, 3), (3 * s, 0, 11), 2.0, STM)
@@ -146,7 +327,7 @@ def garde():
     for y in range(-4, 3):
         b[(-12, y, 15)] = WHT
     b = shade(b, R)
-    sw = {}
+    sw = Vox()
     for z in range(-4, 0):
         sw[(0, 0, z)] = LEA
     sw[(0, 0, -5)] = GOLD
@@ -163,7 +344,7 @@ def lame():
     R = random.Random(12)
     DK, DM = P("#2a2830", "#403d49")
     LEA, RED, RDD, SKIN, MET = P("#5b4130", "#e0344f", "#8f1d30", "#d9a27c", "#e6ebee")
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     for s in (-1, 1):
         ell(b, (2.5 * s, -0.5, 1.6), (1.9, 2.8, 1.7), DK)
         cap(b, (2.5 * s, 0, 2), (2.3 * s, 0.4, 11), 1.6, DM)
@@ -190,7 +371,7 @@ def lame():
     for i in range(7):
         b[(-6, -2 - i, 12 - i // 3)] = MET
     b = shade(b, R)
-    bl = {}
+    bl = Vox()
     for z in range(-3, 1):
         bl[(0, 0, z)] = LEA
     for x in (-2, -1, 1, 2):
@@ -206,7 +387,7 @@ def oracle():
     R = random.Random(13)
     PL, PLD = P("#9b50d8", "#5c2a8c")
     GOLD, SHD, WOOD, SKIN = P("#e6b84f", "#1a1320", "#6a4a32", "#c99273")
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     for z in range(0, 20):
         rx = 7.0 - z * 0.2
         ry = 5.0 - z * 0.12
@@ -230,7 +411,7 @@ def oracle():
         ell(b, (0, t * t * 7, 28 + i), (r, r, 0.7), PL)
     ell(b, (0, 0, 28), (5.2, 5.2, 0.7), GOLD)
     b = shade(b, R)
-    st, sg = {}, {}
+    st, sg = Vox(), Vox()
     for z in range(-10, 26):
         st[(0, 0, z)] = WOOD
     for a in range(20):
@@ -246,7 +427,7 @@ def artificier():
     R = random.Random(14)
     TEA, TED = P("#22b8a6", "#136b62")
     LEA, BRS, IRN, SKIN, DK, BRD = P("#6a4a30", "#d9a441", "#4a4d52", "#d9a27c", "#2a2830", "#7a4a2a")
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     for s in (-1, 1):
         ell(b, (2.8 * s, -0.5, 1.8), (2.2, 3.0, 1.9), DK)
         cap(b, (2.8 * s, 0, 2), (2.8 * s, 0, 10), 1.9, LEA)
@@ -282,7 +463,7 @@ def artificier():
     for q in g:
         b.pop(q, None)
     b = shade(b, R)
-    w = {}
+    w = Vox()
     for z in range(-4, 13):
         w[(0, 0, z)] = IRN
     for y in range(-3, 4):
@@ -297,7 +478,7 @@ def moine():
     R = random.Random(15)
     JAD, JDD = P("#6cc24a", "#3d7a2a")
     CRM, SKIN, WOOD, SAF, HAIR = P("#e8dfc4", "#c98f68", "#5a3d27", "#e39a2e", "#1a1410")
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     for s in (-1, 1):
         ell(b, (2.4 * s, -0.4, 1.1), (1.6, 2.6, 1.1), SKIN)
         cap(b, (2.4 * s, 0, 2), (2.7 * s, 0, 9), 1.8, CRM)
@@ -334,7 +515,7 @@ def trappeur():
     R = random.Random(16)
     OCH, OCD = P("#c9a23a", "#7a5e1e")
     FUR, FUD, LEA, DK, SKIN, WOOD = P("#8a7560", "#6a5846", "#5b4130", "#2e2a26", "#d0a07a", "#6a4a32")
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     for s in (-1, 1):
         ell(b, (2.5 * s, -0.5, 1.7), (1.9, 2.9, 1.8), DK)
         cap(b, (2.5 * s, 0, 2), (2.4 * s, 0.3, 11), 1.7, LEA)
@@ -367,7 +548,7 @@ def trappeur():
     for q in g:
         b.pop(q, None)
     b = shade(b, R)
-    bow = {}
+    bow = Vox()
     for a in range(25):
         t = (a / 24 - 0.5) * 2.4
         bow[(0, int(round(-math.cos(t) * 5)), int(round(math.sin(t) * 13)))] = tone(WOOD, R.uniform(0.9, 1.15))
@@ -385,7 +566,7 @@ def tidiane():
     COAT, COD = P("#5e3d27", "#4a2f1e")
     SHIRT, JEAN, BOOT, BELT = P("#1c1b20", "#232633", "#4a3020", "#6a4a2a")
     PB, PR, PN = P("#3f8fd8", "#e0483f", "#9b6dd6")
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     for s in (-1, 1):
         ell(b, (2.6 * s, -0.6, 1.8), (2.0, 3.0, 1.9), BOOT)
         cap(b, (2.6 * s, 0, 3), (2.5 * s, 0.2, 11), 1.8, JEAN)
@@ -436,7 +617,7 @@ def tidiane():
         b.pop(q, None)
     b = shade(b, R)
     # grand pinceau : manche de bois, virole, poils aux trois couleurs
-    br, bg = {}, {}
+    br, bg = Vox(), Vox()
     for z in range(-8, 14):
         br[(0, 0, z)] = lin("#6a4a32")
     for z in range(14, 16):
@@ -454,7 +635,7 @@ def receleur():
     COAT, COD = P("#6f8290", "#4a5a66")
     HOOD, SCARF, SKIN = P("#56646e", "#a8452e", "#b98a64")
     LEA, DK, BRS, CLOTH, CLD = P("#5b4130", "#26282e", "#c9a24a", "#8a7a5a", "#6a5c42")
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     for s in (-1, 1):
         ell(b, (2.5 * s, -0.5, 1.7), (1.9, 2.9, 1.8), DK)
         cap(b, (2.5 * s, 0, 2), (2.4 * s, 0.2, 10), 1.7, LEA)
@@ -499,7 +680,7 @@ def receleur():
     b = shade(b, R)
     # pied-de-biche : tige de fer, griffe en haut, pied plat en bas
     IRN = lin("#5a5e66")
-    w = {}
+    w = Vox()
     for z in range(-7, 15):
         w[(0, 0, z)] = IRN
         w[(1, 0, z)] = tone(IRN, 0.8)
@@ -522,7 +703,7 @@ def basalt(R):
 
 def husk():
     R = random.Random(21)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     col = basalt(R)
     for s in (-1, 1):
         cap(b, (3 * s, 0, 1), (3 * s, -1, 8), 2.0, col)
@@ -540,7 +721,7 @@ def husk():
 def guetteur():
     R = random.Random(22)
     BONE, RED, RDD = P("#b9b2a0", "#3a3d46", "#26282f")
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     for s in (-1, 1):
         cap(b, (2 * s, 0, 0), (2 * s, 0, 9), 0.9, BONE)
     for z in range(6, 22):
@@ -554,7 +735,7 @@ def guetteur():
     g[(1, -4, 24)] = EMBER[0]
     for s in (-1, 1):
         cap(b, (4 * s, 0, 19), (5 * s, -3, 14), 0.9, BONE)
-    bow = {}
+    bow = Vox()
     for a in range(25):
         t = (a / 24 - 0.5) * 2.3
         bow[(0, int(round(-math.cos(t) * 5)), int(round(math.sin(t) * 12)))] = tone(lin("#5a4030"), R.uniform(0.9, 1.1))
@@ -565,7 +746,7 @@ def guetteur():
 
 def sentinelle():
     R = random.Random(23)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     col = basalt(R)
     for s in (-1, 1):
         cap(b, (4 * s, 0, 1), (4.5 * s, 0, 11), 3.0, col)
@@ -586,7 +767,7 @@ def sentinelle():
 
 def wisp():
     R = random.Random(24)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     ell(g, (0, 0, 12), (3.5, 3.5, 3.5), lambda x, y, z: R.choice(EMBER))
     for k in range(90):
         a = R.uniform(0, math.tau)
@@ -601,7 +782,7 @@ def wisp():
 def gardien():
     """Colosse de l'Écluse : basalte, une arche en ruine soudée sur le dos, cœur de magma."""
     R = random.Random(29)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     col = basalt(R)
     STONE_ARCH = P("#cfc6b2", "#bdb39e")
     for s in (-1, 1):
@@ -642,7 +823,7 @@ def gardien():
 
 def chaman():
     R = random.Random(25)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     col = basalt(R)
     for z in range(0, 18):
         r = 5.0 - z * 0.12
@@ -654,7 +835,7 @@ def chaman():
     g[(-1, -5, 21)] = EMBER[0]
     g[(1, -5, 21)] = EMBER[0]
     cracks(b, g, R, 5, 10)
-    st, sg = {}, {}
+    st, sg = Vox(), Vox()
     for z in range(-10, 16):
         st[(0, 0, z)] = lin("#5a4030")
     ell(sg, (0, 0, 18), (2.2, 2.2, 2.6), lambda x, y, z: R.choice(EMBER))
@@ -663,7 +844,7 @@ def chaman():
 
 def carapace():
     R = random.Random(26)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     col = basalt(R)
     for s in (-1, 1):
         for t in (-1, 1):
@@ -683,7 +864,7 @@ def carapace():
 
 def rodeur():
     R = random.Random(27)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     col = basalt(R)
     for s in (-1, 1):
         cap(b, (2.5 * s, 1, 0), (3 * s, -1, 5), 1.2, col)
@@ -738,13 +919,13 @@ def soldier(b, g, R, bulk=1.0, helm=True, lift=0):
 
 def lancier():
     R = random.Random(41)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     col = soldier(b, g, R)
     for s in (-1, 1):
         cap(b, (5 * s, 0, 17), (5.5 * s, -3, 11), 1.2, col)
     ell(b, (6, -3, 13), (0.8, 4.0, 5.0), lambda x, y, z: tone(R.choice(SLATE_D), R.uniform(0.9, 1.2)))
     g[(7, -6, 13)] = TEAL[1]
-    sp, sg = {}, {}
+    sp, sg = Vox(), Vox()
     for z in range(-14, 22):
         sp[(0, 0, z)] = tone(lin("#4a3a2c"), R.uniform(0.9, 1.1))
     for z in range(22, 29):
@@ -756,7 +937,7 @@ def lancier():
 
 def cavalier():
     R = random.Random(42)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     hc = lambda x, y, z: tone(R.choice(P("#3c4650", "#323b44", "#46515c")), R.uniform(0.9, 1.1))
     for sx in (-1, 1):
         for sy in (-1, 1):
@@ -773,7 +954,7 @@ def cavalier():
     col = soldier(b, g, R, bulk=0.85, lift=10)
     for s in (-1, 1):
         cap(b, (4.4 * s, 0, 27), (5 * s, -3, 21), 1.0, col)
-    sw, sg = {}, {}
+    sw, sg = Vox(), Vox()
     for z in range(0, 16):
         sw[(0, 0, z)] = tone(lin("#c8d2d8"), R.uniform(0.9, 1.1))
     for x in (-1, 0, 1):
@@ -785,7 +966,7 @@ def cavalier():
 
 def vouivre():
     R = random.Random(43)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     sc = lambda x, y, z: tone(R.choice(P("#3e5a5a", "#34504f", "#4a6868", "#2c4444")), R.uniform(0.88, 1.1))
     ell(b, (0, 0, 16), (4.5, 7.0, 4.0), sc)
     cap(b, (0, -6, 18), (0, -11, 25), 2.4, sc, 1.8)
@@ -810,7 +991,7 @@ def vouivre():
 
 def mage():
     R = random.Random(44)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     robe = lambda x, y, z: tone(R.choice(P("#2e3f58", "#26364c", "#35486a")), R.uniform(0.9, 1.1))
     for z in range(0, 20):
         r = 5.2 - z * 0.14
@@ -834,7 +1015,7 @@ def mage():
 
 def bretteur():
     R = random.Random(45)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     col = soldier(b, g, R, bulk=0.8, helm=False)
     for k in range(40):
         x, z = R.randint(-4, 4), R.randint(4, 19)
@@ -842,7 +1023,7 @@ def bretteur():
     ell(b, (0, -0.5, 26), (3.4, 3.4, 0.8), lambda x, y, z: tone(lin("#2a2226"), 1.0))
     for s in (-1, 1):
         cap(b, (3.8 * s, 0, 17), (5 * s, -4, 12), 1.0, col)
-    sw, sg = {}, {}
+    sw, sg = Vox(), Vox()
     for z in range(0, 22):
         sw[(0, int(z * 0.15), z)] = tone(lin("#dfe6ea"), R.uniform(0.95, 1.1))
     for x in (-2, -1, 0, 1, 2):
@@ -854,7 +1035,7 @@ def bretteur():
 
 def danseuse():
     R = random.Random(46)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     skin = lambda x, y, z: tone(R.choice(P("#6f8c92", "#5e7a80")), R.uniform(0.9, 1.1))
     silk = lambda x, y, z: tone(R.choice(P("#3fa89a", "#2f8a80", "#58c0b0")), R.uniform(0.9, 1.15))
     for s in (-1, 1):
@@ -880,7 +1061,7 @@ def danseuse():
 
 def capitaine():
     R = random.Random(47)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     col = soldier(b, g, R, bulk=1.35)
     for s in (-1, 1):
         cap(b, (7 * s, 0, 17), (8 * s, -4, 10), 2.0, col, 2.4)
@@ -892,7 +1073,7 @@ def capitaine():
             if abs(x) + abs(y) < 7:
                 b[(x, y, 27)] = tone(lin("#1c2228"), 1.0)
     b[(0, -5, 28)] = lin("#b89a50")
-    hm, hg = {}, {}
+    hm, hg = Vox(), Vox()
     for z in range(0, 18):
         hm[(0, 0, z)] = tone(lin("#4a3a2c"), R.uniform(0.9, 1.1))
     for x in range(-5, 6):
@@ -906,7 +1087,7 @@ def capitaine():
 
 def baliste():
     R = random.Random(48)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     wood = lambda x, y, z: tone(R.choice(P("#5a4030", "#4a3426", "#654838")), R.uniform(0.85, 1.1))
     for sx in (-1, 1):
         for sy in (-1, 1):
@@ -932,7 +1113,7 @@ def noyes():
 
 def crabe():
     R = random.Random(51)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     sh = lambda x, y, z: tone(R.choice(P("#7a3a2e", "#8e4634", "#6a3228", "#9c5a3c")), R.uniform(0.88, 1.1))
     ell(b, (0, 0, 9), (10, 8, 5), sh, keep=lambda x, y, z: z >= 5)
     for x in range(-9, 10, 3):  # arêtes de carapace
@@ -957,7 +1138,7 @@ def crabe():
 
 def crapaud():
     R = random.Random(52)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     sk = lambda x, y, z: tone(R.choice(P("#4a6a3a", "#3e5a32", "#56783f", "#6a8a4a")), R.uniform(0.88, 1.1))
     ell(b, (0, 1, 10), (9, 9, 8), sk)
     ell(b, (0, -5, 14), (7, 5, 5), sk)
@@ -974,7 +1155,7 @@ def crapaud():
         x, y, z = R.randint(-8, 8), R.randint(-3, 8), R.randint(10, 17)
         if (x, y, z) in b and (x, y, z + 1) not in b:
             g[(x, y, z + 1)] = R.choice(TEAL)
-    tg = {}
+    tg = Vox()
     for y in range(0, 14):
         tg[(0, -y, 0)] = lin("#e0607a")
     tg[(0, -14, 0)] = lin("#ff90a0")
@@ -983,7 +1164,7 @@ def crapaud():
 
 def harpie():
     R = random.Random(53)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     fe = lambda x, y, z: tone(R.choice(P("#5a4a6a", "#4a3c5a", "#6a5a7a")), R.uniform(0.88, 1.12))
     sk = lambda x, y, z: tone(R.choice(P("#b8a8a0", "#a89890")), R.uniform(0.9, 1.1))
     for s in (-1, 1):
@@ -1008,7 +1189,7 @@ def harpie():
 
 def obelisque():
     R = random.Random(54)
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     st = lambda x, y, z: tone(R.choice(P("#3c3848", "#34303e", "#46425a")), R.uniform(0.85, 1.1))
     for x in range(-7, 8):
         for y in range(-7, 8):
@@ -1039,6 +1220,522 @@ def obelisque():
     unit("obelisque", shade(b, R), glow=g)
 
 
+# ------------------------------------------------------------------ ennemis du concile (26/09) : acte 1, 2, 3 et structures
+# Détails au voxel fin (px, line) : barreaux, chaînons, rivets, cordes. Face vers -y.
+
+RUST = P("#7a4a2a", "#8a5530", "#b5642d")
+IRON = P("#3a3a42", "#2e2f36", "#4a4b54")
+WOOD = P("#4a3a2c", "#3b2f26", "#56432f")
+PRUNE = P("#4a2a44", "#5a2d4f", "#3d2238")
+AMBR = P("#ffb347", "#ffc86a")
+
+
+def rnd_of(R, pal, lo=0.9, hi=1.08):
+    return lambda x, y, z: tone(R.choice(pal), R.uniform(lo, hi))
+
+
+def chain(vox, a, b, col, link=1.0):
+    """Chaîne : chaînons d'un voxel fin, un sur deux doublé de côté."""
+    L = math.dist(a, b)
+    n = max(2, int(L / link * 2))
+    for i in range(n + 1):
+        t = i / n
+        q = [a[k] + (b[k] - a[k]) * t for k in range(3)]
+        px(vox, q, col)
+        if i % 2:
+            px(vox, (q[0] + 0.5, q[1], q[2]), col)
+
+
+def ring(vox, c, r, col, axis="z", n=None):
+    """Cercle d'un voxel fin (cerclages, roues, cages)."""
+    n = n or max(12, int(r * 12))
+    for a in range(n):
+        t = a / n * math.tau
+        u, v = math.cos(t) * r, math.sin(t) * r
+        p = (c[0] + u, c[1] + v, c[2]) if axis == "z" else ((c[0] + u, c[1], c[2] + v) if axis == "y" else (c[0], c[1] + u, c[2] + v))
+        px(vox, p, col)
+
+
+def frondeur():
+    R = random.Random(61)
+    b, g = Vox(), Vox()
+    hood = rnd_of(R, P("#46505c", "#3c4550", "#525e6a"))
+    OCR = lin("#b8863b")
+    cap(b, (-1.5, 0, 0), (-1.5, 0, 9), 1.0, rnd_of(R, SLATE_D))  # jambe d'appui
+    cap(b, (1.5, 0, 9), (2.5, -3, 7), 1.0, rnd_of(R, SLATE_D))  # jambe repliée
+    cap(b, (2.5, -3, 7), (2.2, -1, 4), 0.9, rnd_of(R, SLATE_D))
+    for z in range(9, 19):
+        ell(b, (0, 0, z), (2.6 - (z - 9) * 0.05, 2.0, 0.6), hood)
+    ell(b, (0, 0.3, 21.5), (2.4, 2.6, 2.6), hood)
+    cap(b, (0, 1.2, 23), (0, 3.5, 25), 1.2, hood, 0.4)
+    ell(b, (0, -1.8, 21.3), (1.5, 0.8, 1.4), lin("#15171c"))
+    px(g, (-0.5, -2.6, 21.5), AMBR[0])
+    px(g, (0.5, -2.6, 21.5), AMBR[0])
+    ring(b, (0, 0, 18.6), 2.3, OCR)  # écharpe ocre
+    line(b, (0.5, 1.8, 18.5), (1.5, 4.5, 15), OCR)
+    ell(b, (-2.5, 1.5, 12), (1.6, 1.4, 1.8), rnd_of(R, P("#6a5a44", "#5a4c3a")))  # sac de galets
+    cap(b, (2.2, 0, 17), (3, -1, 24), 0.8, hood)  # bras levé
+    cap(b, (-2.2, 0, 17), (-3, -2, 13), 0.8, hood)
+    sw = Vox()
+    ring(sw, (0, 0, 3), 5, lin("#8a7a5a"))  # la fronde tourne au-dessus de la tête
+    line(sw, (0, 0, 0), (5, 0, 3), lin("#8a7a5a"))
+    ell(sw, (5, 0, 3), (0.8, 0.8, 0.8), lin("#9a958a"))
+    unit("frondeur", shade(b, R), sw, grip=(3, -1, 25), glow=g)
+
+
+def pavoiseur():
+    R = random.Random(62)
+    b, g = Vox(), Vox()
+    col = soldier(b, g, R, bulk=1.05)
+    for x in (-1, 0, 1):  # visière fendue
+        px(g, (x * 0.5, -3.4, 23.2), TEAL[2])
+    cap(b, (5.5, 0, 17), (6, -3, 11), 1.2, col)
+    wd = rnd_of(R, P("#4b3f30", "#41362a", "#56483a"), 0.85, 1.05)
+    for x in range(-9, -1):  # pavois : planches verticales, cerclage de fer rouillé
+        for z in range(3, 29):
+            b[(x, -6, z)] = wd(x, -6, z) if x % 3 else tone(RUST[0], R.uniform(0.8, 1.0))
+            b[(x, -5, z)] = wd(x, -5, z)
+    for x in range(-9, -1):
+        for z in (4, 15, 27):
+            b[(x, -7, z)] = tone(R.choice(RUST), R.uniform(0.85, 1.1))
+    for z in range(4, 28, 3):
+        for x in (-9, -2):
+            px(b, (x, -7.5, z), lin("#c9a26a"))  # rivets
+    for _ in range(14):
+        b[(R.randint(-9, -2), -7, R.randint(3, 12))] = R.choice(ALG + P("#cfc6b0"))
+    for z in range(9, 16):
+        g[(-5 + (z - 9) // 3, -7, z)] = TEAL[1]  # craquelure qui luit
+    sw = Vox()
+    for z in range(-2, 10):
+        sw[(0, 0, z)] = tone(lin("#8a939c"), 1.1 if z > 7 else 1.0)
+    sw[(-1, 0, -1)] = lin("#5a4030")
+    sw[(1, 0, -1)] = lin("#5a4030")
+    unit("pavoiseur", shade(b, R), sw, grip=(6, -4, 11), glow=g)
+
+
+def anguille():
+    R = random.Random(63)
+    b, g = Vox(), Vox()
+    back = rnd_of(R, P("#3a3f2e", "#2f3326", "#454b36"))
+    belly = lin("#b0a15a")
+    pts = [(0, 14, -2), (4, 8, 1), (-3, 1, 3), (0, -6, 4), (0, -10, 5)]
+    for a, c in zip(pts, pts[1:]):
+        zc = (a[2] + c[2]) / 2
+        cap(b, a, c, 2.2, lambda x, y, z, zc=zc: belly if z < zc - 1 else back(x, y, z))
+    ell(b, (0, -12, 5), (2.6, 3.4, 1.8), back)  # tête plate
+    ell(b, (0, -14, 3.8), (2.2, 2.6, 0.8), lin("#3a1a1a"))  # gueule ouverte
+    for x in (-1.5, -0.5, 0.5, 1.5):
+        px(b, (x, -15.8, 4.6), lin("#e8e0cc"))
+        px(b, (x, -15.8, 3.2), lin("#e8e0cc"))
+    for i, a in enumerate(pts[:-1]):  # crête dorsale et ligne latérale qui luit
+        c = pts[i + 1]
+        for k in range(6):
+            t = k / 6
+            q = [a[j] + (c[j] - a[j]) * t for j in range(3)]
+            px(b, (q[0], q[1], q[2] + 2.5), lin("#6a5a2a"))
+            px(g, (q[0] + 2.2, q[1], q[2] + 0.5), TEAL[2])
+            px(g, (q[0] - 2.2, q[1], q[2] + 0.5), TEAL[2])
+    px(g, (-1.2, -13.6, 6.2), TEAL[0])
+    px(g, (1.2, -13.6, 6.2), TEAL[0])
+    unit("anguille", shade(b, R), glow=g)
+
+
+def fanal():
+    R = random.Random(64)
+    b, g = Vox(), Vox()
+    stone = rnd_of(R, P("#6e6a62", "#5e5a53", "#7a766d"))
+    for x in range(-3, 4):
+        for y in range(-3, 4):
+            for z in range(0, 3):
+                b[(x, y, z)] = stone(x, y, z)
+    pole = rnd_of(R, P("#2a2320", "#241e1b"))
+    for z in range(3, 35):
+        ell(b, (0, 0, z), (1.2, 1.2, 0.6), pole)
+    for a in range(8):  # cage de fer : barreaux fins
+        t = a / 8 * math.tau
+        line(b, (math.cos(t) * 2.4, math.sin(t) * 2.4, 34), (math.cos(t) * 2.4, math.sin(t) * 2.4, 42.5), IRON[0])
+    for z in (34, 42.5):
+        ring(b, (0, 0, z), 2.6, IRON[2])
+    cap(b, (0, 0, 43), (0, 0, 46), 1.5, IRON[1], 0.3)
+    for z in range(35, 42):
+        rr = max(0.6, 1.6 - abs(z - 38) * 0.3)
+        ell(g, (0, 0, z), (rr, rr, 0.6), lin("#ffb35c") if z < 39 else lin("#ff6a7a"))
+    chain(b, (1.2, 0, 30), (3, -1, 34), RUST[2])
+    for z in range(22, 30):  # fanion prune déchiré
+        for x in range(1, 7 - (z % 3)):
+            if R.random() < 0.9:
+                b[(x, 0, z)] = tone(R.choice(PRUNE), R.uniform(0.85, 1.1))
+    unit("fanal", shade(b, R), glow=g)
+
+
+def treuil():
+    R = random.Random(65)
+    b, g = Vox(), Vox()
+    wd = rnd_of(R, WOOD)
+    for s in (-1, 1):
+        for z in range(0, 14):
+            b[(6 * s, -2, z)] = wd(0, 0, z)
+            b[(6 * s, 2, z)] = wd(0, 0, z)
+        for y in range(-2, 3):
+            b[(6 * s, y, 0)] = wd(0, y, 0)
+    cap(b, (-5, 0, 10), (5, 0, 10), 3.0, wd)  # tambour
+    for x in range(-4, 5):  # corde enroulée
+        ring(b, (x, 0, 10), 3.4, lin("#a08858") if x % 2 else lin("#8a7448"), axis="x")
+    for s in (-1, 1):  # barres en croix
+        cap(b, (7 * s, 0, 6), (7 * s, 0, 14), 0.7, wd)
+        cap(b, (7 * s, -4, 10), (7 * s, 4, 10), 0.7, wd)
+        for z in (3, 7, 11):
+            px(g, (6.6 * s, -2.6, z), TEAL[1])  # clous qui luisent
+    chain(b, (0, -3.4, 8), (0, -12, 2), RUST[1])
+    unit("treuil", shade(b, R), glow=g)
+
+
+def grelin():
+    R = random.Random(66)
+    b, g = Vox(), Vox()
+    cire = rnd_of(R, P("#2f4a3a", "#284032", "#3a5646"))
+    skin = rnd_of(R, P("#7a8a86", "#6c7c78"))
+    for s in (-1, 1):  # bottes de vase
+        cap(b, (3 * s, 0, 0), (3.2 * s, 0, 8), 2.0, rnd_of(R, P("#2a2620", "#332e26")))
+    ell(b, (0, 0, 14), (6.5, 5.0, 6.5), cire)
+    ell(b, (0, 1.5, 19), (6.8, 5.2, 4.2), cire)  # dos voûté
+    ell(b, (0, -4.6, 12), (4.2, 0.8, 5.0), rnd_of(R, P("#5a3a24", "#4e321f")))  # tablier de cuir
+    ell(b, (0, -2.5, 23.5), (3.2, 3.2, 3.0), skin)
+    for x in range(-7, 8):  # chapeau à large bord
+        for y in range(-7, 8):
+            if x * x + y * y <= 42:
+                px(b, (x, y - 2.5, 26.5), lin("#2a3a30"))
+                px(b, (x + 0.5, y - 2.5, 26.5), lin("#2a3a30"))
+    ell(b, (0, -2.5, 28), (3.3, 3.3, 2.0), rnd_of(R, P("#2a3a30", "#24332a")))
+    for x in (-5, -2, 2, 5):  # il goutte
+        line(g, (x, -8.5, 26), (x, -8.5, 23.5 - R.random() * 2), TEAL[2])
+    px(g, (-1, -5.6, 23.8), TEAL[0])
+    px(g, (1, -5.6, 23.8), TEAL[0])
+    ell(b, (4, -4.8, 9), (1.2, 0.6, 2.5), RUST[2])  # clé d'écluse
+    for s in (-1, 1):
+        cap(b, (6.5 * s, 0, 19), (8 * s, -3, 11), 1.8, cire)
+    for x in range(-15, -6):  # porte de vanne en planches cerclées
+        for z in range(2, 26):
+            b[(x, -6, z)] = rnd_of(R, WOOD)(x, 0, z) if x % 3 else tone(IRON[0], 1.0)
+    for x in range(-15, -6):
+        for z in (4, 13, 23):
+            b[(x, -7, z)] = tone(R.choice(RUST), 1.0)
+    for z in range(5, 24, 3):
+        line(g, (-11, -7.5, z), (-11, -7.5, z - 1), TEAL[1])
+    sp = Vox()  # gaffe à crochet
+    for z in range(-10, 28):
+        sp[(0, 0, z)] = tone(lin("#4a3a2c"), R.uniform(0.9, 1.1))
+    line(sp, (0, 0, 28), (0, -2.5, 30), RUST[2])
+    line(sp, (0, -2.5, 30), (0, -3.5, 28), RUST[2])
+    unit("grelin", shade(b, R), sp, grip=(8, -4, 11), glow=g)
+
+
+def tenant():
+    R = random.Random(67)
+    b, g = Vox(), Vox()
+    col = soldier(b, g, R, bulk=1.2)
+    line(b, (0, -3.4, 22.5), (0, -3.4, 24.5), tone(SLATE[3], 1.2))  # nasal
+    cap(b, (-6, 0, 18), (-7, -3, 12), 1.5, col)
+    ring(b, (-8, -5, 13), 3.8, IRON[2], axis="y")  # bouclier rond : roue de vanne cloutée
+    ring(b, (-8, -5, 13), 4.3, IRON[2], axis="y")
+    for a in range(6):
+        t = a / 6 * math.tau
+        line(b, (-8, -5, 13), (-8 + math.cos(t) * 3.8, -5, 13 + math.sin(t) * 3.8), IRON[0])
+        px(b, (-8 + math.cos(t) * 4.3, -5.6, 13 + math.sin(t) * 4.3), lin("#c9a26a"))
+    ell(b, (-8, -5, 13), (1.2, 0.8, 1.2), RUST[2])
+    chain(b, (6, -1, 11), (10, 2, 4), RUST[1])  # la chaîne vers son protégé
+    cap(b, (6, 0, 18), (6.5, -2, 11), 1.5, col)
+    px(g, (-0.5, -3.3, 23), AMBR[0])
+    px(g, (0.5, -3.3, 23), AMBR[0])
+    unit("tenant", shade(b, R), glow=g)
+
+
+def pisteuse():
+    R = random.Random(68)
+    b, g = Vox(), Vox()
+    vase = rnd_of(R, P("#3b4a2e", "#334027", "#465836"))
+    for s in (-1, 1):
+        cap(b, (1.8 * s, 0, 0), (1.8 * s, 0.5, 11), 1.0, rnd_of(R, P("#2e3326", "#262a20")))
+    for z in range(11, 22):
+        ell(b, (0, 0, z), (2.4, 1.8, 0.6), vase)
+    ell(b, (0, 0, 24.5), (2.2, 2.4, 2.4), vase)
+    cap(b, (0, -1.5, 24), (0, -5.5, 23.5), 1.1, rnd_of(R, P("#6a5a4a", "#5e5040")), 0.6)  # museau
+    px(b, (0, -6.2, 23.8), lin("#1a1414"))
+    for s in (-1, 1):
+        px(g, (0.9 * s, -2.4, 25.2), lin("#ff8a5c"))
+        cap(b, (1.2 * s, 0.6, 26), (1.8 * s, 1.5, 28.5), 0.6, vase)  # oreilles sous la capuche
+    for z in range(12, 23):  # cape en peau de raie
+        for x in range(-3, 4):
+            if R.random() < 0.85:
+                b[(x, 2, z)] = vase(x, 2, z)
+    ell(b, (2.5, 2.5, 14), (1.5, 1.2, 1.8), rnd_of(R, P("#5a4630", "#4c3b28")))  # besace
+    for s in (-1, 1):
+        cap(b, (2.6 * s, 0, 20), (2.6 * s, -3, 16), 0.8, vase)
+    cb = Vox()  # arbalète légère
+    for y in range(-6, 3):
+        cb[(0, y, 0)] = tone(lin("#b89868"), R.uniform(0.9, 1.1))
+    line(cb, (-4, -3.8, 0.2), (4, -3.8, 0.2), lin("#c8a878"))
+    line(cb, (-4, -3.8, 0.5), (0, -1, 0.5), AMBR[1])
+    line(cb, (4, -3.8, 0.5), (0, -1, 0.5), AMBR[1])
+    unit("pisteuse", shade(b, R), cb, grip=(0, -4, 16), glow=g)
+
+
+def penitente():
+    R = random.Random(69)
+    b, g = Vox(), Vox()
+    bure = rnd_of(R, P("#1f2440", "#1a1e36", "#262b4a"))
+    for z in range(0, 20):
+        r = 4.2 - z * 0.12
+        ell(b, (0, 0.6 if z > 12 else 0, z), (r, r * 0.85, 0.6), bure)
+    ell(b, (0, 0.5, 21.5), (2.6, 2.8, 2.8), bure)
+    cap(b, (0, 1, 23), (0, 3, 28), 2.0, bure, 0.4)  # capuchon pointu
+    for x in range(-2, 3):  # voile de filet
+        for z in range(19, 23):
+            if (x + z) % 2 == 0:
+                px(b, (x * 0.9, -2.4, z), lin("#9a9480"))
+    ell(b, (0, -1.8, 21), (1.5, 0.6, 1.5), lin("#0e0f16"))
+    for s in (-1, 1):
+        cap(b, (3 * s, 0, 17), (3.5 * s, -2.5, 11), 0.9, bure)
+    ch = Vox()  # encensoir au bout d'une chaîne
+    chain(ch, (0, 0, 0), (0, -1, -7), IRON[2])
+    ell(ch, (0, -1, -9), (1.6, 1.6, 1.8), rnd_of(R, P("#8a7a4a", "#7a6a3e")))
+    for k in range(12):
+        px(g, (R.uniform(-1.5, 1.5), -3 + R.uniform(-1, 1), 8 + k * 0.6), lin("#9a7ad8"))
+    unit("penitente", shade(b, R), ch, grip=(4, -3, 11), glow=g)
+
+
+def bitte():
+    R = random.Random(70)
+    b, g = Vox(), Vox()
+    col = basalt(R)
+    for z in range(0, 24):
+        r = 6.5 - min(z, 14) * 0.12
+        ell(b, (0, 0, z), (r, r, 0.6), col)
+    ell(b, (0, 0, 26), (8.5, 8.5, 3.2), col)  # sommet en champignon
+    for zz in (9, 17):  # anneaux de bronze vert-de-gris
+        ring(b, (0, 0, zz), 6.3, lin("#3f6b5a"))
+        ring(b, (0, 0, zz + 0.5), 6.3, lin("#4f7b6a"))
+    for _ in range(30):
+        b[(R.randint(-6, 6), R.randint(-6, 6), R.randint(0, 5))] = R.choice(P("#1f3a2a", "#cfc6b0", "#e0d8c4"))
+    for (x, y, z) in [(-6.4, 0, 12), (0, -6.4, 6), (6.4, 0, 15), (0, 6.4, 10), (-4.6, -4.6, 19)]:  # fissures indigo
+        line(g, (x, y, z), (x * 1.02, y * 1.02, z + R.randint(3, 6)), lin("#5a4fcf"))
+    unit("bitte", shade(b, R), glow=g)
+
+
+def hale():
+    R = random.Random(71)
+    b, g = Vox(), Vox()
+    col = soldier(b, g, R, bulk=1.4)
+    for x in (-2, 0, 2):  # heaume fermé à grille
+        line(b, (x, -3.6, 21.5), (x, -3.6, 25), IRON[2])
+    for x in (-1, 1):
+        px(g, (x, -3.2, 23), lin("#ffb347"))
+    for a in range(40):  # chaîne autour du torse
+        t = a / 40 * math.tau
+        px(b, (math.cos(t) * 6.6, math.sin(t) * 4.6, 15 + math.sin(t) * 3), RUST[1])
+    chain(b, (6, 2, 12), (11, 5, 3), RUST[1])
+    for z in range(8, 22):  # cape d'algues
+        for x in range(-5, 6):
+            if R.random() < 0.8:
+                b[(x, 4, z)] = R.choice(ALG)
+    cap(b, (-7, 0, 19), (-8, -3, 12), 2.0, col)
+    ring(b, (-10, -6, 13), 5.5, IRON[0], axis="y")  # roue de vanne en bouclier
+    ring(b, (-10, -6, 13), 6.0, IRON[0], axis="y")
+    for a in range(8):
+        t = a / 8 * math.tau
+        line(b, (-10, -6, 13), (-10 + math.cos(t) * 5.5, -6, 13 + math.sin(t) * 5.5), IRON[1])
+        px(b, (-10 + math.cos(t) * 6, -6.6, 13 + math.sin(t) * 6), AMBR[0])
+    ell(b, (-10, -6, 13), (1.5, 1, 1.5), IRON[2])
+    line(b, (4.5, -3.4, 10), (4.5, -3.4, 20), PRUNE[1])  # lanières prune
+    line(b, (-4.5, -3.4, 10), (-4.5, -3.4, 20), PRUNE[1])
+    unit("hale", shade(b, R), glow=g)
+
+
+def brasse():
+    R = random.Random(72)
+    b, g = Vox(), Vox()
+    stripe = lambda x, y, z: lin("#4a2040") if z % 2 else lin("#1c1a1e")
+    cap(b, (-2, 0, 0), (-2.2, 1, 11), 1.2, rnd_of(R, P("#2a2228", "#221c20")))
+    cap(b, (3, -3, 0), (2.4, -1, 11), 1.2, rnd_of(R, P("#2a2228", "#221c20")))  # posture de fente
+    for z in range(11, 22):
+        ell(b, (0, 0, z), (3.2, 2.2, 0.6), stripe)
+    ell(b, (0, -0.3, 24.5), (2.4, 2.5, 2.6), rnd_of(R, P("#7a8a86", "#6c7c78")))
+    ring(b, (0, 0, 21.8), 2.4, lin("#e0a040"))  # foulard ambre
+    line(b, (-1, 2, 21.5), (-2.5, 4.5, 18), lin("#e0a040"))
+    ell(b, (0, 0.5, 26.8), (2.6, 2.6, 1.0), rnd_of(R, P("#2a2228", "#221c20")))
+    px(g, (-0.8, -2.6, 24.8), lin("#ff6a8a"))
+    px(g, (0.8, -2.6, 24.8), lin("#ff6a8a"))
+    for s in (-1, 1):
+        cap(b, (3.4 * s, 0, 20), (4.5 * s, -3, 15), 1.0, stripe)
+    chain(b, (-4.5, -3, 15), (-9, -1, 5), RUST[1])
+    sp = Vox()  # gaffe de batelier
+    for z in range(-14, 22):
+        sp[(0, 0, z)] = tone(lin("#5a4632"), R.uniform(0.9, 1.1))
+    line(sp, (0, 0, 22), (0, -3, 25), lin("#b08040"))
+    line(sp, (0, -3, 25), (0, -4.5, 22.5), lin("#b08040"))
+    unit("brasse", shade(b, R), sp, grip=(5, -4, 14), glow=g)
+
+
+def vanne():
+    R = random.Random(73)
+    b, g = Vox(), Vox()
+    mos = rnd_of(R, P("#3d4a3a", "#34402f", "#475645"))
+    for s in (-1, 1):  # piliers de pierre moussue
+        for x in range(5, 8):
+            for y in range(-3, 4):
+                for z in range(0, 30):
+                    b[(x * s, y, z)] = mos(x, y, z)
+    for x in range(-7, 8):
+        for y in range(-3, 4):
+            for z in range(30, 33):
+                b[(x, y, z)] = mos(x, y, z)
+    for s in (-1, 1):  # crémaillères fines
+        line(b, (3 * s, -1, 4), (3 * s, -1, 30), RUST[2])
+        for z in range(4, 30, 2):
+            px(b, (3.5 * s, -1, z), RUST[0])
+    ring(b, (0, -4, 22), 5.5, RUST[0], axis="y")  # roue de fonte rouillée
+    ring(b, (0, -4, 22), 6.0, RUST[0], axis="y")
+    for a in range(6):
+        t = a / 6 * math.tau
+        line(b, (0, -4, 22), (math.cos(t) * 5.5, -4, 22 + math.sin(t) * 5.5), RUST[1])
+    ell(b, (0, -4, 22), (1.4, 1, 1.4), RUST[2])
+    for x in range(-4, 5):  # filets d'eau
+        line(g, (x, 0, 6), (x + R.uniform(-0.5, 0.5), -1, 0), TEAL[2] if x % 2 else TEAL[1])
+    for _ in range(18):
+        b[(R.choice((-7, -5, 5, 7)), R.randint(-3, 3), R.randint(0, 12))] = R.choice(ALG)
+    unit("vanne", shade(b, R), glow=g)
+
+
+def pilori():
+    R = random.Random(74)
+    b, g = Vox(), Vox()
+    wd = rnd_of(R, P("#3b2f26", "#33291f", "#44372c"))
+    for z in range(0, 26):  # poteau penché
+        ell(b, (z * 0.12, 0, z), (1.2, 1.2, 0.6), wd)
+    for x in range(-8, 10):  # carcan à trois trous
+        for z in range(18, 23):
+            hole = any((x - hx) ** 2 + (z - 20.5) ** 2 < (2.1 if hx == 1 else 1.3) for hx in (-5, 1, 7))
+            if not hole:
+                b[(x, -1, z)] = wd(x, 0, z)
+                b[(x, 0, z)] = wd(x, 0, z)
+    for x in range(-6, 8, 2):
+        px(g, (x, -1.6, 22.4), lin("#c04a5a"))  # runes
+    ell(b, (8, -1.5, 17), (1.2, 0.8, 1.4), RUST[2])  # cadenas
+    for s in (-1, 1):
+        chain(b, (6 * s, -1, 18), (7 * s + 2, -5, 0), RUST[1])
+    for _ in range(14):
+        px(b, (R.uniform(-1, 3), R.uniform(-1.5, 1.5), R.uniform(0, 8)), lin("#cfc6b0"))
+    unit("pilori", shade(b, R), glow=g)
+
+
+def eclusier_fou():
+    R = random.Random(75)
+    b, g = Vox(), Vox()
+    skin = rnd_of(R, P("#6c7c78", "#5e6e6a"))
+    for s in (-1, 1):
+        cap(b, (1.8 * s, 0, 0), (2 * s, 0.5, 8), 1.0, rnd_of(R, SLATE_D))
+    for z in range(8, 17):
+        ell(b, (0, (z - 8) * 0.25, z), (2.6, 2.0, 0.6), skin)
+    ell(b, (0, -3.6, 12), (2.4, 0.6, 3.6), rnd_of(R, P("#5a3a24", "#4e321f")))
+    ell(b, (0, -0.5, 19), (2.2, 2.4, 2.4), skin)
+    ell(g, (1.1, -2.6, 19.4), (0.8, 0.6, 0.8), lin("#7fe0c8"))  # œil de lunette
+    for s in (-1, 1):  # bras longs
+        cap(b, (2.8 * s, 1, 15), (4 * s, -2, 6), 0.8, skin)
+    for s in (-1, 1):  # deux tonnelets cerclés sur le dos
+        cap(b, (1.8 * s, 3.4, 11), (1.8 * s, 3.4, 16), 1.6, rnd_of(R, WOOD))
+        for zz in (11.5, 15.5):
+            ring(b, (1.8 * s, 3.4, zz), 1.8, IRON[2])
+        line(g, (1.8 * s, 3.4, 16.5), (1.8 * s + 0.5, 3.8, 18), lin("#ff8a3a"))
+    wr = Vox()  # clé à molette sur l'épaule
+    for z in range(0, 10):
+        wr[(0, 0, z)] = tone(lin("#6b6f78"), R.uniform(0.95, 1.1))
+    for k in (-1, 1):
+        wr[(k, 0, 10)] = lin("#6b6f78")
+        wr[(k, 0, 11)] = lin("#6b6f78")
+    unit("eclusier_fou", shade(b, R), wr, grip=(-3, 1, 17), glow=g)
+
+
+def noye_ancien():
+    R = random.Random(76)
+    b, g = Vox(), Vox()
+    col = soldier(b, g, R, bulk=1.3)
+    vdg = rnd_of(R, P("#3f6b5e", "#355c50", "#4a7a6b"))
+    ell(b, (0, -0.5, 15), (5.6, 3.8, 4.5), vdg)  # cuirasse corrodée
+    for x in (-3, -1.5, 0, 1.5, 3):  # heaume à grille
+        line(b, (x, -3.5, 21.5), (x, -3.5, 25.5), IRON[2])
+    for z in (22, 24):
+        line(b, (-3, -3.5, z), (3, -3.5, z), IRON[2])
+    for x in (-1, 1):
+        px(g, (x * 0.7, -3.2, 23.3), TEAL[0])
+    for k in range(3):  # anguilles qui sortent du heaume
+        line(b, (k - 1, -3.8, 21.5), (k - 1.5, -5.5, 19.5 - k), lin("#3a3f2e"))
+    for x in range(-5, 6, 2):  # coulures lumineuses
+        line(g, (x, -4.2, 14), (x, -4.2, 11 - R.random() * 3), TEAL[1])
+    for _ in range(30):
+        b[(R.randint(-5, 5), R.randint(2, 4), R.randint(2, 20))] = R.choice(ALG)
+    cap(b, (6.5, 0, 19), (7, -3, 11), 1.8, col)
+    hb = Vox()  # hallebarde brisée
+    for z in range(-8, 18):
+        hb[(0, 0, z)] = tone(lin("#4a3a2c"), R.uniform(0.9, 1.1))
+    for z in range(14, 20):
+        for y in range(-3, 1):
+            if y > -3 or z < 18:
+                hb[(0, y, z)] = tone(lin("#6a7a74"), R.uniform(0.85, 1.05))
+    unit("noye_ancien", shade(b, R), hb, grip=(7, -4, 11), glow=g)
+
+
+def porte_etendard():
+    R = random.Random(77)
+    b, g = Vox(), Vox()
+    col = soldier(b, g, R, bulk=0.95)
+    ring(b, (0, -0.3, 20.2), 3.0, RUST[2])  # gorgerin rouillé
+    for s in (-1, 1):
+        cap(b, (5 * s, 0, 17), (4 * s, -2, 12), 1.2, col)
+    fl = Vox()  # hampe épaisse et étendard en lambeaux
+    for z in range(-10, 30):
+        fl[(0, 0, z)] = tone(lin("#3a2c22"), R.uniform(0.9, 1.1))
+        fl[(1, 0, z)] = tone(lin("#3a2c22"), R.uniform(0.9, 1.1))
+    for z in range(14, 29):
+        for y in range(1, 10):
+            if z < 29 - (y % 3) and not (z < 17 and R.random() < 0.5):
+                t = (z - 14) / 15
+                fl[(y + 1, 0, z)] = tuple(a * (1 - t) + c * t for a, c in zip(lin("#2e2a55"), lin("#5a2d4f")))
+    line(fl, (6, -0.6, 17), (6, -0.6, 23), lin("#d8d0c0"))  # ancre pâle
+    line(fl, (4, -0.6, 18.5), (8, -0.6, 18.5), lin("#d8d0c0"))
+    line(fl, (4, -0.6, 18.5), (4.5, -0.6, 20), lin("#d8d0c0"))
+    line(fl, (8, -0.6, 18.5), (7.5, -0.6, 20), lin("#d8d0c0"))
+    wg = Vox()
+    for z in range(30, 34):
+        wg[(0, 0, z)] = AMBR[0]
+    unit("porte_etendard", shade(b, R), fl, grip=(-4, -2, 12), glow=g, wglow=wg)
+
+
+def fouisseur():
+    R = random.Random(78)
+    b, g = Vox(), Vox()
+    col = slate(R)
+    for k in range(6):  # segments du corps
+        y = -8 + k * 3.5
+        ell(b, (0, y, 5 - k * 0.2), (5 - k * 0.4, 2.2, 4 - k * 0.3), col)
+        for x in (-2, -1, 0, 1, 2):
+            px(g, (x * 0.8, y, 9.3 - k * 0.5), EMBER[k % 3])  # fissures ambre le long du dos
+    ell(b, (0, -12, 4), (4, 3, 3.2), col)  # tête aveugle
+    for s in (-1, 1):  # griffes-pelles
+        cap(b, (4 * s, -10, 4), (6 * s, -15, 1), 1.3, col)
+        for k in range(3):
+            line(b, (6 * s + (k - 1) * 0.8, -15, 1.5), (6.5 * s + (k - 1), -17.5, 0), lin("#d8cdb2"))
+    for k in range(4):
+        cap(b, (3.5, -4 + k * 4, 2), (5.5, -4 + k * 4, 0), 0.8, col)
+        cap(b, (-3.5, -4 + k * 4, 2), (-5.5, -4 + k * 4, 0), 0.8, col)
+    unit("fouisseur", shade(b, R), glow=g)
+
+
+def concile():
+    frondeur(); pavoiseur(); anguille(); fanal(); treuil(); grelin()
+    tenant(); pisteuse(); penitente(); bitte(); hale(); brasse()
+    vanne(); pilori(); eclusier_fou(); noye_ancien(); porte_etendard(); fouisseur()
+
+
 def betes():
     crabe(); crapaud(); harpie(); obelisque()
 
@@ -1050,21 +1747,21 @@ def voc_piece(name, vox, glow=None):
     rnd = lambda d: {(int(round(x)), int(round(y)), int(round(z))): c for (x, y, z), c in d.items()}
     vox = rnd(vox)
     glow = rnd(glow) if glow else None
-    objs = [mesh("voc_%s_body" % name, vox, VC)]
+    objs = [mesh("voc_%s_body" % name, refine(vox, 7), VC / K, skip=DOWN)]
     if glow:
-        objs.append(mesh("voc_%s_glow" % name, glow, VC, ao=False, glow=True))
+        objs.append(mesh("voc_%s_glow" % name, refine(glow, 0, False), VC / K, ao=False, glow=True))
     export("voc_" + name, objs)
 
 
 def vocations():
     R = random.Random(61)
     # Garde : pavois rond dans le dos
-    b = {}
+    b = Vox()
     ell(b, (0, 4.5, 16), (4.2, 0.8, 4.6), lambda x, y, z: tone(lin("#3d63e0" if (x + z) % 5 else "#d4dbe0"), R.uniform(0.9, 1.1)))
     ell(b, (0, 5.4, 16), (1.2, 0.6, 1.2), lin("#d4dbe0"))
     voc_piece("garde", b)
     # Lame : deux dagues croisées et les pans d'une écharpe rouge
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     for t in range(12):
         b[(-4 + t * 0.7, 4, 11 + t)] = lin("#c8d2d8")
         b[(4 - t * 0.7, 4, 11 + t)] = lin("#c8d2d8")
@@ -1073,7 +1770,7 @@ def vocations():
         b[(-1, 5, z - 1)] = tone(lin("#a01e2c"), R.uniform(0.9, 1.1))
     voc_piece("lame", b)
     # Oracle : châle violet et petite lanterne dorée
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     ell(b, (0, 3.5, 19), (5.2, 1.4, 2.4), lambda x, y, z: tone(lin("#6a3a9a"), R.uniform(0.85, 1.1)))
     for x in range(-4, 5, 2):
         b[(x, 4, 16)] = lin("#e3c46a")
@@ -1081,7 +1778,7 @@ def vocations():
     ell(g, (4, 4, 9), (1.2, 1.2, 1.4), lambda x, y, z: lin("#ffd27a"))
     voc_piece("oracle", b, g)
     # Artificier : baril-sac à dos, mèche allumée
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     ell(b, (0, 5.5, 15), (3.0, 2.4, 4.5), lambda x, y, z: tone(lin("#6a4a30" if z % 3 else "#2a9a8a"), R.uniform(0.9, 1.1)))
     for z in range(20, 23):
         b[(1, 5, z)] = lin("#3a3030")
@@ -1089,7 +1786,7 @@ def vocations():
     g[(1, 5, 24)] = lin("#ffd07a")
     voc_piece("artificier", b, g)
     # Moine : ceinture verte nouée et chapelet
-    b = {}
+    b = Vox()
     for a in range(28):
         t = a / 28 * math.tau
         b[(int(math.cos(t) * 4.6), int(math.sin(t) * 3.4), 11)] = tone(lin("#4fa83a"), R.uniform(0.9, 1.1))
@@ -1101,7 +1798,7 @@ def vocations():
         b[(int(math.cos(t) * 3), -3 + int(abs(math.sin(t)) * 1), 18 + int(math.sin(t) * 3))] = lin("#8a5a30")
     voc_piece("moine", b)
     # Trappeur : carquois de harpons en travers du dos
-    b = {}
+    b = Vox()
     for t in range(14):
         b[(-3 + t * 0.45, 4.5, 9 + t)] = tone(lin("#8a6a3a"), R.uniform(0.9, 1.1))
         b[(-2 + t * 0.45, 4.5, 9 + t)] = tone(lin("#7a5a2e"), R.uniform(0.9, 1.1))
@@ -1110,7 +1807,7 @@ def vocations():
             b[(3 + k, 4.5, z + k)] = lin("#c8d2d8")
     voc_piece("trappeur", b)
     # Tidiane : grand pinceau dans le dos, étincelles bleu, noir, rouge
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     for t in range(20):
         b[(-4 + t * 0.4, 4.5, 6 + t)] = lin("#2a2226")
     ell(b, (4.6, 4.5, 27), (1.4, 1.2, 2.2), lin("#c83c8a"))
@@ -1118,7 +1815,7 @@ def vocations():
         g[(5 + k, 4, 30 + k)] = lin(c)
     voc_piece("tidiane", b, g)
     # Receleur : sac de butin gonflé
-    b = {}
+    b = Vox()
     ell(b, (0, 5.5, 13), (3.8, 2.8, 4.2), lambda x, y, z: tone(lin("#8a9aa6"), R.uniform(0.85, 1.1)))
     for x in (-1, 0, 1):
         b[(x, 5, 18)] = lin("#5a4030")
@@ -1131,7 +1828,7 @@ def marchand():
     R = random.Random(71)
     AMB, AMD, ROS, TUR, TUD = P("#e8a040", "#a86a28", "#c8506a", "#2a9a8a", "#1a6a60")
     SKIN, BRD, WOOD, GOLD = P("#c98f68", "#eeeae0", "#6a4a32", "#e6b84f")
-    b, g = {}, {}
+    b, g = Vox(), Vox()
     for z in range(0, 18):  # robe évasée
         rx = 7.6 - z * 0.17
         ell(b, (0, 0, z), (rx, 5.4 - z * 0.08, 0.6), lambda x, y, zz: ROS if zz < 3 or (abs(x) <= 1 and y < 0) else AMB)
@@ -1160,7 +1857,7 @@ def marchand():
         ell(b, (jx, 8, jz), (2.2, 2.0, 3.0), lambda x, y, z, c=jc: tone(lin(c), R.uniform(0.85, 1.1)))
     cap(b, (-7, 8, 31), (7, 8, 31), 1.8, ROS)
     b = shade(b, R)
-    st, sg = {}, {}
+    st, sg = Vox(), Vox()
     for z in range(-12, 22):
         st[(0, 0, z)] = WOOD
     for z in range(22, 25):
@@ -1200,7 +1897,7 @@ def hybrid(name, b, g, voc):
     R = random.Random(sum(map(ord, name + voc)))
     bh = _hsv(lin(CLS_HEX[name]))[0]
     vc = lin(CLS_HEX[voc])
-    b = dict(b)
+    b = b.clone() if isinstance(b, Vox) else dict(b)
     belt = BELT[name]
     for p, c in list(b.items()):
         h, s, v = _hsv(c)
@@ -1307,6 +2004,7 @@ def build():
     chaman(); carapace(); rodeur()
     noyes()
     betes()
+    concile()
     vocations()
     hybrids()
     print("persos ok")

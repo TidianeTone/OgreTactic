@@ -522,6 +522,46 @@ func toast(text: String) -> void:
 	tw.tween_property(toast_plate, "modulate:a", 0.0, 0.4)
 
 
+var coach_plate: PanelContainer
+var coach_kick: Label
+var coach_txt: RichTextLabel
+func coach(kicker: String, text: String) -> void:
+	## Initiation : une consigne à la fois, en haut à droite, qui reste jusqu'à la suivante.
+	if coach_plate == null:
+		coach_plate = PanelContainer.new()
+		var st := sb(Color(0.06, 0.05, 0.06, 0.92), GOLD, 10, 2, 12)
+		st.content_margin_left = 16
+		st.content_margin_right = 16
+		st.content_margin_top = 10
+		st.content_margin_bottom = 12
+		coach_plate.add_theme_stylebox_override("panel", st)
+		coach_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		coach_plate.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		coach_plate.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		coach_plate.offset_right = -18
+		coach_plate.offset_left = -18 - (460 if not big else 560)
+		coach_plate.offset_top = 150
+		root.add_child(coach_plate)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 4)
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		coach_plate.add_child(v)
+		coach_kick = _label("", 14 + (3 if big else 0), GOLD, title_f)
+		v.add_child(coach_kick)
+		coach_txt = _rich("", 16 + (3 if big else 0), INK)
+		coach_txt.custom_minimum_size.x = 428 if not big else 528
+		v.add_child(coach_txt)
+	coach_plate.visible = text != ""
+	if text == "":
+		return
+	coach_kick.text = kicker.to_upper()
+	coach_txt.text = text
+	coach_plate.modulate.a = 0.0
+	coach_plate.scale = Vector2.ONE
+	var tw := create_tween()
+	tw.tween_property(coach_plate, "modulate:a", 1.0, 0.3)
+
+
 func announce(c: Dictionary) -> void:
 	toast("%s — %s" % [Data.HEROES[c.owner].name, c.name])
 
@@ -873,7 +913,7 @@ func refresh() -> void:
 	powers_lbl.text = ("Pouvoirs : " + " · ".join(pw)) if pw.size() > 0 else ""
 	end_btn.disabled = not battle.player_turn or battle.busy
 	end_btn.text = "Fin du tour" if battle.active == null else ("Valider l'orientation" if battle.orienting else "Fin · %s" % battle.active.nm)
-	keys_plate.visible = (battle.turn <= 1 if show_keys < 0 else show_keys == 1) and not big  # au doigt, pas de clavier
+	keys_plate.visible = (battle.turn <= 1 and not main.tuto if show_keys < 0 else show_keys == 1) and not big  # au doigt, pas de clavier
 	var psig := "%s|%d" % [JSON.stringify(battle.played_turn), battle.discard.size()]
 	if psig != _played_sig:
 		_played_sig = psig
@@ -1306,7 +1346,7 @@ func _refresh_frieze() -> void:
 		c.queue_free()
 	var boss: Unit = null
 	for f in battle.alive_foes():
-		if f.key == "gardien":
+		if f.data.has("titre") and boss == null:
 			boss = f
 	# qui joue maintenant, puis la suite du round, puis le début du suivant
 	var units: Array = []
@@ -1350,11 +1390,7 @@ func _refresh_frieze() -> void:
 				main.refresh_hover())
 		p.add_child(l)
 		frieze.add_child(p)
-	boss_bar.visible = boss != null
-	if boss:
-		var bb: ProgressBar = boss_bar.get_meta("bar")
-		bb.max_value = boss.max_hp
-		bb.value = boss.hp
+	_boss_bars(boss)
 
 
 # ------------------------------------------------------------------ étiquettes des unités
@@ -1553,7 +1589,7 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 			_passthrough(w)
 			w = holder
 		else:
-			w = _option(o, 164 if split else (250 if options.size() <= 4 else (205 if options.size() <= 6 else (186 if options.size() <= 7 else 170))))
+			w = _option(o, int(o.get("w", 164 if split else (250 if options.size() <= 4 else (205 if options.size() <= 6 else (186 if options.size() <= 7 else 170))))))
 		w.mouse_filter = Control.MOUSE_FILTER_STOP
 		var idx := i
 		w.focus_mode = Control.FOCUS_ALL
@@ -1593,15 +1629,22 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 	return i
 
 
-# Cartes d'étage peintes (KIE, voxel) : une île par biome. A et B : les deux bouts du sentier sur le plateau
-# (fractions de l'image), dy : écart vertical entre deux voies. Ordre = Data.BIOMES.
+# Cartes d'étage peintes (KIE, voxel) : une île par biome. Chaque salle est posée à la main sur le décor
+# (places, ponts, sentiers ; fractions de l'image) : 6 étapes de 3 voies (haut, milieu, bas) puis le gardien.
+# Ordre = Data.BIOMES. Retoucher : scratchpad map/mk.py + show.py superposent les points sur l'image.
 const MAPS := [
-	["automne", Vector2(0.15, 0.56), Vector2(0.85, 0.3), 0.085], ["mousse", Vector2(0.2, 0.62), Vector2(0.8, 0.46), 0.06],
-	["braise", Vector2(0.16, 0.56), Vector2(0.85, 0.5), 0.075], ["lilas", Vector2(0.2, 0.52), Vector2(0.82, 0.6), 0.075],
-	["tours", Vector2(0.16, 0.52), Vector2(0.85, 0.5), 0.11], ["altiplano", Vector2(0.17, 0.53), Vector2(0.86, 0.4), 0.075],
-	["cristal", Vector2(0.24, 0.6), Vector2(0.82, 0.33), 0.075], ["epilobes", Vector2(0.16, 0.5), Vector2(0.85, 0.5), 0.12],
-	["crypte", Vector2(0.15, 0.42), Vector2(0.85, 0.5), 0.075], ["emeraude", Vector2(0.15, 0.45), Vector2(0.85, 0.42), 0.1],
-	["quartz", Vector2(0.17, 0.55), Vector2(0.85, 0.5), 0.08], ["jade", Vector2(0.22, 0.55), Vector2(0.8, 0.5), 0.1],
+	["automne", [[Vector2(0.27, 0.46), Vector2(0.23, 0.55), Vector2(0.31, 0.61)], [Vector2(0.37, 0.41), Vector2(0.35, 0.52), Vector2(0.42, 0.59)], [Vector2(0.46, 0.36), Vector2(0.46, 0.49), Vector2(0.52, 0.57)], [Vector2(0.56, 0.32), Vector2(0.57, 0.45), Vector2(0.62, 0.53)], [Vector2(0.63, 0.28), Vector2(0.68, 0.41), Vector2(0.72, 0.49)], [Vector2(0.72, 0.24), Vector2(0.78, 0.36), Vector2(0.82, 0.44)], [Vector2(0.88, 0.31)]]],
+	["mousse", [[Vector2(0.30, 0.36), Vector2(0.33, 0.44), Vector2(0.36, 0.51)], [Vector2(0.38, 0.40), Vector2(0.40, 0.47), Vector2(0.44, 0.55)], [Vector2(0.47, 0.40), Vector2(0.49, 0.46), Vector2(0.52, 0.56)], [Vector2(0.56, 0.40), Vector2(0.58, 0.47), Vector2(0.60, 0.57)], [Vector2(0.64, 0.42), Vector2(0.65, 0.51), Vector2(0.68, 0.59)], [Vector2(0.72, 0.46), Vector2(0.73, 0.54), Vector2(0.76, 0.59)], [Vector2(0.78, 0.50)]]],
+	["braise", [[Vector2(0.28, 0.44), Vector2(0.30, 0.52), Vector2(0.34, 0.58)], [Vector2(0.36, 0.47), Vector2(0.40, 0.52), Vector2(0.44, 0.61)], [Vector2(0.46, 0.45), Vector2(0.50, 0.55), Vector2(0.53, 0.64)], [Vector2(0.57, 0.45), Vector2(0.59, 0.54), Vector2(0.62, 0.63)], [Vector2(0.66, 0.45), Vector2(0.68, 0.54), Vector2(0.70, 0.63)], [Vector2(0.74, 0.47), Vector2(0.76, 0.55), Vector2(0.77, 0.64)], [Vector2(0.86, 0.80)]]],
+	["lilas", [[Vector2(0.30, 0.43), Vector2(0.33, 0.49), Vector2(0.37, 0.55)], [Vector2(0.39, 0.45), Vector2(0.42, 0.52), Vector2(0.44, 0.60)], [Vector2(0.48, 0.47), Vector2(0.51, 0.56), Vector2(0.52, 0.64)], [Vector2(0.57, 0.50), Vector2(0.59, 0.59), Vector2(0.61, 0.66)], [Vector2(0.66, 0.52), Vector2(0.68, 0.60), Vector2(0.70, 0.67)], [Vector2(0.74, 0.55), Vector2(0.76, 0.62), Vector2(0.77, 0.69)], [Vector2(0.82, 0.74)]]],
+	["tours", [[Vector2(0.22, 0.50), Vector2(0.25, 0.57), Vector2(0.30, 0.64)], [Vector2(0.33, 0.47), Vector2(0.35, 0.56), Vector2(0.39, 0.64)], [Vector2(0.44, 0.42), Vector2(0.45, 0.52), Vector2(0.47, 0.62)], [Vector2(0.53, 0.40), Vector2(0.55, 0.50), Vector2(0.56, 0.60)], [Vector2(0.63, 0.42), Vector2(0.64, 0.52), Vector2(0.64, 0.62)], [Vector2(0.72, 0.45), Vector2(0.73, 0.54), Vector2(0.70, 0.66)], [Vector2(0.80, 0.54)]]],
+	["altiplano", [[Vector2(0.20, 0.48), Vector2(0.22, 0.55), Vector2(0.26, 0.60)], [Vector2(0.32, 0.44), Vector2(0.34, 0.51), Vector2(0.38, 0.58)], [Vector2(0.44, 0.42), Vector2(0.46, 0.49), Vector2(0.50, 0.56)], [Vector2(0.56, 0.40), Vector2(0.58, 0.47), Vector2(0.62, 0.54)], [Vector2(0.68, 0.39), Vector2(0.70, 0.45), Vector2(0.72, 0.52)], [Vector2(0.78, 0.38), Vector2(0.80, 0.44), Vector2(0.82, 0.50)], [Vector2(0.89, 0.40)]]],
+	["cristal", [[Vector2(0.18, 0.52), Vector2(0.20, 0.58), Vector2(0.24, 0.64)], [Vector2(0.30, 0.46), Vector2(0.32, 0.54), Vector2(0.35, 0.61)], [Vector2(0.42, 0.42), Vector2(0.44, 0.50), Vector2(0.47, 0.56)], [Vector2(0.52, 0.38), Vector2(0.55, 0.47), Vector2(0.58, 0.55)], [Vector2(0.62, 0.36), Vector2(0.66, 0.45), Vector2(0.68, 0.54)], [Vector2(0.72, 0.34), Vector2(0.76, 0.42), Vector2(0.78, 0.50)], [Vector2(0.66, 0.28)]]],
+	["epilobes", [[Vector2(0.16, 0.48), Vector2(0.18, 0.56), Vector2(0.22, 0.64)], [Vector2(0.28, 0.40), Vector2(0.30, 0.51), Vector2(0.34, 0.64)], [Vector2(0.40, 0.36), Vector2(0.44, 0.46), Vector2(0.44, 0.64)], [Vector2(0.52, 0.35), Vector2(0.54, 0.45), Vector2(0.58, 0.62)], [Vector2(0.66, 0.36), Vector2(0.62, 0.47), Vector2(0.70, 0.62)], [Vector2(0.78, 0.40), Vector2(0.76, 0.52), Vector2(0.82, 0.62)], [Vector2(0.88, 0.52)]]],
+	["crypte", [[Vector2(0.20, 0.38), Vector2(0.24, 0.46), Vector2(0.28, 0.54)], [Vector2(0.30, 0.34), Vector2(0.34, 0.48), Vector2(0.36, 0.56)], [Vector2(0.40, 0.42), Vector2(0.44, 0.50), Vector2(0.46, 0.60)], [Vector2(0.52, 0.43), Vector2(0.56, 0.52), Vector2(0.56, 0.62)], [Vector2(0.62, 0.43), Vector2(0.66, 0.52), Vector2(0.66, 0.62)], [Vector2(0.74, 0.44), Vector2(0.76, 0.52), Vector2(0.76, 0.60)], [Vector2(0.82, 0.40)]]],
+	["emeraude", [[Vector2(0.24, 0.39), Vector2(0.23, 0.47), Vector2(0.26, 0.56)], [Vector2(0.32, 0.35), Vector2(0.32, 0.46), Vector2(0.36, 0.58)], [Vector2(0.44, 0.36), Vector2(0.44, 0.46), Vector2(0.46, 0.58)], [Vector2(0.56, 0.36), Vector2(0.56, 0.48), Vector2(0.56, 0.62)], [Vector2(0.66, 0.42), Vector2(0.67, 0.50), Vector2(0.66, 0.62)], [Vector2(0.75, 0.45), Vector2(0.78, 0.53), Vector2(0.76, 0.60)], [Vector2(0.88, 0.43)]]],
+	["quartz", [[Vector2(0.24, 0.42), Vector2(0.22, 0.50), Vector2(0.26, 0.56)], [Vector2(0.34, 0.40), Vector2(0.32, 0.48), Vector2(0.36, 0.56)], [Vector2(0.44, 0.39), Vector2(0.42, 0.50), Vector2(0.46, 0.57)], [Vector2(0.54, 0.39), Vector2(0.52, 0.48), Vector2(0.56, 0.57)], [Vector2(0.62, 0.40), Vector2(0.62, 0.48), Vector2(0.66, 0.58)], [Vector2(0.70, 0.42), Vector2(0.68, 0.50), Vector2(0.76, 0.57)], [Vector2(0.79, 0.46)]]],
+	["jade", [[Vector2(0.26, 0.50), Vector2(0.28, 0.57), Vector2(0.32, 0.63)], [Vector2(0.38, 0.46), Vector2(0.40, 0.53), Vector2(0.42, 0.60)], [Vector2(0.48, 0.42), Vector2(0.50, 0.51), Vector2(0.52, 0.63)], [Vector2(0.58, 0.44), Vector2(0.60, 0.52), Vector2(0.62, 0.65)], [Vector2(0.66, 0.40), Vector2(0.70, 0.51), Vector2(0.70, 0.60)], [Vector2(0.74, 0.42), Vector2(0.78, 0.50), Vector2(0.80, 0.56)], [Vector2(0.85, 0.48)]]],
 ]
 static var _dash: Texture2D
 static func dash_tex() -> Texture2D:
@@ -1673,9 +1716,8 @@ func map_screen(title: String, subtitle: String, fmap: Array, step: int, lane: i
 	area.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(area)
 	var pos := func(k: int, i: int) -> Vector2:
-		var n: int = fmap[k].size()
-		var t: float = float(k) / maxf(1.0, fmap.size() - 1.0)
-		var p: Vector2 = (m[1] as Vector2).lerp(m[2], t) + Vector2(0, (i - (n - 1) * 0.5) * float(m[3]))
+		var col: Array = m[1][mini(k, m[1].size() - 1)]
+		var p: Vector2 = col[0] if col.size() == 1 else col[clampi(i + (1 if fmap[k].size() == 1 else 0), 0, col.size() - 1)]
 		return stage.position + p * stage.size
 	# le sentier : une courbe douce par lien, ombre dessous, pointillés dessus
 	for k in fmap.size() - 1:
@@ -1716,7 +1758,22 @@ func map_screen(title: String, subtitle: String, fmap: Array, step: int, lane: i
 	info_plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var info := _label("Choisissez la prochaine salle.", 17, INK)
 	info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	info_plate.add_child(info)
+	# au survol d'une salle : son illustration au-dessus de la description
+	var info_box := VBoxContainer.new()
+	info_box.add_theme_constant_override("separation", 6)
+	info_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	info_plate.add_child(info_box)
+	var room_art := TextureRect.new()
+	room_art.custom_minimum_size = Vector2(240, 160)
+	room_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	room_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	room_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	room_art.visible = false
+	var art_c := CenterContainer.new()
+	art_c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	art_c.add_child(room_art)
+	info_box.add_child(art_c)
+	info_box.add_child(info)
 	var first: Button
 	for k in fmap.size():
 		for i in fmap[k].size():
@@ -1748,8 +1805,14 @@ func map_screen(title: String, subtitle: String, fmap: Array, step: int, lane: i
 			b.add_theme_color_override("font_disabled_color", INK if done else col.darkened(0.3))
 			b.disabled = not open
 			var desc: String = n.desc
-			b.mouse_entered.connect(func(): info.text = desc)
-			b.focus_entered.connect(func(): info.text = desc)
+			var art_p := "res://assets/ui/salle_%s.png" % ("elite" if n.type == "boss" else n.type)
+			var show_room := func():
+				info.text = desc
+				room_art.visible = ResourceLoader.exists(art_p)
+				if room_art.visible:
+					room_art.texture = load(art_p)
+			b.mouse_entered.connect(show_room)
+			b.focus_entered.connect(show_room)
 			if open:
 				var idx: int = i
 				b.pressed.connect(func(): picked.emit(idx))
@@ -1785,6 +1848,7 @@ func map_screen(title: String, subtitle: String, fmap: Array, step: int, lane: i
 	foot.offset_top = -130
 	foot.offset_bottom = -22
 	foot.alignment = BoxContainer.ALIGNMENT_END
+	foot.grow_vertical = Control.GROW_DIRECTION_BEGIN  # l'illustration de salle pousse vers le haut
 	foot.add_theme_constant_override("separation", 12)
 	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(foot)
@@ -2090,7 +2154,7 @@ func vocation_intro(h: Unit) -> void:
 	txt.add_theme_font_size_override("normal_font_size", 16)
 	txt.add_theme_color_override("default_color", INK)
 	txt.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	txt.text = ("[center]Comme dans Final Fantasy Tactics, [color=#e3b45c]%s choisit une vocation[/color] : une deuxième classe.\n" +
+	txt.text = ("[center][color=#e3b45c]%s choisit une vocation[/color] : une deuxième classe.\n" +
 		"Chaque paire de classes forme une [color=#e3b45c]guilde[/color], avec sa règle et ses cartes à elle.\n" +
 		"Ses butins gagnent une [color=#e3b45c]case bonus[/color] : cartes de sa vocation et de sa guilde, sans jamais prendre la place d'une carte de classe.\n" +
 		"Et plus il combat, plus la guilde se dévoile.[/center]") % h.nm
@@ -2362,46 +2426,53 @@ func equipment_screen(heroes: Array, bag: Array) -> Dictionary:
 		v.add_theme_constant_override("separation", 10)
 		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		p.add_child(v)
-		var top := HBoxContainer.new()
-		top.add_theme_constant_override("separation", 12)
-		top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		v.add_child(top)
-		var por := TextureRect.new()
-		por.texture = load("res://assets/art/portrait_%s.png" % h.key)
-		por.custom_minimum_size = Vector2(72, 72)
-		por.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		por.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		por.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		top.add_child(por)
-		var nv := VBoxContainer.new()
-		nv.alignment = BoxContainer.ALIGNMENT_CENTER
-		nv.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		top.add_child(nv)
-		nv.add_child(_label(h.nm, 24, col.lightened(0.35), title_f))
-		var st := HBoxContainer.new()
-		st.add_theme_constant_override("separation", 10)
-		st.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		st.add_child(_chip("pv", "%d/%d" % [h.hp, h.max_hp], Color.WHITE, 20))
-		st.add_child(_chip("deplacement", str(h.move), Color.WHITE, 20))
-		st.add_child(_chip("attaque", "+%d" % h.gear_dmg(), Color(1.0, 0.75, 0.6), 20))
-		nv.add_child(st)
-		var slots := HBoxContainer.new()
-		slots.alignment = BoxContainer.ALIGNMENT_CENTER
-		slots.add_theme_constant_override("separation", 8)
-		slots.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		v.add_child(slots)
-		for slot in Data.SLOTS:
+		# la poupée : le héros en pied au centre, arme et armure à gauche, bottes et bijou à droite
+		var nm := _label(h.nm, 24, col.lightened(0.35), title_f)
+		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(nm)
+		var tr := _label(Data.TRAITS[h.trait_id].name if Data.TRAITS.has(h.trait_id) else "", 13, col.lightened(0.5))
+		tr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(tr)
+		var doll := HBoxContainer.new()
+		doll.alignment = BoxContainer.ALIGNMENT_CENTER
+		doll.add_theme_constant_override("separation", 6)
+		doll.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(doll)
+		var cols: Array = []
+		for k in 2:
+			var cv2 := VBoxContainer.new()
+			cv2.alignment = BoxContainer.ALIGNMENT_CENTER
+			cv2.add_theme_constant_override("separation", 10)
+			cv2.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			cols.append(cv2)
+		var fig := TextureRect.new()
+		var fp := "res://assets/art/figure_%s.png" % h.key
+		fig.texture = load(fp) if ResourceLoader.exists(fp) else load("res://assets/art/portrait_%s.png" % h.key)
+		fig.custom_minimum_size = Vector2(120, 180) if big else Vector2(150, 225)
+		fig.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		fig.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		fig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		doll.add_child(cols[0])
+		doll.add_child(fig)
+		doll.add_child(cols[1])
+		const GHOST := {"arme": "epee", "armure": "plastron", "bottes": "bottes", "bijou": "amulette"}
+		for si in Data.SLOTS.size():
+			var slot: String = Data.SLOTS[si]
 			var id: String = h.equip.get(slot, "")
 			var cap: String = Data.SLOT_NAME[slot]
 			var sv := VBoxContainer.new()
-			sv.add_theme_constant_override("separation", 4)
+			sv.add_theme_constant_override("separation", 2)
 			sv.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			var t := _gear_tile(id, 58, ITEM_COL[Data.ITEMS[id].rarity] if id != "" else DIM.darkened(0.5))
+			var t := _gear_tile(id, 60, ITEM_COL[Data.ITEMS[id].rarity] if id != "" else DIM.darkened(0.5))
 			if id == "":
-				var q := _label("vide", 13, DIM.darkened(0.3))
-				q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-				q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-				t.add_child(q)
+				# emplacement libre : l'ombre de ce qu'il attend
+				var gh := TextureRect.new()
+				gh.texture = load("res://assets/ui/gear_%s.png" % GHOST[slot])
+				gh.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+				gh.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+				gh.modulate = Color(1, 1, 1, 0.18)
+				gh.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				t.add_child(gh)
 			t.mouse_entered.connect(func():
 				if id != "":
 					show.call(id, "porté par %s · clic : retour au sac" % h.nm)
@@ -2415,10 +2486,23 @@ func equipment_screen(heroes: Array, bag: Array) -> Dictionary:
 					elif id != "":
 						act.call({"unequip": slot, "hero": hi}))
 			sv.add_child(t)
-			var sl2 := _label(cap, 13, DIM)
+			var sl2 := _label(cap if id == "" else Data.ITEMS[id].name, 12, DIM if id == "" else ITEM_COL[Data.ITEMS[id].rarity].lightened(0.3))
 			sl2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			sl2.custom_minimum_size.x = 76
+			sl2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			sv.add_child(sl2)
-			slots.add_child(sv)
+			cols[0 if si < 2 else 1].add_child(sv)
+		var st := HBoxContainer.new()
+		st.alignment = BoxContainer.ALIGNMENT_CENTER
+		st.add_theme_constant_override("separation", 12)
+		st.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		st.add_child(_chip("pv", "%d/%d" % [h.hp, h.max_hp], Color.WHITE, 20))
+		st.add_child(_chip("deplacement", str(h.move), Color.WHITE, 20))
+		st.add_child(_chip("attaque", "+%d" % h.gear_dmg(), Color(1.0, 0.75, 0.6), 20))
+		var ex := _label("saut %d · vit. %d" % [h.jump, h.speed], 14, DIM)
+		ex.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		st.add_child(ex)
+		v.add_child(st)
 		p.gui_input.connect(func(e):
 			if _clicked(e) and sel[0] >= 0:
 				act.call({"equip": sel[0], "hero": hi}))
@@ -2694,3 +2778,31 @@ func hero_sheet(h: Unit) -> void:
 	var hint := _label("Clic pour fermer · l'équipement se change hors combat (carte d'étage, repos, I)", 12, DIM)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(hint)
+
+
+# ------------------------------------------------------------------ barre de boss (spec ennemis du 26/09)
+
+func _boss_bars(boss: Unit) -> void:
+	## Grelin, le Gardien : une barre à son nom. Les Amarreurs : deux barres liées, une par tête.
+	boss_bar.visible = boss != null
+	if boss == null:
+		return
+	var bn: Label = boss_bar.get_child(0)
+	var bb: ProgressBar = boss_bar.get_meta("bar")
+	var pair: Array = battle.foes.filter(func(o): return o.data.get("titre", "") == boss.data.titre)
+	bn.text = boss.data.titre if pair.size() < 2 else " · ".join(pair.map(func(o): return "%s %d" % [o.nm.split(",")[0], maxi(0, o.hp)]))
+	bb.max_value = boss.max_hp
+	bb.value = boss.hp
+	var b2: ProgressBar = boss_bar.get_meta("bar2") if boss_bar.has_meta("bar2") else null
+	if pair.size() >= 2:
+		if b2 == null:
+			b2 = bb.duplicate()
+			boss_bar.add_child(b2)
+			boss_bar.set_meta("bar2", b2)
+		b2.visible = true
+		bb.max_value = pair[0].max_hp
+		bb.value = maxi(0, pair[0].hp)
+		b2.max_value = pair[1].max_hp
+		b2.value = maxi(0, pair[1].hp)
+	elif b2:
+		b2.visible = false

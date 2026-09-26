@@ -23,3 +23,4 @@ blender/kie_cartes/icones/sheet.png
 
 # planches KIE de l'interface (sources) : seules les découpes dans assets/ui sont publiées
 blender/kie_ui/*.png
+blender/kie_cartes/planches_menus/

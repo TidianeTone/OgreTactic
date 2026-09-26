@@ -93,9 +93,9 @@ pages.append("""<section class='page cover'><img class='bg' src='img/cover.jpg'>
 # ------------------------------------------------------------------ bienvenue
 chap("Bienvenue dans l'Écluse")
 page("""<div class='kicker'>Chapitre 1</div><h2>Bienvenue dans l'Écluse</h2>
-<p class='lede'>TonerTactic est un roguelike tactique à cartes : l'esprit de Final Fantasy Tactics et de Disgaea sur le terrain, la structure de Slay the Spire dans le paquet.
+<p class='lede'>TonerTactic est un roguelike tactique à cartes : on place son escouade case par case, on joue ses coups depuis un paquet qui grossit à chaque salle.
 Trois héros descendent trois étages de ruines inondées jusqu'au Gardien de l'Écluse. Chaque mort est définitive ; chaque run est différente.</p>
-<div class='cols2'><div class='box'><h4>Deux modes</h4><p><b>Descente</b> : une carte d'étage à la Slay the Spire, 7 salles par étage sur trois voies ;
+<div class='cols2'><div class='box'><h4>Deux modes</h4><p><b>Descente</b> : une carte d'étage, 7 salles par étage sur trois voies ;
 on choisit sa route (combats, élites, marchands, sanctuaires, reliquaires). <b>Aventure</b> : on explore un donjon salle par salle, avec des salles « ? », des réserves et des coffres ;
 un gardien d'élite garde l'escalier.</p></div>
 <div class='box'><h4>Préparer la run</h4><p>Choisissez la <b>difficulté</b> (de 1, Oklm, à 5, Anathème), d'éventuels <b>pactes</b> (des malus contre +25 % d'or et plus de cartes rares chacun),
@@ -170,7 +170,7 @@ for k in ORDER:
 
 # ------------------------------------------------------------------ vocations et guildes
 chap("Vocations et guildes")
-page("""<div class='kicker'>Chapitre 5</div><h2>Vocations et guildes</h2><p class='lede'>Comme dans Final Fantasy Tactics, chaque héros gagne des <b>points de job</b> (1 par combat, 2 par élite).
+page("""<div class='kicker'>Chapitre 5</div><h2>Vocations et guildes</h2><p class='lede'>Chaque héros gagne des <b>points de job</b> (1 par combat, 2 par élite).
 Avec assez de points, il choisit une <b>vocation</b> : une deuxième classe. La paire forme une <b>guilde</b>, avec sa règle et ses onze cartes.</p>
 <div class='cols2'><div><table class='t'><tr><th>Maîtrise</th><th>Points</th><th>Ce qui s'ouvre</th></tr><tr><td>II</td><td>3</td><td>La vocation : communes et peu communes de la guilde, cartes de la classe apprise</td></tr>
 <tr><td>III</td><td>7</td><td>Les rares de la guilde</td></tr><tr><td>IV</td><td>11</td><td>La légendaire, proposée une fois dans la case bonus</td></tr></table>
@@ -297,7 +297,7 @@ page("""<div class='kicker'>Chapitre 10</div><h2>La run, salle par salle</h2><di
 
 # ------------------------------------------------------------------ événements et compagnons
 comp = "".join("<div class='box'><h4><img class='ico' src='img/comp_%s.png'> %s</h4><p>%s · %d PV</p></div>" % (k, E(c["name"]), E(c["text"]), c["hp"]) for k, c in D.get("companions", {}).items())
-page("""<h2>Événements et compagnons</h2><div class='cols2'><div><h3>Les salles « ? »</h3><p>Un choix, un prix, comme dans Slay the Spire ; des figures qui reviennent, comme dans Hades. Chaque événement ne se voit qu'une fois par run.</p>
+page("""<h2>Événements et compagnons</h2><div class='cols2'><div><h3>Les salles « ? »</h3><p>Un choix, un prix ; des figures qui reviennent d'une run à l'autre. Chaque événement ne se voit qu'une fois par run.</p>
 <table class='t small'><tr><td><b>Le Passeur</b></td><td>une relique contre 90 or, ou un souvenir (une carte) laissé dans sa barque</td></tr>
 <tr><td><b>Duel d'honneur</b></td><td>un combat d'élite Enragé contre une relique et une rare, ou 2 points de job en saluant</td></tr>
 <tr><td><b>Miroir noyé</b></td><td>copier une carte, chaque héros perd 4 PV</td></tr><tr><td><b>Tout ou rien</b></td><td>miser 50 or, ou miser une carte : deux niveaux ou rien</td></tr>

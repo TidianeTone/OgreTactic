@@ -51,7 +51,7 @@ for k, b in enumerate(batches):
         else:
             nh = int(pw / 1.5)
             panel = panel.crop((0, (ph - nh) // 2, pw, (ph - nh) // 2 + nh))
-        if cid.startswith("boon_"):
+        if cid.startswith(("boon_", "mode_", "diff_", "tuto_", "salle_")):
             panel.resize((360, 240), Image.LANCZOS).save(os.path.join(UI, "%s.png" % cid))
         else:
             panel.resize((504, 336), Image.LANCZOS).save(os.path.join(ART, "card_%s.png" % cid))

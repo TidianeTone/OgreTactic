@@ -27,28 +27,56 @@ const HEROES := {
 const FOES := {
 	"husk": {"name": "Moussu", "hp": 14, "speed": 4, "move": 3, "jump": 2, "dmg": 6, "range": [1, 1], "ai": "melee"},
 	"guetteur": {"name": "Guetteur", "hp": 11, "speed": 6, "move": 3, "jump": 2, "dmg": 5, "range": [2, 5], "ai": "ranged"},
-	"sentinelle": {"name": "Sentinelle", "hp": 28, "speed": 3, "move": 2, "jump": 2, "dmg": 10, "range": [1, 1], "ai": "melee", "armor": 4, "passives": ["contre"]},
+	"sentinelle": {"name": "Sentinelle", "hp": 28, "speed": 3, "move": 2, "jump": 2, "dmg": 10, "range": [1, 1], "ai": "melee", "armor": 4, "passives": ["contre", "ancre"], "zoc": true},
 	"wisp": {"name": "Feu follet", "hp": 6, "speed": 9, "move": 5, "jump": 9, "dmg": 9, "range": [1, 1], "ai": "bomb", "fly": true},
-	"gardien": {"name": "Le Gardien des ruines", "hp": 120, "speed": 3, "move": 2, "jump": 3, "dmg": 13, "range": [1, 1], "ai": "boss", "armor": 3, "passives": ["contre"]},
+	"gardien": {"name": "Le Gardien des ruines", "hp": 85, "speed": 4, "move": 3, "jump": 2, "dmg": 13, "range": [1, 1], "ai": "boss", "passives": ["contre", "ancre"],
+		"no_champion": true, "paliers": [0.66, 0.33], "root_immune": true, "titre": "Le Gardien des ruines", "ligne": "Il tient l'Écluse depuis que la ville a sombré."},
 	"chaman": {"name": "Chaman de braise", "arme": "magie", "hp": 12, "speed": 5, "move": 3, "jump": 2, "dmg": 3, "range": [2, 4], "ai": "healer", "heal": 6},
-	"carapace": {"name": "Carapace", "hp": 20, "speed": 2, "move": 2, "jump": 1, "dmg": 7, "range": [1, 1], "ai": "melee", "armor": 8, "heavy": true},
+	"carapace": {"name": "Carapace", "hp": 20, "speed": 2, "move": 2, "jump": 1, "dmg": 7, "range": [1, 1], "ai": "melee", "armor": 8, "heavy": true, "ancre_armure": true},
 	"rodeur": {"name": "Rôdeur", "hp": 13, "speed": 8, "move": 5, "jump": 4, "dmg": 7, "range": [1, 1], "ai": "assassin", "passives": ["reflexe"]},
 	# la Compagnie noyée : une armée engloutie par l'Écluse
 	"lancier": {"name": "Lancier noyé", "hp": 18, "speed": 5, "move": 3, "jump": 2, "dmg": 7, "range": [1, 2], "ai": "melee", "arme": "perforant", "passives": ["contre"]},
-	"cavalier": {"name": "Cavalier des berges", "hp": 20, "speed": 7, "move": 6, "jump": 1, "dmg": 8, "range": [1, 1], "ai": "canto", "arme": "tranchant"},
+	"cavalier": {"name": "Cavalier des berges", "hp": 20, "speed": 7, "move": 6, "jump": 1, "dmg": 8, "range": [1, 1], "ai": "reflux", "arme": "tranchant"},
 	"vouivre": {"name": "Vouivre", "hp": 22, "speed": 6, "move": 6, "jump": 9, "dmg": 9, "range": [1, 1], "ai": "melee", "arme": "contondant", "fly": true},
 	"mage": {"name": "Mage de la Marée", "hp": 12, "speed": 5, "move": 3, "jump": 2, "dmg": 7, "range": [1, 3], "ai": "ranged", "arme": "magie"},
-	"bretteur": {"name": "Bretteur", "hp": 15, "speed": 8, "move": 4, "jump": 3, "dmg": 6, "range": [1, 1], "ai": "assassin", "arme": "tranchant", "crit": 0.3, "passives": ["reflexe"]},
+	"bretteur": {"name": "Bretteur", "hp": 15, "speed": 8, "move": 4, "jump": 3, "dmg": 6, "range": [1, 1], "ai": "assassin", "arme": "tranchant", "botte": true, "passives": ["reflexe"]},
 	"danseuse": {"name": "Danseuse des brumes", "hp": 12, "speed": 6, "move": 4, "jump": 3, "dmg": 3, "range": [1, 1], "ai": "dancer", "arme": "tranchant"},
-	"capitaine": {"name": "Capitaine noyé", "hp": 40, "speed": 4, "move": 3, "jump": 2, "dmg": 10, "range": [1, 1], "ai": "commander", "arme": "contondant", "armor": 3},
-	"baliste": {"name": "Baliste", "hp": 18, "speed": 3, "move": 0, "jump": 0, "dmg": 10, "range": [3, 8], "ai": "ranged", "arme": "perforant", "heavy": true},
+	"capitaine": {"name": "Capitaine noyé", "hp": 40, "speed": 4, "move": 3, "jump": 2, "dmg": 10, "range": [1, 1], "ai": "commander", "arme": "contondant", "armor": 3, "aura": "ordre"},
+	"baliste": {"name": "Baliste", "hp": 18, "speed": 3, "move": 0, "jump": 0, "dmg": 10, "range": [2, 8], "ai": "ranged", "arme": "perforant", "heavy": true},
 	# bêtes des Hauts-Fonds
-	"crabe": {"name": "Crabe des écluses", "hp": 24, "speed": 3, "move": 3, "jump": 1, "dmg": 7, "range": [1, 1], "ai": "melee", "armor": 4, "heavy": true, "shove": 1},
+	"crabe": {"name": "Crabe des écluses", "hp": 24, "speed": 3, "move": 3, "jump": 1, "dmg": 7, "range": [1, 1], "ai": "melee", "armor": 4, "heavy": true, "shove": 1, "ancre_armure": true},
 	"crapaud": {"name": "Crapaud-gouffre", "hp": 18, "speed": 4, "move": 2, "jump": 3, "dmg": 6, "range": [2, 4], "ai": "puller"},
-	"harpie": {"name": "Harpie des brumes", "hp": 11, "speed": 9, "move": 6, "jump": 9, "dmg": 6, "range": [1, 1], "ai": "canto", "fly": true},
-	# structure : ne bouge pas, n'attaque pas, invoque à chaque tour. À abattre vite.
-	"obelisque": {"name": "Obélisque d'appel", "hp": 30, "speed": 2, "move": 0, "jump": 0, "dmg": 0, "range": [0, 0], "ai": "spawner", "heavy": true, "structure": true},
+	"harpie": {"name": "Harpie des brumes", "hp": 13, "speed": 9, "move": 6, "jump": 9, "dmg": 6, "range": [1, 1], "ai": "reflux", "fly": true},
+	# structure : ne bouge pas, n'attaque pas, appelle une créature au début du round. À abattre vite.
+	"obelisque": {"name": "Obélisque d'appel", "hp": 30, "speed": 2, "move": 0, "jump": 0, "dmg": 0, "range": [0, 0], "ai": "spawner", "passives": ["ancre"], "structure": true},
+	# --- spec ennemis du 26/09 · « model » : modèle voxel de repli tant que u_<id>.glb n'existe pas
+	# acte 1 : lire
+	"frondeur": {"name": "Frondeur des toits", "model": "guetteur", "hp": 10, "speed": 6, "move": 3, "jump": 3, "dmg": 5, "range": [2, 4], "ai": "ranged", "perche": true},
+	"pavoiseur": {"name": "Pavoiseur noyé", "model": "sentinelle", "hp": 18, "speed": 4, "move": 3, "jump": 2, "dmg": 6, "range": [1, 1], "ai": "melee", "passives": ["pavois_face"]},
+	"anguille": {"name": "Anguille des vannes", "model": "vouivre", "hp": 10, "speed": 7, "move": 4, "jump": 1, "dmg": 6, "range": [1, 1], "ai": "anguille", "passives": ["eau", "flotte"], "water_only": true},
+	"fanal": {"name": "Fanal de la Compagnie", "model": "obelisque", "hp": 22, "speed": 2, "move": 0, "jump": 0, "dmg": 0, "range": [0, 0], "ai": "totem", "passives": ["ancre"], "structure": true, "aura": "fanal", "near_foes": true, "on_death": "fanal"},
+	"treuil": {"name": "Treuil de vanne", "model": "obelisque", "hp": 12, "speed": 1, "move": 0, "jump": 0, "dmg": 0, "range": [0, 0], "ai": "totem", "passives": ["ancre"], "structure": true, "on_death": "treuil"},
+	"grelin": {"name": "Maître Grelin, l'Éclusier", "model": "capitaine", "hp": 55, "speed": 5, "move": 3, "jump": 2, "dmg": 9, "range": [1, 2], "ai": "eclusier", "passives": ["pavois_face", "ancre"],
+		"no_champion": true, "paliers": [0.5], "titre": "Maître Grelin, l'Éclusier", "ligne": "Il ouvre les vannes sur tout ce qui se tient devant lui."},
+	# acte 2 : prioriser
+	"tenant": {"name": "Tenant de la Compagnie", "model": "sentinelle", "hp": 24, "speed": 4, "move": 3, "jump": 2, "dmg": 5, "range": [1, 1], "ai": "guard", "armor": 3, "guard": 1},
+	"pisteuse": {"name": "Pisteuse des vases", "model": "guetteur", "hp": 13, "speed": 7, "move": 4, "jump": 3, "dmg": 6, "range": [2, 4], "ai": "ranged", "guet": 5},
+	"penitente": {"name": "Pénitente de l'Écluse", "model": "mage", "hp": 14, "speed": 5, "move": 3, "jump": 2, "dmg": 4, "range": [1, 3], "ai": "cleanser", "arme": "magie"},
+	"bitte": {"name": "Bitte d'amarrage", "model": "obelisque", "hp": 26, "speed": 2, "move": 0, "jump": 0, "dmg": 0, "range": [0, 0], "ai": "tether", "passives": ["ancre"], "structure": true, "on_death": "bitte"},
+	"hale": {"name": "Hale, l'Amarreur au bouclier", "model": "capitaine", "hp": 55, "speed": 3, "move": 3, "jump": 2, "dmg": 9, "range": [1, 1], "ai": "guard", "armor": 5, "passives": ["ancre", "contre"],
+		"no_champion": true, "bond": "brasse", "guard": 1, "guard_only": "brasse", "root_immune": true, "titre": "Les Amarreurs", "ligne": "Hale couvre, Brasse accroche. Tuer l'un enrage l'autre."},
+	"brasse": {"name": "Brasse, l'Amarreuse à la gaffe", "model": "lancier", "hp": 40, "speed": 7, "move": 4, "jump": 3, "dmg": 8, "range": [1, 2], "ai": "puller", "armor": 1, "no_champion": true, "bond": "hale", "botte": true},
+	# acte 3 : le terrain se retourne
+	"vanne": {"name": "Vanne rouillée", "model": "obelisque", "hp": 26, "speed": 10, "move": 0, "jump": 0, "dmg": 0, "range": [0, 0], "ai": "flood", "armor": 2, "passives": ["ancre"], "structure": true, "flood_cap": 8, "on_death": "vanne"},
+	"pilori": {"name": "Pilori noyé", "model": "obelisque", "hp": 20, "speed": 9, "move": 0, "jump": 0, "dmg": 0, "range": [0, 6], "ai": "pilori", "armor": 3, "passives": ["ancre"], "structure": true, "on_death": "pilori"},
+	"eclusier_fou": {"name": "Éclusier fou", "model": "husk", "hp": 14, "speed": 6, "move": 4, "jump": 2, "dmg": 5, "range": [1, 1], "ai": "sapper"},
+	"noye_ancien": {"name": "Noyé ancien", "model": "lancier", "hp": 30, "speed": 3, "move": 3, "jump": 2, "dmg": 8, "range": [1, 1], "ai": "melee", "armor": 3, "passives": ["eau", "flotte"], "ancre_si_eau": true},
+	"porte_etendard": {"name": "Porte-étendard noyé", "model": "lancier", "hp": 22, "speed": 4, "move": 3, "jump": 2, "dmg": 6, "range": [1, 1], "ai": "melee", "armor": 2, "aura": "etendard"},
+	"fouisseur": {"name": "Fouisseur des fondations", "model": "crabe", "hp": 16, "speed": 7, "move": 4, "jump": 3, "dmg": 7, "range": [1, 1], "ai": "burrow"},
 }
+# PV des ennemis par étage (chaque héros joue son propre tour) ; plancher d'équipement ennemi par étage
+const FOE_HP := [1.6, 1.9, 2.2]
+const FOE_GEAR_FLOOR := [0.0, 0.35, 0.45]
 
 # Compagnons : des bêtes des Hauts-Fonds apprivoisées au détour d'un événement (rare). Elles jouent seules,
 # à leur vitesse, se relèvent à chaque combat. Une seule à la fois.
@@ -61,26 +89,44 @@ const COMPANIONS := {
 
 # Ce que chaque ennemi demande au joueur (affiché au survol).
 const FOE_TIPS := {
-	"husk": "Mêlée simple. Le repousser dans l'eau.",
-	"guetteur": "Tire de loin depuis les hauteurs. Aller le chercher.",
-	"sentinelle": "Armure chaque tour et riposte. Le noyer ou l'écraser.",
-	"wisp": "Explose au contact. Le tuer à distance.",
-	"gardien": "Riposte au contact : le frapper de loin ou le noyer de dégâts.",
-	"chaman": "Soigne ses alliés. Cible prioritaire.",
-	"carapace": "8 d'armure par tour. Coule d'un coup s'il tombe à l'eau.",
-	"rodeur": "Rapide, vise les plus faibles, esquive un coup sur quatre.",
-	"lancier": "Frappe à deux cases et riposte au contact. Le frapper de loin.",
-	"cavalier": "Frappe puis se replie (Canto). Le coincer contre l'eau.",
-	"vouivre": "Vole au-dessus de tout. Les tirs lui font ×1,5.",
+	"husk": "Mort, il vous colle aux pieds : −1 déplacement. Le tuer de loin ou le noyer.",
+	"guetteur": "Un tour sur deux, il marque une cible pour les autres. Aller le chercher.",
+	"sentinelle": "Ancrée, armure et riposte. Quitter son contact coûte un coup.",
+	"wisp": "Explose au contact, ses voisins compris. Le tuer de loin, ou l'attirer dans leur groupe.",
+	"gardien": "Trois phases : ne pas rester sur la ligne rouge, casser les vannes, finir vite.",
+	"chaman": "Soigne un quart de vie et blinde. Cible prioritaire.",
+	"carapace": "Lourde : une poussée dans l'eau la coule. Aux étages 2-3, ancrée tant qu'elle a de l'armure : percer, puis noyer.",
+	"rodeur": "Rapide, fond sur le héros isolé. Rester groupé.",
+	"lancier": "Côte à côte, ils se blindent et ripostent double. Les séparer.",
+	"cavalier": "Frappe puis reflue au loin. Le coincer contre l'eau.",
+	"vouivre": "Vole, et un tour sur deux emporte un héros vers l'eau. Rester loin des berges.",
 	"mage": "Sa magie ignore l'armure. Fragile : aller le chercher.",
-	"bretteur": "Esquive un coup sur quatre, 30 % de coups critiques (×2).",
+	"bretteur": "Frappe ×1,5 un héros déjà blessé ce round. Espacer les cibles.",
 	"danseuse": "Fait rejouer un allié qui a déjà agi. À abattre en premier.",
-	"capitaine": "Tient sa position ; ses soldats à 2 cases frappent +2. Le tuer désorganise tout.",
-	"baliste": "Immobile, tire de 3 à 8 cases. Se coller à elle.",
-	"crabe": "4 d'armure par tour, repousse d'une case à chaque pince. Coule s'il tombe à l'eau.",
+	"capitaine": "Charge dès qu'on le touche. Ses soldats proches frappent +2 et courent.",
+	"baliste": "Immobile, tire de 2 à 8 cases. Se coller à elle.",
+	"crabe": "Ancré tant qu'il a de l'armure. La percer, puis le noyer.",
 	"crapaud": "Sa langue attire un héros jusqu'à lui depuis 4 cases, puis mord.",
-	"harpie": "Vole, frappe puis s'enfuit. Les tirs lui font ×1,5.",
-	"obelisque": "Invoque une créature à chaque tour. Isolé, loin des siens : foncer dessus.",
+	"harpie": "En meute : +2 par sœur sur la même cible. Briser la meute.",
+	"obelisque": "Appelle une créature au début du round. L'abattre étourdit ce qu'il a appelé.",
+	"frondeur": "Perché, il tire +3. Monter plus haut que lui, ou le faire descendre.",
+	"pavoiseur": "Son pavois divise par deux les coups de face. Le contourner.",
+	"anguille": "Mord et tire depuis l'eau ceux qui restent sur la berge. Tirée à terre, elle est Échouée : ×1,5.",
+	"fanal": "Pas de dos dans sa lumière. Éteint, il laisse exposés tous ceux qu'il éclairait.",
+	"treuil": "Donne +3 d'armure par tour à Grelin. Le casser l'expose.",
+	"grelin": "Casser ses treuils, le prendre de dos, sortir de la ligne rouge.",
+	"tenant": "Intercepte le premier coup du round sur son voisin. Le gaspiller ou l'écarter.",
+	"pisteuse": "Tire sur qui se téléporte à 5 cases d'elle. La tuer, l'enfumer, ou marcher.",
+	"penitente": "Purifie un allié par tour et vous renvoie sa Marque. La tuer avant de marquer.",
+	"bitte": "Encaisse 40 % des coups portés à ses deux amarrés. La briser les étourdit.",
+	"hale": "Couvre Brasse d'un coup par round. Tuer l'un enrage l'autre.",
+	"brasse": "Sa gaffe attire, sa Botte frappe ×1,5 qui est déjà blessé. Sans ancre : l'éloigner de Hale.",
+	"vanne": "Inonde 2 cases près de vous chaque round. La casser, ou quitter la berge.",
+	"pilori": "Enchaîne votre provocateur un tour sur deux. Le briser le libère.",
+	"eclusier_fou": "Pose un baril près de votre groupe un tour sur deux ; il saute au round suivant. S'écarter, ou le faire sauter plus tôt.",
+	"noye_ancien": "Dans l'eau : ancré et +3. Tiré à terre : Asséché, sans armure. Pas de noyade possible.",
+	"porte_etendard": "À 2 cases de lui, rien ne se pousse. L'abattre d'abord.",
+	"fouisseur": "La case qu'il frappe s'effondre au round suivant. Ne pas y rester.",
 }
 
 # kind : atk | skill | move. target : foe (défaut pour atk) | self | ally | tile | line
@@ -283,11 +329,11 @@ const VOIX := {"B": ["Analyse", Color("#4aa3d8")], "R": ["Émotion", Color("#e04
 # foe : dégâts ennemis par étage · hp : PV des héros · heal / revive : fraction des PV max après un combat
 # extra : ennemis en plus (ou en moins) par étage · champ : champions en plus.
 const DIFFICULTY := [
-	{"name": "Oklm", "text": "Pour découvrir : ennemis mous, soins généreux.", "foe": [0.7, 0.8, 0.9], "hp": 1.15, "heal": 0.3, "revive": 0.6, "extra": [0, -1, -1], "champ": -1},
-	{"name": "Aventurier", "text": "L'équilibre conseillé pour une première descente.", "foe": [0.8, 0.9, 1.0], "hp": 1.0, "heal": 0.2, "revive": 0.5, "extra": [0, 0, 0], "champ": 0},
-	{"name": "Vétéran", "text": "Moins de soins, les ennemis frappent plein pot dès l'étage 2.", "foe": [0.9, 1.0, 1.05], "hp": 0.92, "heal": 0.1, "revive": 0.35, "extra": [0, 0, 0], "champ": 0},
-	{"name": "Éclusier", "text": "L'équilibrage d'origine : aucun soin entre les salles.", "foe": [1.0, 1.0, 1.0], "hp": 0.82, "heal": 0.0, "revive": 0.25, "extra": [1, 0, 0], "champ": 0},
-	{"name": "Anathème", "text": "Un ennemi de plus partout, un champion de plus, aucune pitié.", "foe": [1.15, 1.2, 1.25], "hp": 0.8, "heal": 0.0, "revive": 0.15, "extra": [1, 1, 1], "champ": 1},
+	{"name": "Oklm", "text": "Pour découvrir : ennemis mous, soins généreux.", "foe": [0.7, 0.9, 1.0], "hp": 1.15, "heal": [0.3, 0.25, 0.25], "revive": [0.6, 0.55, 0.5], "extra": [0, -1, -1], "champ": -1},
+	{"name": "Aventurier", "text": "L'équilibre conseillé pour une première descente.", "foe": [0.8, 1.0, 1.1], "hp": 1.0, "heal": [0.2, 0.15, 0.15], "revive": [0.5, 0.45, 0.4], "extra": [0, 0, 0], "champ": 0},
+	{"name": "Vétéran", "text": "Moins de soins, les ennemis frappent plein pot dès l'étage 2.", "foe": [0.9, 1.1, 1.15], "hp": 0.92, "heal": [0.1, 0.08, 0.08], "revive": [0.35, 0.3, 0.25], "extra": [0, 0, 0], "champ": 0},
+	{"name": "Éclusier", "text": "L'équilibrage d'origine : aucun soin entre les salles.", "foe": [1.0, 1.1, 1.1], "hp": 0.82, "heal": [0.0, 0.0, 0.0], "revive": [0.25, 0.2, 0.15], "extra": [1, 0, 0], "champ": 0},
+	{"name": "Anathème", "text": "Un ennemi de plus partout, un champion de plus, aucune pitié.", "foe": [1.15, 1.35, 1.4], "hp": 0.8, "heal": [0.0, 0.0, 0.0], "revive": [0.15, 0.12, 0.1], "extra": [1, 1, 1], "champ": 1},
 ]
 # Déclencheurs : un bonus quand la condition tient (esprit Hearthstone / Runeterra, sans la complexité de Magic).
 const TRIGGERS := {
@@ -520,22 +566,46 @@ const TRAITS := {
 	"vif": {"name": "Vif", "text": "Vitesse +3 : joue plus tôt dans le round."},
 }
 
+# Acte 1 : lire (une leçon par ennemi). Acte 2 : prioriser. Acte 3 : le terrain se retourne.
+# Salle 1 de l'acte 1 tirée dans [0..2], salle 2 dans [0..4], ensuite tout le pool (main.gd _fight).
 const ENCOUNTERS := {
-	1: [["husk", "guetteur", "wisp"], ["guetteur", "husk", "chaman"], ["husk", "carapace", "guetteur"], ["rodeur", "husk", "wisp"],
-		["lancier", "lancier", "mage"], ["bretteur", "husk", "guetteur"], ["cavalier", "lancier", "husk"],
-		["crabe", "husk", "guetteur"], ["obelisque", "husk", "guetteur"], ["harpie", "harpie", "crabe"]],
-	2: [["husk", "guetteur", "guetteur", "wisp", "chaman"], ["sentinelle", "husk", "husk", "rodeur"], ["carapace", "carapace", "guetteur", "wisp"], ["rodeur", "rodeur", "chaman", "guetteur"],
-		["cavalier", "lancier", "mage", "danseuse"], ["vouivre", "guetteur", "bretteur", "husk"], ["baliste", "lancier", "lancier", "chaman"], ["vouivre", "vouivre", "mage"],
-		["crapaud", "crabe", "harpie", "harpie"], ["obelisque", "lancier", "mage", "husk"], ["harpie", "harpie", "harpie", "crapaud"]],
-	3: [["sentinelle", "guetteur", "guetteur", "chaman", "husk"], ["carapace", "sentinelle", "wisp", "wisp", "rodeur"], ["rodeur", "rodeur", "guetteur", "carapace", "chaman"],
-		["cavalier", "cavalier", "lancier", "mage", "danseuse"], ["vouivre", "vouivre", "baliste", "bretteur"], ["baliste", "baliste", "lancier", "sentinelle", "mage"],
-		["obelisque", "crabe", "crapaud", "vouivre", "mage"], ["harpie", "harpie", "vouivre", "crapaud", "crabe"], ["obelisque", "obelisque", "lancier", "bretteur"]],
+	1: [["husk", "husk", "frondeur"], ["pavoiseur", "husk", "guetteur"], ["carapace", "husk", "anguille"], ["husk", "guetteur", "wisp"],
+		["fanal", "pavoiseur", "guetteur"], ["rodeur", "husk", "chaman"], ["obelisque", "husk", "frondeur"], ["anguille", "crabe", "husk"],
+		["frondeur", "frondeur", "pavoiseur", "husk"], ["fanal", "carapace", "guetteur", "wisp"]],
+	2: [["tenant", "mage", "guetteur", "husk"], ["fanal", "rodeur", "bretteur", "guetteur"], ["bitte", "sentinelle", "crabe", "chaman"],
+		["pisteuse", "cavalier", "lancier", "lancier"], ["penitente", "vouivre", "bretteur", "husk"], ["obelisque", "tenant", "baliste", "lancier"],
+		["fanal", "baliste", "pisteuse", "carapace"], ["harpie", "harpie", "harpie", "penitente"], ["bitte", "capitaine", "lancier", "mage"],
+		["crapaud", "tenant", "mage", "wisp"], ["cavalier", "lancier", "mage", "danseuse"]],
+	3: [["vanne", "noye_ancien", "noye_ancien", "guetteur"], ["fanal", "lancier", "lancier", "bretteur"], ["pilori", "sentinelle", "mage", "rodeur"],
+		["eclusier_fou", "eclusier_fou", "lancier", "wisp"], ["porte_etendard", "carapace", "crabe", "mage"], ["fouisseur", "fouisseur", "baliste", "guetteur"],
+		["vanne", "crapaud", "noye_ancien", "vouivre"], ["obelisque", "fanal", "cavalier", "mage"], ["pilori", "porte_etendard", "bretteur", "wisp"],
+		["fouisseur", "bretteur", "vouivre", "chaman"]],
 }
-const ELITES := {1: ["sentinelle", "guetteur", "chaman", "wisp"], 2: ["sentinelle", "carapace", "rodeur", "guetteur", "chaman"]}
-# élites de la Compagnie noyée : un Capitaine et sa garde, tirés une fois sur deux
-const ELITES_NOYES := {1: ["capitaine", "lancier", "mage", "danseuse"], 2: ["capitaine", "cavalier", "lancier", "bretteur", "danseuse"],
-	3: ["capitaine", "vouivre", "baliste", "lancier", "mage", "danseuse"]}
-const BOSS := ["gardien", "chaman", "husk", "husk", "guetteur"]
+# ennemis en plus selon la difficulté, tirés dans ce pool (règles de composition respectées)
+const EXTRAS := {1: ["husk", "guetteur", "pavoiseur"], 2: ["lancier", "bretteur", "guetteur", "husk"], 3: ["lancier", "noye_ancien", "bretteur", "guetteur"]}
+# élites par acte : la première est tirée une fois sur deux aux actes 1-2 (Grelin, les Amarreurs), 1/3 chacune à l'acte 3
+const ELITES := {
+	1: [["grelin", "treuil", "treuil", "husk", "guetteur"], ["fanal", "sentinelle", "pavoiseur", "frondeur", "chaman"], ["capitaine", "pavoiseur", "pavoiseur", "frondeur", "anguille"]],
+	2: [["hale", "brasse", "pisteuse", "husk"], ["capitaine", "tenant", "mage", "lancier", "danseuse"], ["bitte", "sentinelle", "bretteur", "penitente", "guetteur"]],
+	3: [["capitaine", "porte_etendard", "noye_ancien", "lancier", "mage"], ["vanne", "noye_ancien", "crapaud", "danseuse", "guetteur"], ["fanal", "pilori", "baliste", "bretteur", "danseuse"]],
+}
+const BOSS := ["gardien", "chaman", "husk", "husk", "fanal"]
+# couches défensives absorbantes et règles de terrain : une seule de chaque par combat
+const LAYERS := ["bitte", "tenant", "porte_etendard"]
+const TERRAIN_RULES := ["vanne", "fouisseur", "eclusier_fou"]
+
+
+static func elite_pick(fl: int, r: RandomNumberGenerator, diff: int) -> Array:
+	## Tirage pondéré de l'élite d'un acte ; difficulté 4+ : un renfort.
+	var L: Array = ELITES.get(fl, ELITES[3])
+	var x := r.randf()
+	var i := (0 if x < 0.5 else (1 if x < 0.75 else 2)) if fl < 3 else mini(2, int(x * 3.0))
+	var ids: Array = L[i].duplicate()
+	if diff >= 3 and fl == 2 and i == 0:
+		ids.append("lancier")
+	if diff >= 3 and fl == 3 and i == 1:
+		ids.append("vanne")
+	return ids
 
 const ROOMS := {
 	"combat": {"name": "Combat", "glyph": "⚔", "text": "Une escouade des ruines. Récompense : une carte."},
@@ -575,6 +645,7 @@ const PASSIVES := {
 	"prelude": {"name": "Prélude", "text": "Pioche 1 carte de plus à son premier tour de chaque combat."},
 	"affut": {"name": "Embusqué", "text": "+2 aux attaques à distance si le porteur n'a pas bougé ce tour."},
 	"main_leste": {"name": "Main leste", "text": "Tuer un ennemi équipé récupère sa pièce à coup sûr."},
+	"pavois_face": {"name": "Pavois", "text": "Les coups de face (hors magie) sont divisés par deux."},
 }
 
 # 4 emplacements (26/09) : arme (propre à une classe), armure, bottes, bijou (tous). dmg / hp / move / jump : bonus plats,

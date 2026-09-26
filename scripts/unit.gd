@@ -114,6 +114,8 @@ func _load_body(path: String) -> void:
 	_body = inst
 	model.add_child(inst)
 	weapon = inst.find_child(key + "_weapon", true, false)
+	if weapon == null and data.has("model"):
+		weapon = inst.find_child(str(data.model) + "_weapon", true, false)
 	for mi in inst.find_children("*", "MeshInstance3D", true, false):
 		if String(mi.name).ends_with("glow"):
 			mi.material_override = Board.material("glow_unit")
@@ -162,9 +164,21 @@ func setup(k: String, s: String) -> void:
 	base_hp = max_hp
 	model = Node3D.new()
 	add_child(model)
-	bs = {"gardien": 0.85, "husk": 1.2, "guetteur": 1.15, "carapace": 1.1, "rodeur": 0.85, "wisp": 0.9}.get(k, 1.0)
+	bs = {"gardien": 0.85, "husk": 1.2, "guetteur": 1.15, "carapace": 1.1, "rodeur": 0.85, "wisp": 0.9,
+		"frondeur": 1.1, "tenant": 1.05, "pisteuse": 0.95, "eclusier_fou": 1.05, "fouisseur": 1.1}.get(k, 1.0)
 	model.scale = Vector3.ONE * bs
-	_load_body("res://assets/u_%s.glb" % k)
+	# nouveaux ennemis : un modèle proche en attendant le leur (data.model)
+	var body := "res://assets/u_%s.glb" % k
+	if not ResourceLoader.exists(body) and data.has("model"):
+		body = "res://assets/u_%s.glb" % data.model
+	_load_body(body)
+	if k == "fanal":
+		var fl := OmniLight3D.new()  # la lanterne : s'éteint avec lui (l'unité morte est cachée)
+		fl.light_color = Color(1.0, 0.7, 0.36)
+		fl.light_energy = 2.2
+		fl.omni_range = 3.5
+		fl.position.y = 1.6
+		add_child(fl)
 	if k == "wisp":
 		var wl := OmniLight3D.new()
 		wl.light_color = Color(1.0, 0.55, 0.2)
@@ -175,7 +189,7 @@ func setup(k: String, s: String) -> void:
 	# anneau au sol : or pour les héros, braise pour les ennemis
 	ring = MeshInstance3D.new()
 	var q := QuadMesh.new()
-	q.size = Vector2(1.0, 1.0) * (2.0 if k == "gardien" else 1.0)
+	q.size = Vector2(1.0, 1.0) * {"gardien": 2.0, "grelin": 1.5, "hale": 1.5, "brasse": 1.5}.get(k, 1.0)
 	q.orientation = PlaneMesh.FACE_Y
 	ring.mesh = q
 	var m := ShaderMaterial.new()

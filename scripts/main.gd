@@ -83,6 +83,7 @@ var _lib_dirty := false
 var pending_cards: Array = []  # cartes gagnées en combat (porteurs, coffres), offertes après
 var tuto := false  # run d'initiation : points de job ×3, ni sauvegarde ni carte d'étage
 var voc_intro_done := false  # l'explication de la vocation déjà montrée pendant cette run
+var seen_mech := {}  # mécaniques ennemies déjà vues pendant la run : leur texte ne s'affiche en grand qu'une fois
 
 
 func _ready() -> void:
@@ -720,6 +721,7 @@ func _start_run() -> void:
 	purges = 0
 	companion = ""
 	seen_events = []
+	seen_mech = {}
 	pending_mods = []
 	gold = 40
 	floor_biomes = range(Data.BIOMES.size())
@@ -745,29 +747,55 @@ func _start_run() -> void:
 	_make_party()
 
 
+const TUTO_CARD := "cendres"  # la carte rare du coffre de la leçon 2
+var tuto_lesson := 0
+var tuto_seen: Dictionary = {}
+var next_size := 0  # taille d'arène imposée (initiation) ; 0 = tirée au sort
+
+
 func _tutorial() -> void:
-	## Initiation : trois combats en Oklm, points de job ×3. La vocation tombe dès le premier,
-	## l'élite finale fait passer les paliers suivants : on voit un multiclasse se construire en un quart d'heure.
+	## Initiation scénarisée, trois leçons courtes. Un coach commente ce que fait le joueur, une notion à la fois :
+	## 1. la Lame seule : se déplacer, jouer une carte, le dos ×1,5, l'orientation ;
+	## 2. l'escouade : hauteur, flanc, soutien, et un coffre qui cache une carte rare à jouer tout de suite ;
+	## 3. une élite, avec la vocation gagnée entre-temps (points de job ×3) : la maîtrise.
 	tuto = true
+	tuto_seen = {}
 	run_seed = randi()
 	rng.seed = run_seed
 	mode = "descente"
 	difficulty = 0
 	pacts = []
-	party = ["garde", "lame", "oracle"]
-	rolled_traits = _roll_traits()
-	await ui.trait_roulette(party, rolled_traits)
+	party = ["lame"]
+	rolled_traits = ["gaucher"]
 	_start_run()
-	await ui.choose("INITIATION", "Une descente éclair pour découvrir le multiclasse", [
-		{"title": "Trois combats", "glyph": "⚔", "text": "Deux escarmouches, puis une élite. Ennemis mous, soins généreux.", "color": Color("#8fd0a0")},
-		{"title": "Points de job", "glyph": "✦", "text": "Chaque victoire fait progresser vos héros, ici trois fois plus vite qu'en descente.", "color": UI.GOLD},
-		{"title": "Vocation", "glyph": "⚭", "text": "Un héros assez aguerri apprend une deuxième classe. Ce qu'elle ouvre, à vous de le voir.", "color": Color("#d08aff")},
+	besace = []
+	battle.coach.connect(_coach)
+	await ui.choose("INITIATION", "Trois leçons courtes, une notion à la fois", [
+		{"title": "Le pas et le coup", "art": "res://assets/ui/tuto_1.png", "w": 320, "glyph": "⚔", "text": "La Lame, seule contre deux Moussus. Avancer, frapper, prendre de dos.", "color": Color("#8fd0a0")},
+		{"title": "L'escouade", "art": "res://assets/ui/tuto_2.png", "w": 320, "glyph": "◆", "text": "Trois héros, le terrain qui compte, et un coffre qui cache une carte rare.", "color": UI.GOLD},
+		{"title": "La maîtrise", "art": "res://assets/ui/tuto_3.png", "w": 320, "glyph": "⚭", "text": "Une élite, et un héros qui apprend une deuxième classe.", "color": Color("#d08aff")},
 	], true, "Commencer")
 	for type in ["combat", "combat", "elite"]:
-		next_arch = Board.ARCHETYPES[rng.randi_range(0, Board.ARCHETYPES.size() - 1)]
+		tuto_lesson += 1
+		next_arch = Board.ARCHETYPES[[0, 2, 1][tuto_lesson - 1] % Board.ARCHETYPES.size()]
 		next_obj = "kill"
 		next_mods = []
-		if not await _fight(type):
+		next_size = 16 if tuto_lesson == 1 else 18
+		if tuto_lesson == 2:
+			var lame_pj: int = heroes[0].pj
+			party = ["garde", "lame", "oracle"]
+			rolled_traits = ["costaud", "gaucher", "lynx"]
+			_make_party(party)
+			heroes[1].pj = lame_pj
+			deck.append_array(Data.starter(["garde", "oracle"]))
+			for ci in deck:
+				library_see(ci.id)
+		var ids: Array = [["husk", "husk"], ["guetteur", "husk", "husk"], ["carapace", "husk", "guetteur"]][tuto_lesson - 1]
+		_tuto_setup.call_deferred()
+		var won := await _fight(type, ids)
+		next_size = 0
+		ui.coach("", "")
+		if not won:
 			await ui.game_over(false, "L'initiation s'arrête ici. Rien n'est perdu : la vraie descente vous attend.")
 			if args.has("tutotest"):
 				print("initiation perdue")
@@ -777,8 +805,12 @@ func _tutorial() -> void:
 			return
 		await _post_fight(type)
 		step += 1
-	await ui.choose("INITIATION TERMINÉE", "Vos héros ont chacun une deuxième classe. En descente, ça se mérite sur trois étages.",
-		[{"title": "Retour au titre", "glyph": "↻", "text": "Nouvelle descente, bibliothèque, ou une autre initiation.", "color": UI.GOLD}])
+	battle.coach.disconnect(_coach)
+	await ui.choose("INITIATION TERMINÉE", "Le reste, la descente vous l'apprendra",
+		[{"title": "L'angle", "glyph": "⚔", "text": "Dos ×1,5, flanc ×1,2, hauteur ±10 % par niveau, soutien +2. L'orientation compte des deux côtés.", "color": Color("#8fd0a0")},
+		{"title": "Le butin", "glyph": "◆", "text": "Coffres, porteurs de carte, butins : le paquet grossit, à vous de le garder affûté.", "color": UI.GOLD},
+		{"title": "La maîtrise", "glyph": "⚭", "text": "1 point de job par combat, 2 par élite. Assez de points : une vocation, puis sa guilde se dévoile.", "color": Color("#d08aff")}],
+		true, "Retour au titre")
 	if args.has("tutotest"):
 		print("initiation : ", heroes.map(func(h): return "%s pj %d voc %s maîtrise %d" % [h.nm, h.pj, h.voc, mastery(h)]), " · paquet ", deck.size())
 		get_tree().quit()
@@ -786,12 +818,99 @@ func _tutorial() -> void:
 	get_tree().reload_current_scene()
 
 
+var tuto_chest := Vector2i(-99, -99)
+func _tuto_setup() -> void:
+	## Appelé par battle.start juste avant le premier round : la mise en scène de chaque leçon.
+	for c in board.props.keys():
+		if board.props[c] == "coffre":
+			battle._remove_prop(c)  # un seul coffre dans l'initiation : celui de la leçon
+	if tuto_lesson == 1 and battle.foes.size() > 1:
+		var f: Unit = battle.foes[1]
+		f.face(f.cell - heroes[0].cell)  # celui-là tourne le dos : la leçon du coup de dos
+	if tuto_lesson == 2:
+		var o: Unit = heroes[2]
+		var free: Array = board.walkable_cells()
+		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]:
+			var c: Vector2i = o.cell + d
+			if free.has(c) and battle.unit_at(c) == null and not board.props.has(c) and absi(board.h[c] - board.h[o.cell]) <= 1:
+				tuto_chest = c
+				board.props[c] = "coffre"
+				battle._make_prop(c)
+				break
+
+
+func _coach(evt: String, info) -> void:
+	## Le coach de l'initiation : une consigne par notion, jamais deux fois la même.
+	var names := ["", "Le pas et le coup", "L'escouade", "La maîtrise"]
+	var say := func(k: String, t: String) -> bool:
+		if tuto_seen.has(k):
+			return false
+		tuto_seen[k] = true
+		ui.coach("Leçon %d · %s" % [tuto_lesson, names[tuto_lesson]], t)
+		var dir := str(args.get("tutotest", ""))
+		if dir.length() > 4:  # -- --tutotest=DIR : une capture par consigne
+			get_tree().create_timer(0.5 * Engine.time_scale).timeout.connect(func(): _shot(dir, "coach_%d_%s" % [tuto_lesson, k]))
+		return true
+	var notes: Array = info if evt == "hit" else []
+	var has_note := func(p: String) -> bool:
+		return notes.any(func(n): return str(n).begins_with(p))
+	match tuto_lesson:
+		1:
+			if evt == "turn":
+				if not say.call("move", "C'est au tour de la [color=#e3b45c]Lame[/color]. Les cases éclairées montrent jusqu'où elle peut aller : cliquez-en une pour avancer."):
+					if battle.turn >= 2:
+						say.call("frise", "La frise du haut donne l'ordre du round : les plus rapides jouent d'abord. Cliquez un ennemi pour épingler sa fiche et lire ce qu'il prépare.")
+			elif evt == "moved":
+				say.call("card", "Une carte, maintenant : choisissez une attaque en bas de l'écran, puis cliquez l'ennemi. Chaque carte coûte du [color=#e3b45c]mana[/color] (l'orbe) : 3 par tour.")
+			elif evt == "hit" and has_note.call("dos"):
+				say.call("dos", "[color=#e3b45c]Dans le dos : ×1,5.[/color] Un ennemi qui vous tourne le dos est une fenêtre à saisir. La Lame, gauchère, y ajoute +2.")
+			elif evt == "hit" and tuto_seen.has("card"):
+				say.call("hint", "L'aperçu détaille les dégâts avant de frapper. Le second Moussu vous tourne le dos : contournez-le, le coup de dos fait [color=#e3b45c]×1,5[/color].")
+			elif evt == "orient":
+				say.call("orient", "Fin du tour : cliquez la direction où regarde la Lame. [color=#e3b45c]Eux aussi frappent de dos[/color] : ne leur offrez pas le vôtre.")
+		2:
+			if evt == "turn":
+				if not say.call("intro", "Trois héros, trois paquets : chacun a sa main et ses 3 de mana à son tour. Un [color=#e3b45c]coffre ◆[/color] brille à côté de l'Oracle."):
+					if info == heroes[2] and board.props.get(tuto_chest, "") == "coffre":
+						say.call("chest", "C'est l'Oracle : cliquez le coffre ◆ à côté d'elle. L'ouvrir ne coûte ni mana ni déplacement.")
+					elif battle.turn >= 2:
+						say.call("apercu", "Choisissez une attaque puis survolez une cible : l'aperçu montre chaque bonus. Le terrain compte : hauteur, flanc, alliés au contact.")
+			elif evt == "played" and str(info) == TUTO_CARD:
+				say.call("pouvoir", "Un [color=#e3b45c]Pouvoir[/color] : il reste actif tout le combat. Chaque tour, 4 dégâts à l'ennemi le plus proche de l'Oracle.")
+			elif evt == "hit":
+				if has_note.call("hauteur +"):
+					say.call("haut", "[color=#e3b45c]Hauteur[/color] : +10 % par niveau au-dessus de la cible, jusqu'à +30 %. Le Guetteur le sait, il tire d'en haut.")
+				elif has_note.call("hauteur -"):
+					say.call("bas", "Frapper d'en bas coûte [color=#e3b45c]−10 % par niveau[/color]. Montez, ou allez chercher le Guetteur.")
+				elif has_note.call("flanc"):
+					say.call("flanc", "[color=#e3b45c]De flanc : ×1,2.[/color] Moins qu'un coup de dos, mieux que de face.")
+				elif has_note.call("soutien +"):
+					say.call("soutien", "[color=#e3b45c]Soutien[/color] : un allié au contact donne +2 aux coups, et −2 aux coups qu'on reçoit.")
+		3:
+			if evt == "turn":
+				if not say.call("elite", "Une élite. La [color=#e3b45c]Carapace[/color] se couvre de 8 d'armure par tour, et l'armure absorbe les coups. La pousser à l'eau, frapper de dos, ou laisser la Pluie de cendres l'user."):
+					var v: Array = heroes.filter(func(h): return h.voc != "")
+					if v.size() > 0:
+						say.call("voc", "%s a une [color=#e3b45c]vocation[/color] : ses butins proposent désormais des cartes de sa deuxième classe, puis de sa guilde. Plus il combat, plus elle se dévoile." % v[0].nm)
+
+
+func tuto_hold(h: Unit) -> String:
+	## Leçon 2 : l'Oracle ne passe pas son tour sans avoir ouvert le coffre et joué la carte rare.
+	if tuto_lesson != 2 or h == null or h.key != "oracle" or _testing():
+		return ""
+	if board.props.get(tuto_chest, "") == "coffre" and (not h.moved or Battle.dist(h.cell, tuto_chest) == 1):
+		return "Ouvrez d'abord le coffre ◆ : cliquez-le."
+	if battle.hand.any(func(ci): return ci.id == TUTO_CARD):
+		return "Jouez d'abord la Pluie de cendres : elle est gratuite."
+	return ""
+
+
 func _pick_difficulty() -> int:
 	var opts: Array = []
 	var cols := [Color("#8fd0a0"), UI.GOLD, Color("#e0a050"), Color("#e0583a"), Color("#b0305a")]
 	for i in Data.DIFFICULTY.size():
 		var d: Dictionary = Data.DIFFICULTY[i]
-		opts.append({"title": d.name + ("  ·  dernière" if i == difficulty else ""), "glyph": "%d/5" % (i + 1), "text": d.text, "color": cols[i]})
+		opts.append({"title": "%d · %s" % [i + 1, d.name], "glyph": "%d/5" % (i + 1), "art": "res://assets/ui/diff_%d.png" % (i + 1), "text": d.text + ("\nVotre dernier choix." if i == difficulty else ""), "color": cols[i]})
 	return await ui.choose("DIFFICULTÉ", "De 1 (Oklm) à 5 (Anathème)", opts)
 
 
@@ -891,9 +1010,9 @@ func _post_fight(type: String) -> void:
 	for h in heroes:
 		if not h.alive:
 			h.revive()
-			h.hp = maxi(1, int(h.max_hp * Data.DIFFICULTY[difficulty].revive))
+			h.hp = maxi(1, int(h.max_hp * Data.DIFFICULTY[difficulty].revive[clampi(floor_i, 1, 3) - 1]))
 		else:
-			h.hp = mini(h.max_hp, h.hp + int(h.max_hp * Data.DIFFICULTY[difficulty].heal))
+			h.hp = mini(h.max_hp, h.hp + int(h.max_hp * Data.DIFFICULTY[difficulty].heal[clampi(floor_i, 1, 3) - 1]))
 		if relics.has("lotus_pale"):
 			h.hp = mini(h.max_hp, h.hp + 4)
 	if type != "boss":
@@ -1020,38 +1139,44 @@ func _build_room(seed: int, bi: int, size := 14, arch := "", with_props := false
 
 func _fight(type: String, ids_override: Array = []) -> bool:
 	var ids: Array
-	var size := 18 + 2 * rng.randi_range(0, 1)
+	var size := next_size if next_size > 0 else 18 + 2 * rng.randi_range(0, 1)
 	var arch := next_arch
 	match type:
 		"elite":
-			ids = Data.ELITES_NOYES[floor_i] if rng.randf() < 0.5 else Data.ELITES.get(floor_i, Data.ELITES[2])
+			ids = Data.elite_pick(floor_i, rng, difficulty)
 			size = 20
 		"boss":
 			ids = Data.BOSS
 			size = 22
 		_:
 			var pool: Array = Data.ENCOUNTERS[floor_i]
-			ids = pool[rng.randi_range(0, pool.size() - 1)]
+			# acte 1 : la première salle est une leçon isolée, la deuxième reste dans les leçons simples
+			var hi: int = pool.size() - 1
+			if floor_i == 1 and mode == "descente" and step <= 1:
+				hi = mini(hi, 2 if step == 0 else 4)
+			ids = pool[rng.randi_range(0, hi)]
 	if ids_override.size() > 0:
 		ids = ids_override
-	# difficulté : un ennemi de plus (tiré dans les escouades de l'étage) ou de moins
+	# difficulté : un ennemi de plus (tiré dans le pool d'extras de l'étage) ou de moins
 	ids = ids.duplicate()
 	var extra: int = Data.DIFFICULTY[difficulty].extra[floor_i - 1] + (1 if pacts.has("horde") else 0)
 	if extra > 0 and type != "boss":
-		var flat: Array = []
-		for e in Data.ENCOUNTERS[floor_i]:
-			flat.append_array(e)
+		var ex: Array = Data.EXTRAS[clampi(floor_i, 1, 3)]
 		for k in extra:
-			ids.append(flat[rng.randi_range(0, flat.size() - 1)])
+			if type == "combat" and ids.size() >= 5:
+				break  # au plus 5 unités par combat normal
+			ids.append(ex[rng.randi_range(0, ex.size() - 1)])
 	elif extra < 0 and type == "combat" and ids.size() > 3:
 		ids.resize(ids.size() + extra)
 	_build_room(run_seed + floor_i * 1009 + step * 37 + fights * 131, _biome(), size, arch, true)
+	ids = compose(ids, type)
 	pitch = 40.0
 	battle.objective = next_obj if type == "combat" else "kill"
 	battle.elite_fight = type in ["elite", "boss"]
 	battle.champions = maxi(0, (floor_i - 1) + (1 if type == "elite" else 0) + Data.DIFFICULTY[difficulty].champ)
 	battle.rng.seed = run_seed + floor_i * 13 + step
 	Battle.foe_mult = Data.DIFFICULTY[difficulty].foe[floor_i - 1]
+	Battle.foe_hp = Data.FOE_HP[clampi(floor_i, 1, 3) - 1]
 	var mods: Array = next_mods.duplicate() if type != "boss" else []
 	for m in pending_mods:
 		if not mods.has(m):
@@ -1065,7 +1190,7 @@ func _fight(type: String, ids_override: Array = []) -> bool:
 	battle.hand_size = 2 if pacts.has("main") else 3
 	battle.besace = besace
 	battle.besace_max = besace_max + (1 if relics.has("sacoche") else 0)
-	battle.tool_rate = 0.3 + 0.1 * (floor_i - 1)
+	battle.tool_rate = 0.0 if tuto else 0.3 + 0.1 * (floor_i - 1)
 	if pacts.has("champion"):
 		battle.champions += 1
 	if mods.size() > 0:
@@ -1081,6 +1206,45 @@ func _fight(type: String, ids_override: Array = []) -> bool:
 	ui.show_hud(false)
 	board.highlight({})
 	return won
+
+
+func compose(ids: Array, type: String) -> Array:
+	## Règles de composition, une fois la salle construite : le terrain décide de qui peut y être.
+	## Frondeur sans relief → Guetteur ; Anguille sans eau → Moussu (2 au plus) ;
+	## une seule couche absorbante, une seule règle de terrain, une Vanne (deux en élite 4+), 5 unités en combat normal.
+	var high := board.walkable_cells().any(func(c): return board.h[c] >= 2)
+	var wet := board.h.keys().any(func(c): return board.kind[c] == "water")
+	var out: Array = []
+	var layer := ""
+	var terrain := ""
+	var eels := 0
+	var vannes := 0
+	for id in ids:
+		var k: String = id
+		if k == "frondeur" and not high:
+			k = "guetteur"
+		if k == "anguille":
+			eels += 1
+			if not wet or eels > 2:
+				k = "husk"
+		if k in Data.LAYERS:
+			if layer != "" and layer != k:
+				k = "husk"
+			else:
+				layer = k
+		if k in Data.TERRAIN_RULES:
+			if terrain != "" and terrain != k:
+				k = "husk"
+			else:
+				terrain = k
+		if k == "vanne":
+			vannes += 1
+			if vannes > (2 if type == "elite" and difficulty >= 3 else 1):
+				k = "husk"
+		out.append(k)
+	if type == "combat" and out.size() > 5:
+		out.resize(5)
+	return out
 
 
 func _roll_item(min_rarity := 1) -> String:
@@ -1110,6 +1274,22 @@ func _gain_item(id: String, h: Unit = null) -> void:
 
 
 func open_chest(h: Unit) -> void:
+	if tuto and tuto_lesson == 2 and not tuto_seen.has("rare"):
+		tuto_seen["rare"] = true
+		# l'initiation : le coffre cache la carte rare, qui file dans la main de l'Oracle, gratuite
+		var o: Unit = heroes[2]
+		var ci := {"id": TUTO_CARD, "lvl": 1, "h": "oracle", "free": true}
+		if battle.active == o:
+			battle.hand.append(ci)
+		else:
+			battle.piles[o].keep.append(ci)
+		deck.append({"id": TUTO_CARD, "lvl": 1})
+		library_see(TUTO_CARD)
+		Fx.number(self, h.position + Vector3(0, 1.0, 0), "Carte rare !", Color(1.0, 0.85, 0.4), true)
+		ui.coach("Leçon 2 · L'escouade", "Une carte [color=#ffcf5a]rare[/color] : [color=#e3b45c]Pluie de cendres[/color]. " +
+			("Elle est dans la main de l'Oracle, gratuite : jouez-la." if battle.active == o else "Elle attend l'Oracle, gratuite : jouez-la à son tour."))
+		battle.changed.emit()
+		return
 	var g := 0
 	if rng.randf() < 0.15:
 		pending_cards.append(_card_roll(2))
@@ -2042,22 +2222,29 @@ func _autoplay() -> void:
 		heroes[2].equip = {"arme": "sceptre_maree", "armure": "cire_passeur", "bottes": "bottes_fuyard", "bijou": "miroir"}
 	var won := 0
 	for n in fights_n:
-		floor_i = 1 + n % 3
+		floor_i = int(args.get("floor", str(1 + n % 3)))  # --floor=2 : un acte seul (budget de rounds)
 		floor_biomes = [n % Data.BIOMES.size(), (n + 1) % Data.BIOMES.size(), (n + 2) % Data.BIOMES.size()]
 		for h in heroes:
 			h.revive()
 			h.hp = h.max_hp
-		battle.objective = "portal" if n % 3 == 2 else "kill"
+		battle.objective = "portal" if n % 3 == 2 and not args.has("floor") else "kill"
 		battle.champions = floor_i - 1
 		besace = [] if args.has("starter") else Data.TOOLS.keys().duplicate()
 		battle.besace = besace
 		battle.besace_max = 20
 		battle.tool_rate = 1.0
 		Battle.foe_mult = Data.DIFFICULTY[difficulty].foe[floor_i - 1]
+		Battle.foe_hp = Data.FOE_HP[floor_i - 1]
 		_build_room(run_seed + n * 101, _biome(), [14, 16, 18][n % 3], Board.ARCHETYPES[n % 4], true)
-		var ids: Array = Data.BOSS if n == fights_n - 1 else Data.ENCOUNTERS[floor_i][n % Data.ENCOUNTERS[floor_i].size()]
+		var ids: Array = Data.BOSS if n == fights_n - 1 and not args.has("floor") else Data.ENCOUNTERS[floor_i][n % Data.ENCOUNTERS[floor_i].size()]
+		if args.has("elite"):  # --elite : les élites de l'acte, à tour de rôle
+			ids = Data.ELITES[floor_i][n % 3]
+		if args.has("boss"):
+			ids = Data.BOSS
 		if args.has("foes"):
 			ids = Array(args.foes.split(","))
+		else:
+			ids = compose(ids, "elite" if args.has("elite") else ("boss" if ids == Data.BOSS else "combat"))
 		ui.show_hud(true)
 		battle.start(heroes, ids, deck, relics)
 		var turns := 0
@@ -2069,7 +2256,7 @@ func _autoplay() -> void:
 			await battle.end_turn()
 		if battle.over and not battle.alive_heroes().is_empty():
 			won += 1
-		print("combat %d (%s, %s, %s) : %d tours, héros vivants %d, ennemis vivants %d" % [n, board.archetype, Data.BIOMES[_biome()].name, battle.objective, turns, battle.alive_heroes().size(), battle.alive_foes().size()])
+		print("combat %d (%s, %s, %s) : %d tours, héros vivants %d, ennemis vivants %d · %s" % [n, board.archetype, Data.BIOMES[_biome()].name, battle.objective, turns, battle.alive_heroes().size(), battle.alive_foes().size(), ",".join(ids)])
 		await get_tree().create_timer(0.5).timeout
 	# boutique et équipement sans interface : juste les chemins de code
 	bag = ["gantelet", "bottes_heron"]
@@ -2546,6 +2733,12 @@ func _uitest() -> void:
 	_shot(dir, "pactes")
 	ui.picked.emit(-1)
 	await _frames(10)
+	for sc in [["mode", func(): await _pick_mode()], ["difficulte", func(): await _pick_difficulty()]]:
+		sc[1].call()
+		await _frames(30)
+		_shot(dir, sc[0])
+		ui.picked.emit(0)
+		await _frames(10)
 	bag = ["kriss", "bottes_heron", "miroir", "coeur_pierre", "sceptre_maree"]
 	heroes[0].equip.arme = "epee_ecluse"
 	heroes[0].apply_gear()
@@ -2624,8 +2817,8 @@ func _rewards_probe() -> int:
 
 func _pick_mode() -> String:
 	var i := await ui.choose("MODE", "Deux façons de descendre", [
-		{"title": "Descente", "glyph": "⇣", "text": "Carte d'étage à trois voies : on choisit ses salles, combat après combat.", "color": UI.GOLD},
-		{"title": "Aventure", "glyph": "✥", "text": "On mène l'escouade dans le donjon, salle par salle, dans le brouillard. Croiser un monstre lance le combat.", "color": Color("#8fd0a0")},
+		{"title": "Descente", "glyph": "⇣", "art": "res://assets/ui/mode_descente.png", "w": 380, "text": "Carte d'étage à trois voies : on choisit ses salles, combat après combat.", "color": UI.GOLD},
+		{"title": "Aventure", "glyph": "✥", "art": "res://assets/ui/mode_aventure.png", "w": 380, "text": "On mène l'escouade dans le donjon, salle par salle, dans le brouillard. Croiser un monstre lance le combat.", "color": Color("#8fd0a0")},
 	])
 	return ["descente", "aventure"][i]
 
@@ -2723,7 +2916,7 @@ func _gen_dungeon(saved := {}) -> void:
 				var pool: Array = Data.ENCOUNTERS[floor_i]
 				ids = pool[rng.randi_range(0, pool.size() - 1)]
 			"elite", "gardien":
-				ids = Data.ELITES_NOYES[floor_i] if rng.randf() < 0.5 else Data.ELITES.get(floor_i, Data.ELITES[2])
+				ids = Data.elite_pick(floor_i, rng, difficulty)
 			"boss":
 				ids = Data.BOSS
 		var mods: Array = []
