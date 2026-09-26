@@ -80,9 +80,12 @@ func wear_voc(k: String) -> void:
 		voc_node.queue_free()
 		voc_node = null
 	if side == "hero" and model:
-		# le corps hybride : tenue et coiffe de la classe apprise
+		# le héros de guilde (gen_guildes.py) : un modèle à part entière, l'insigne ferait doublon
 		var hy := "res://assets/u_%s__%s.glb" % [key, k]
-		_load_body(hy if k != "" and ResourceLoader.exists(hy) else "res://assets/u_%s.glb" % key)
+		var guilde := k != "" and ResourceLoader.exists(hy)
+		_load_body(hy if guilde else "res://assets/u_%s.glb" % key)
+		if guilde:
+			return
 	if k == "" or not ResourceLoader.exists("res://assets/voc_%s.glb" % k):
 		return
 	voc_node = load("res://assets/voc_%s.glb" % k).instantiate()

@@ -246,14 +246,8 @@ def realize(vox, seed):
     return out
 
 
-HYB = None  # vocation en cours : le héros est exporté en version hybride u_<classe>__<vocation>
-
-
 def unit(name, body, weapon=None, grip=(0, 0, 0), glow=None, wglow=None):
     fname = "u_" + name
-    if HYB:
-        body, glow = hybrid(name, body, glow.clone() if isinstance(glow, Vox) else dict(glow or {}), HYB)
-        fname = "u_%s__%s" % (name, HYB)
     sd = sum(map(ord, fname))
     v = VC / K
     objs = [mesh(name + "_body", realize(body, sd), v, skip=DOWN)]
@@ -2054,138 +2048,9 @@ def marchand():
     unit("marchand", b, st, grip=(-7, -3, 12), glow=g, wglow=sg)
 
 
-# ------------------------------------------------------------------ héros hybrides (vocation)
-# La vocation se voit de loin : bas de la tenue et ceinture à la couleur de la classe apprise,
-# plus la coiffe emblématique de cette classe (cimier, bandeau, chapeau pointu, lunettes...).
-
-CLS_HEX = {"garde": "#3d63e0", "lame": "#e0344f", "oracle": "#9b50d8", "artificier": "#22b8a6",
-           "moine": "#6cc24a", "trappeur": "#c9a23a", "tidiane": "#d0409a", "receleur": "#9fb4c2"}
-# centre et rayon de la tête de chaque héros (voxels, face vers -y) ; top = où poser une coiffe
-HEAD = {"garde": ((0, 0, 26.5), 4.6, 31), "lame": ((0, 0.5, 25), 4.4, 30), "oracle": ((0, 0, 23), 4.2, 27),
-        "artificier": ((0, 0, 24.5), 4.3, 30), "moine": ((0, 0, 23.5), 3.9, 28), "trappeur": ((0, 0.3, 24.8), 4.0, 31),
-        "tidiane": ((0, 0.2, 24.3), 3.6, 31), "receleur": ((0, 0.3, 24.5), 3.8, 31)}
-BELT = {"garde": 13, "lame": 12, "oracle": 12, "artificier": 12, "moine": 12, "trappeur": 12, "tidiane": 12, "receleur": 12}
-
-
-def _hsv(c):
-    import colorsys
-    return colorsys.rgb_to_hsv(*[max(0.0, min(1.0, x)) ** (1 / 2.2) for x in c])
-
-
-def _recol(c, to):
-    """Garde la valeur de c, prend la teinte et la saturation de to (couleurs linéaires)."""
-    import colorsys
-    h, s, v = _hsv(to)
-    v0 = _hsv(c)[2]
-    r = colorsys.hsv_to_rgb(h, s, min(1.0, v0 * 0.55 + v * 0.45))
-    return tuple(x ** 2.2 for x in r)
-
-
-def hybrid(name, b, g, voc):
-    R = random.Random(sum(map(ord, name + voc)))
-    bh = _hsv(lin(CLS_HEX[name]))[0]
-    vc = lin(CLS_HEX[voc])
-    b = b.clone() if isinstance(b, Vox) else dict(b)
-    belt = BELT[name]
-    for p, c in list(b.items()):
-        h, s, v = _hsv(c)
-        dh = min(abs(h - bh), 1 - abs(h - bh))
-        if p[2] < belt - 1 and s > 0.3 and dh < 0.08:  # bas de la tenue : couleur de la vocation
-            b[p] = _recol(c, vc)
-        elif belt - 1 <= p[2] <= belt and abs(p[0]) <= 7 and abs(p[1]) <= 6:  # ceinture nouée
-            b[p] = tone(vc, 1.2 if p[2] == belt else 0.85)
-    (cx, cy, cz), r, top = HEAD[name]
-    hat(b, g, voc, (cx, cy, cz), r, top, vc, R)
-    return b, g
-
-
-def hat(b, g, voc, c, r, top, vc, R):
-    cx, cy, cz = c
-    dark = tone(vc, 0.45)
-    light = tuple(min(1.0, x * 1.5) for x in vc)
-    if voc == "garde":  # cimier d'acier et plumet bleu
-        ell(b, (cx, cy, top - 1), (r + 0.4, r + 0.4, 2.4), lambda x, y, z: lin("#d4dbe0") if z < top else lin("#98a4ad"))
-        for i in range(10):
-            t = i / 9
-            p = (0, cy - 2 + t * 7, top + 2 + 3 * math.sin(t * 3))
-            cap(b, p, p, 1.5 - t * 0.5, vc if i % 3 else light)
-    elif voc == "lame":  # bandeau rouge noué, deux pans qui flottent derrière
-        for a in range(40):
-            t = a / 40 * math.tau
-            x, y = cx + math.cos(t) * (r + 0.6), cy + math.sin(t) * (r + 0.6)
-            b[(int(round(x)), int(round(y)), int(cz + 1))] = vc
-            b[(int(round(x)), int(round(y)), int(cz + 2))] = dark if a % 5 == 0 else vc
-        for k in (-1, 1):
-            for i in range(9):
-                b[(int(cx + k * (1 + i * 0.3)), int(cy + r + 1 + i * 0.6), int(cz + 1 - i * 0.7))] = vc if i % 3 else dark
-    elif voc == "oracle":  # grand chapeau pointu violet à bord doré
-        for x in range(-int(r + 4), int(r + 5)):
-            for y in range(-int(r + 4), int(r + 5)):
-                d = x * x + y * y
-                if d <= (r + 4) ** 2:
-                    b[(int(cx + x), int(cy + y), top)] = lin("#e6b84f") if d > (r + 2.6) ** 2 else vc
-        for i in range(12):
-            t = i / 11
-            rr = (r + 0.6) * (1 - t) + 0.6
-            ell(b, (cx, cy + t * t * 6, top + 1 + i), (rr, rr, 0.7), vc if i % 4 else dark)
-        g[(int(cx), int(cy + 6), top + 13)] = lin("#ffd27a")
-    elif voc == "artificier":  # lunettes de cuivre relevées, verres lumineux
-        for x in range(-int(r), int(r) + 1):
-            b[(int(cx + x), int(cy - r + 0.5), int(cz + 2))] = lin("#6a4a30")
-        for k in (-1, 1):
-            ell(b, (cx + k * 2, cy - r - 0.3, cz + 2), (1.4, 0.8, 1.4), lin("#d9a441"))
-            g[(int(cx + k * 2), int(cy - r - 1.5), int(cz + 2))] = lin("#7ff0e0")
-        for z in range(top, top + 3):  # petite cheminée de réservoir sur le crâne
-            b[(int(cx + 2), int(cy + 1), z)] = lin("#4a4d52")
-        g[(int(cx + 2), int(cy + 1), top + 3)] = lin("#ffb347")
-    elif voc == "moine":  # chapeau conique de paille (kasa), cordon vert
-        for i in range(5):
-            rr = r + 4.5 - i * 1.3
-            ell(b, (cx, cy, top + i), (rr, rr, 0.6), lambda x, y, z: tone(lin("#d9c07a"), R.uniform(0.85, 1.1)))
-        for a in range(32):
-            t = a / 32 * math.tau
-            b[(int(round(cx + math.cos(t) * (r + 2.7))), int(round(cy + math.sin(t) * (r + 2.7))), top + 1)] = vc
-    elif voc == "trappeur":  # grande plume ocre plantée sur le côté et collier de crocs
-        for i in range(14):
-            t = i / 13
-            x = cx + r * 0.7 + t * 2
-            z = top - 3 + t * 10
-            for w in range(-1, 2):
-                b[(int(x) + (w if t > 0.2 else 0), int(cy + 1 + t * 2), int(z))] = vc if (i + w) % 3 else light
-        for a in range(14):
-            t = a / 14 * math.pi
-            b[(int(round(cx + math.cos(t) * (r + 0.5))), int(round(cy - math.sin(t) * (r - 1))), int(cz - r + 0.5))] = lin("#f1ede2")
-    elif voc == "tidiane":  # demi-masque de porcelaine et ruban magenta
-        for x in range(-3, 4):
-            for z in range(int(cz), int(cz + 3)):
-                b[(int(cx + x), int(cy - r - 0.6), z)] = lin("#0d0c10") if (abs(x) == 2 and z == int(cz + 1)) else lin("#f4f1ea")
-        for x in (-2, 2):
-            g[(int(cx + x), int(cy - r - 1.6), int(cz + 1))] = lin("#e0483f") if x < 0 else lin("#4aa3d8")
-        for i in range(10):
-            b[(int(cx + 2 + i * 0.3), int(cy + r + i * 0.5), int(cz + 2 - i * 0.6))] = vc
-    elif voc == "receleur":  # capuche gris-bleu rabattue, piécette d'or à l'oreille
-        ell(b, (cx, cy + 0.8, top - 3), (r + 1.2, r + 1.4, 3.4), lambda x, y, z: tone(vc, R.uniform(0.75, 1.0)),
-            keep=lambda x, y, z: not (y < cy - 1 and z < top - 2 and abs(x) < r - 0.5))
-        g[(int(cx - r - 1.5), int(cy), int(cz - 1))] = lin("#e3c46a")
-    for p in g:  # une lueur ne se cache pas dans un voxel opaque
-        b.pop(p, None)
-
-
-def hybrids():
-    global HYB
-    heroes = {"garde": garde, "lame": lame, "oracle": oracle, "artificier": artificier, "moine": moine,
-              "trappeur": trappeur, "tidiane": tidiane, "receleur": receleur}
-    for k, fn in heroes.items():
-        for v in heroes:
-            if v != k:
-                HYB = v
-                fn()
-    HYB = None
-
-
 def build():
     for f in os.listdir(OUT):
-        if f.startswith("u_") and f.endswith(".glb"):
+        if f.startswith("u_") and f.endswith(".glb") and "__" not in f:  # les héros de guilde : gen_guildes.py
             os.remove(os.path.join(OUT, f))
     garde(); lame(); oracle(); artificier(); moine(); trappeur(); tidiane(); receleur(); marchand()
     husk(); guetteur(); sentinelle(); wisp(); gardien()
@@ -2194,7 +2059,6 @@ def build():
     betes()
     concile()
     vocations()
-    hybrids()
     print("persos ok")
 
 
