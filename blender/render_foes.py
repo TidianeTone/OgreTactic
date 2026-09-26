@@ -9,6 +9,8 @@ OUT = sys.argv[sys.argv.index("--") + 1]
 os.makedirs(OUT, exist_ok=True)
 FOES = ["husk", "guetteur", "sentinelle", "wisp", "gardien", "chaman", "carapace", "rodeur", "lancier", "cavalier", "vouivre", "mage",
         "bretteur", "danseuse", "capitaine", "baliste", "crabe", "crapaud", "harpie", "obelisque"]
+if os.environ.get("DELVE_FOES"):  # DELVE_FOES=a,b : une liste choisie (le bestiaire du jeu les veut tous)
+    FOES = os.environ["DELVE_FOES"].split(",")
 ra.setup()
 for k in FOES:
     ra.clear()

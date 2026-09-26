@@ -32,9 +32,11 @@ dans Blender par script (`blender/`).
 ## Contenu
 
 - Chaque héros joue à son tour (vitesse), avec son paquet et son mana
-- 8 classes, dont le Receleur (vole et bricole les objets) et Tidiane (Analyse, Émotion, Ambition)
+- 8 classes, dont le Receleur (maître des cartes-objets : vole, fabrique, recharge) et Tidiane (Analyse, Émotion, Ambition)
 - Cartes de niveau 1 à 3 avec déclencheurs, forge et fusion de doubles
-- Besace d'objets à usage unique ; les ennemis en portent aussi, on peut les leur voler
+- Cartes-objets neutres à charges (niveau 3 : légendaire inépuisable) ; les ennemis en portent, on peut les leur voler
+- Terrain destructible : arbres à PV, feu qui se propage ; mode Parvis (arènes plates en damier)
+- Bibliothèque (chaque carte avec ses trois niveaux) et bestiaire
 - Runes au sol (force, source, garde, élan, portails, ronces)
 - Deux modes : Descente (carte d'étage) et Aventure (donjon à explorer) ; en Aventure, équipement, paquet et fusion restent accessibles (I, P, F)
 - 12 biomes, dont la Crypte aux Cierges, le Bosquet Émeraude, la Grotte au Croissant et le Temple de Jade

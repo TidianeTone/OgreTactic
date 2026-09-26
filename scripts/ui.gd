@@ -55,17 +55,19 @@ var _hover_card := -1
 var sheet_plate: PanelContainer
 var sheet_title: Label
 var sheet_body: RichTextLabel
+var item_card: Control      # l'objet porté (ou au sol) montré en carte, sous la fiche
+var _item_key := ""
 var menu: Control
 var lib_layer: Control     # bibliothèque : sa propre couche, ouvrable par-dessus un choix ou la pause
 var _eq_act := {}          # action choisie sur l'écran d'équipement
-var powers_lbl: Label
 var keys_plate: PanelContainer
 var show_keys := -1         # H : -1 auto (1er round), 0 masquée, 1 affichée
-var played_box: HBoxContainer
+var played_box: VBoxContainer
 var orb_frame: TextureRect
 var voc_badge: TextureRect
 var voc_dot: Panel
 var _orb_key := ""
+var frieze_unit: Unit        # unité survolée (ou touchée) dans la frise d'initiative
 # trou de chaque cadre d'orbe : centre x, centre y, largeur (fractions, blender/kie_ui/mesures.json)
 const ORB_HOLE := {"garde": [0.499, 0.529, 0.52], "lame": [0.501, 0.463, 0.672], "oracle": [0.491, 0.545, 0.519], "artificier": [0.498, 0.591, 0.558],
 	"moine": [0.498, 0.52, 0.526], "trappeur": [0.498, 0.562, 0.466], "tidiane": [0.501, 0.536, 0.474], "receleur": [0.503, 0.454, 0.65], "neutre": [0.502, 0.499, 0.779]}
@@ -76,8 +78,6 @@ var explore_sub: Label
 var explore_party: Label
 var explore_heroes: VBoxContainer
 var explore_panels := {}
-var besace_row: HBoxContainer
-var _besace_sig := ""
 
 
 func _ready() -> void:
@@ -241,6 +241,7 @@ func _build_hud() -> void:
 	log_box.add_theme_constant_override("shadow_offset_y", 1)
 	log_box.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
 	log_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	log_box.visible = false  # replié : bouton « Journal » ou touche L
 	hud.add_child(log_box)
 
 	# énergie
@@ -288,20 +289,15 @@ func _build_hud() -> void:
 	pb.pressed.connect(func(): main.view_deck("pioche"))
 	hud.add_child(pb)
 	# cartes jouées ce tour : la dernière arrive à droite ; clic = toute la défausse
-	played_box = HBoxContainer.new()
+	# pouvoirs actifs en pastilles, puis défausse et journal repliés derrière deux boutons
+	played_box = VBoxContainer.new()
 	played_box.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	played_box.position = Vector2(196, -170)
+	played_box.offset_left = 204
+	played_box.offset_top = -40
+	played_box.offset_bottom = -40
+	played_box.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	played_box.add_theme_constant_override("separation", 6)
 	hud.add_child(played_box)
-	besace_row = HBoxContainer.new()
-	besace_row.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	besace_row.position = Vector2(24, -246)
-	besace_row.add_theme_constant_override("separation", 6)
-	hud.add_child(besace_row)
-	powers_lbl = _shadowed(_label("", 14, Color("#d8c3ff")), 6)
-	powers_lbl.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	powers_lbl.position = Vector2(24, -186)
-	powers_lbl.size = Vector2(380, 20)
-	hud.add_child(powers_lbl)
 
 	end_btn = Button.new()
 	end_btn.text = "Fin du tour"
@@ -350,7 +346,7 @@ func _build_hud() -> void:
 	grid.add_theme_constant_override("v_separation", 3)
 	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	kv.add_child(grid)
-	for row in [["Clic", "héros, carte, case, objet de besace"], ["Clic ennemi", "épingler / retirer sa fiche"],
+	for row in [["Clic", "héros, carte, case"], ["Clic ennemi", "épingler / retirer sa fiche"],
 			["Survol", "infos de la case ou de l'objet"], ["Clic droit", "annuler · maintenu : caméra"],
 			["ZQSD", "déplacer la caméra (clic droit tenu)"], ["Q / E · molette", "pivoter · zoomer"],
 			["Espace · ← →", "fin du tour, puis orientation"], ["D · L", "zone de danger · journal"], ["Tab · 1 à 9", "recentrer · jouer une carte"],
@@ -383,6 +379,10 @@ func _build_hud() -> void:
 	sheet_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	sv.add_child(sheet_body)
 	sheet_plate.visible = false
+	item_card = Control.new()
+	item_card.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	item_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(item_card)
 
 	# frise de tour : qui agit, dans quel ordre, avec quelle intention
 	frieze = HBoxContainer.new()
@@ -391,7 +391,7 @@ func _build_hud() -> void:
 	frieze.size = Vector2(600, 56)
 	frieze.alignment = BoxContainer.ALIGNMENT_CENTER
 	frieze.add_theme_constant_override("separation", 6)
-	frieze.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frieze.mouse_filter = Control.MOUSE_FILTER_PASS
 	hud.add_child(frieze)
 
 	boss_bar = VBoxContainer.new()
@@ -593,6 +593,25 @@ func set_sheet(u: Unit) -> void:
 	sheet_plate.reset_size()
 
 
+func show_item(tool_id: String, below: float) -> void:
+	## Un objet survolé (porté par un ennemi, ou au sol) : sa carte, telle qu'on la volerait.
+	var key := "%s|%d" % [tool_id, int(below)]
+	if key == _item_key:
+		return
+	_item_key = key
+	for c in item_card.get_children():
+		c.queue_free()
+	if tool_id == "":
+		return
+	var k := 0.72
+	var w := make_card({"id": Data.obj_of(tool_id), "lvl": 1, "h": battle.heroes[0].key if battle.heroes.size() > 0 else "garde"})
+	w.scale = Vector2.ONE * k
+	w.pivot_offset = Vector2.ZERO
+	w.position = Vector2(sheet_plate.offset_left - CARD.x * k - 10, sheet_plate.offset_top)  # à gauche de la fiche : rien ne la recouvre au doigt
+	_passthrough(w)
+	item_card.add_child(w)
+
+
 func menu_open() -> bool:
 	return menu != null and is_instance_valid(menu)
 
@@ -771,6 +790,9 @@ func _rebuild_heroes(box: VBoxContainer = null, list: Array = [], panels: Dictio
 		if h.passives().size() > 0:
 			tr.text += "  ·  " + ", ".join(h.passives().map(func(q): return Data.PASSIVES[q].name))
 		tr.mouse_filter = Control.MOUSE_FILTER_PASS
+		tr.size = Vector2(182, 18)  # les passifs débordaient du cadre : coupés, le détail au survol
+		tr.clip_text = true
+		tr.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		p.add_child(tr)
 		var hico := TextureRect.new()
 		hico.texture = icon("pv")
@@ -906,22 +928,13 @@ func refresh() -> void:
 			(voc_dot.get_theme_stylebox("panel") as StyleBoxFlat).bg_color = Data.CLASS_COLOR[av]
 			voc_badge.tooltip_text = "Vocation : " + Data.HEROES[av].name
 	pile_lbl.text = ("%s · pioche %d · défausse %d" % [battle.active.nm, battle.draw_pile.size(), battle.discard.size()]) if battle.active else "Tour ennemi"
-	var pw: Array = []
-	for id in Data.all_ids():
-		if Data.def(id).get("power", "") in battle.powers:
-			pw.append(Data.def(id).name)
-	powers_lbl.text = ("Pouvoirs : " + " · ".join(pw)) if pw.size() > 0 else ""
 	end_btn.disabled = not battle.player_turn or battle.busy
 	end_btn.text = "Fin du tour" if battle.active == null else ("Valider l'orientation" if battle.orienting else "Fin · %s" % battle.active.nm)
 	keys_plate.visible = (battle.turn <= 1 and not main.tuto if show_keys < 0 else show_keys == 1) and not big  # au doigt, pas de clavier
-	var psig := "%s|%d" % [JSON.stringify(battle.played_turn), battle.discard.size()]
+	var psig := "%s|%d|%s" % [JSON.stringify(battle.powers), battle.discard.size(), log_box.visible]
 	if psig != _played_sig:
 		_played_sig = psig
 		_rebuild_played()
-	var bsig := "%s|%d|%d|%d" % [JSON.stringify(battle.besace), battle.tool_sel, battle.besace_cap(), battle.bricole]
-	if bsig != _besace_sig:
-		_besace_sig = bsig
-		_rebuild_besace()
 	var sig := JSON.stringify(battle.hand)
 	if sig != _hand_sig:
 		_hand_sig = sig
@@ -939,85 +952,63 @@ func refresh() -> void:
 
 
 func _rebuild_played() -> void:
+	## Pouvoirs actifs en pastilles lisibles (survol ou toucher : leur texte), puis deux boutons :
+	## la défausse et le journal ne s'affichent que si on les demande.
 	for c in played_box.get_children():
 		c.queue_free()
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 2)
-	var t := _shadowed(_label("Défausse %d" % battle.discard.size(), 13, GOLD, title_f), 4)
-	col.add_child(t)
+	for pw in battle.powers:
+		var id := ""
+		for k in Data.all_ids():
+			if Data.def(k).get("power", "") == pw:
+				id = k
+				break
+		if id == "":
+			continue
+		var who = battle.power_owner.get(pw)
+		var col: Color = Data.CLASS_COLOR.get(who.key, GOLD) if who is Unit and is_instance_valid(who) else GOLD
+		var pill := PanelContainer.new()
+		var st := sb(Color(0.08, 0.06, 0.1, 0.9), col, 14, 2, 4)
+		st.content_margin_left = 10
+		st.content_margin_right = 12
+		st.content_margin_top = 3
+		st.content_margin_bottom = 3
+		pill.add_theme_stylebox_override("panel", st)
+		pill.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		var txt := Data.card_text(Data.card({"id": id, "lvl": 1}))
+		pill.tooltip_text = "%s
+%s" % [Data.def(id).name, txt]
+		pill.add_child(_shadowed(_label("✦ " + Data.def(id).name, 16, col.lightened(0.45), title_f), 4))
+		pill.gui_input.connect(func(e):
+			if e is InputEventScreenTouch and e.pressed:
+				toast("%s : %s" % [Data.def(id).name, txt]))
+		played_box.add_child(pill)
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", -40)
-	col.add_child(row)
-	played_box.add_child(col)
-	var k := 0.42
-	var list: Array = battle.played_turn.slice(-5)
-	if list.is_empty():
-		var empty := _plate(row)
-		empty.custom_minimum_size = CARD * k
-		empty.add_child(_label("rien joué
-ce tour", 11, DIM))
-	for i in list.size():
-		var holder := Control.new()
-		holder.custom_minimum_size = CARD * k
-		var w := make_card(list[i])
-		w.scale = Vector2.ONE * k
-		w.pivot_offset = Vector2.ZERO
-		holder.tooltip_text = w.tooltip_text
-		_passthrough(w)
-		holder.add_child(w)
-		row.add_child(holder)
-		if i == list.size() - 1 and _played_sig != "":
-			# la carte qui vient d'être jouée se pose
-			w.modulate.a = 0.0
-			w.position.y = -40
-			var tw := create_tween().set_parallel()
-			tw.tween_property(w, "modulate:a", 1.0, 0.25)
-			tw.tween_property(w, "position:y", 0.0, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	# tout le bloc est cliquable : la défausse complète
-	_passthrough(col)
-	col.mouse_filter = Control.MOUSE_FILTER_STOP
-	col.tooltip_text = "Joué ce tour · clic : toute la défausse"
-	col.gui_input.connect(func(e):
-		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
-			main.view_deck("defausse"))
+	row.add_theme_constant_override("separation", 6)
+	played_box.add_child(row)
+	row.add_child(_small_btn("Défausse · %d" % battle.discard.size(), func(): main.view_deck("defausse")))
+	row.add_child(_small_btn("Journal" + (" ▾" if log_box.visible else " ▸"), func():
+		log_box.visible = not log_box.visible
+		_played_sig = ""))
 
 
-func _rebuild_besace() -> void:
-	## Besace : une case par place ; clic sur un objet, puis sur sa cible.
-	for c in besace_row.get_children():
-		c.queue_free()
-	var edge := Color("#7fe0c8")
-	for i in battle.besace_cap():
-		var b := Button.new()
-		b.custom_minimum_size = Vector2(48, 48)
-		b.focus_mode = Control.FOCUS_NONE
-		b.add_theme_font_override("font", title_f)
-		b.add_theme_font_size_override("font_size", 24)
-		var full := i < battle.besace.size()
-		var sel := full and i == battle.tool_sel
-		var st := sb(Color(0.08, 0.07, 0.075, 0.9) if full else Color(0.05, 0.05, 0.05, 0.45), GOLD if sel else (edge.darkened(0.25) if full else Color(1, 1, 1, 0.12)), 10, 3 if sel else (2 if full else 1), 4)
-		b.add_theme_stylebox_override("normal", st)
-		b.add_theme_stylebox_override("disabled", st)
-		b.add_theme_stylebox_override("hover", sb(Color(0.12, 0.2, 0.18, 0.95), Color.WHITE, 10, 2, 6))
-		b.add_theme_stylebox_override("pressed", sb(Color(0.12, 0.2, 0.18, 0.95), GOLD, 10, 3, 2))
-		b.add_theme_color_override("font_color", Color("#dff8ee"))
-		b.add_theme_color_override("font_hover_color", Color.WHITE)
-		if full:
-			var td: Dictionary = Data.TOOLS[battle.besace[i]]
-			b.icon = load("res://assets/ui/tool_%s.png" % battle.besace[i])
-			b.expand_icon = true
-			b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			b.tooltip_text = "%s\n%s\n(clic, puis la cible · sans énergie · héros actif)" % [td.name, td.text]
-			var idx := i
-			b.pressed.connect(func(): battle.select_tool(idx))
-		else:
-			b.disabled = true
-			b.tooltip_text = "Place libre dans la besace"
-		besace_row.add_child(b)
-	if battle.heroes.any(func(h): return h.key == "receleur"):
-		var bl := _shadowed(_label("Bricole " + "●".repeat(battle.bricole) + "○".repeat(3 - battle.bricole), 13, Data.CLASS_COLOR.receleur.lightened(0.35)), 5)
-		bl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		besace_row.add_child(bl)
+func _small_btn(text: String, cb: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_override("font", title_f)
+	b.add_theme_font_size_override("font_size", 15)
+	b.add_theme_color_override("font_color", GOLD)
+	b.add_theme_color_override("font_hover_color", Color.WHITE)
+	b.add_theme_stylebox_override("normal", sb(Color(0.07, 0.06, 0.065, 0.85), GOLD.darkened(0.35), 8, 1, 4))
+	b.add_theme_stylebox_override("hover", sb(Color(0.14, 0.11, 0.07, 0.95), GOLD, 8, 1, 6))
+	b.add_theme_stylebox_override("pressed", sb(Color(0.14, 0.11, 0.07, 0.95), GOLD, 8, 2, 2))
+	for k in ["normal", "hover", "pressed"]:
+		var st: StyleBoxFlat = b.get_theme_stylebox(k)
+		st.content_margin_left = 12
+		st.content_margin_right = 12
+	b.custom_minimum_size = Vector2(0, 34)
+	b.pressed.connect(cb)
+	return b
 
 
 func _rebuild_hand() -> void:
@@ -1054,8 +1045,14 @@ func make_card(ci: Dictionary) -> Control:
 		main.library_see(c.id)
 	var col: Color = Data.CLASS_COLOR[c.cls[0]]
 	var col2: Color = Data.CLASS_COLOR[c.cls[1]] if c.cls.size() > 1 else col
-	var rar: int = c.get("rar", 1)
+	var obj: bool = c.has("tool")
+	var rar: int = 4 if c.get("legend", false) else c.get("rar", 1)  # carte-objet de niveau 3 : légendaire
 	var legend: bool = rar == 4
+	# niveau 3 d'une carte-objet jamais obtenu : on sait qu'il existe, pas ce qu'il fait
+	var secret: bool = obj and c.get("legend", false) and main and not main.library.has(c.id + "#3")
+	if secret:
+		c.name = "???"
+		c.text = "Niveau 3 — Légendaire : ???"
 	var card := Control.new()
 	card.size = CARD
 	card.custom_minimum_size = CARD
@@ -1072,6 +1069,13 @@ func make_card(ci: Dictionary) -> Control:
 	var art := TextureRect.new()
 	var path := "res://assets/art/card_%s.png" % c.id
 	art.texture = load(path) if ResourceLoader.exists(path) else (_art2(col, col2, c.kind) if c.has("guild") else _art(col, c.kind))
+	if obj and not ResourceLoader.exists(path) and ResourceLoader.exists("res://assets/ui/tool_%s.png" % c.tool):
+		art.texture = load("res://assets/ui/tool_%s.png" % c.tool)  # l'icône de l'objet, en attendant sa peinture
+		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		var under := _panel(card, sb(col.darkened(0.55), Color(0, 0, 0, 0), 4))
+		under.position = art_r.position
+		under.size = art_r.size
+		card.move_child(under, art.get_index())
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	art.clip_contents = true
@@ -1107,6 +1111,8 @@ func make_card(ci: Dictionary) -> Control:
 	fr.stretch_mode = TextureRect.STRETCH_SCALE
 	fr.size = CARD
 	fr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if obj:
+		fr.modulate = Color(1.0, 0.86, 0.62) if not legend else Color(1.0, 0.72, 0.45)  # cadre laiton des objets
 	card.add_child(fr)
 	var shown: String = c.name.split(",")[0] if c.name.length() > 18 else c.name  # « Kaede, Vent sans ombre » -> « Kaede »
 	var fs := 17
@@ -1115,7 +1121,7 @@ func make_card(ci: Dictionary) -> Control:
 	var nm := _shadowed(_label(shown, fs, INK, title_f), 5)
 	nm.clip_text = true
 	nm.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	nm.position = Vector2(CARD.x * 0.18, CARD.y * 0.045)
+	nm.position = Vector2(CARD.x * 0.18, CARD.y * 0.06)
 	nm.size = Vector2(CARD.x * 0.64, CARD.y * 0.1)
 	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -1154,7 +1160,20 @@ func make_card(ci: Dictionary) -> Control:
 	card.add_child(gem)
 	if rar > 1:
 		nm.add_theme_color_override("font_color", Data.RARITY_COL[rar].lightened(0.3))
-	if c.has("guild") or c.cls[0] != c.owner:
+	if obj:
+		# bandeau des charges : ce qu'il reste à la carte
+		var uses: int = int(ci.get("uses", Data.level(ci)))
+		var band := _panel(card, sb(Color(0.05, 0.04, 0.05, 0.82), Color(0, 0, 0, 0), 6))
+		band.position = art_r.position + Vector2(4, 22 if lvc >= 2 else 4)
+		band.size = Vector2(art_r.size.x - 8, 17)
+		var btxt: String = "Objet · Éphémère" if c.get("eph", false) else ("Objet · ✦ Inépuisable" if legend else "Objet · %s %d charge%s" % ["◆".repeat(maxi(uses, 1)), uses, "s" if uses > 1 else ""])
+		var bl := _label(btxt, 11, (Data.RARITY_COL[4] if legend else col).lightened(0.35))
+		bl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		bl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		bl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		bl.clip_text = true
+		band.add_child(bl)
+	elif c.has("guild") or c.cls[0] != c.owner:
 		# bandeau : la guilde, ou la classe d'origine d'une carte de vocation
 		var band := _panel(card, sb(Color(0.05, 0.04, 0.05, 0.82), Color(0, 0, 0, 0), 6))
 		band.position = art_r.position + Vector2(4, 22 if lvc >= 2 else 4)
@@ -1172,6 +1191,7 @@ func make_card(ci: Dictionary) -> Control:
 	stats.position = Vector2(art_r.position.x, art_r.end.y - 30)
 	stats.size = Vector2(art_r.size.x, 28)
 	stats.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stats.visible = not secret
 	card.add_child(stats)
 	if c.get("dmg", 0) > 0:
 		stats.add_child(_chip("attaque", str(c.dmg) + ("×%d" % c.hits if c.get("hits", 1) > 1 else ""), Color(1, 0.8, 0.72)))
@@ -1218,6 +1238,7 @@ func _rich(bb: String, size: int, col: Color) -> RichTextLabel:
 
 
 static var _kw_keys: Array = []
+static var _kw_rx := {}
 static func kw_bbcode(t: String) -> String:
 	## Chaque mot-clé précédé de son idéogramme (game-icons.net repassées en pixel art).
 	if _kw_keys.is_empty():
@@ -1227,8 +1248,13 @@ static func kw_bbcode(t: String) -> String:
 	var used: Array = []
 	for k: String in _kw_keys:
 		if t.contains(k):
-			t = t.replace(k, "§%d¤" % used.size())
-			used.append(k)
+			# mot entier seulement : « tire » ne s'allume pas au milieu de « Retire »
+			if not _kw_rx.has(k):
+				_kw_rx[k] = RegEx.create_from_string("(?<![A-Za-zÀ-ÿ])" + k.replace("(", "\\(").replace(")", "\\)").replace("+", "\\+") + "(?![A-Za-zÀ-ÿ])")
+			var nt: String = (_kw_rx[k] as RegEx).sub(t, "§%d¤" % used.size(), true)
+			if nt != t:
+				t = nt
+				used.append(k)
 	for i in used.size():
 		t = t.replace("§%d¤" % i, "[img=15x15]res://assets/ui/kw_%s.png[/img][color=#ffe3a3]%s[/color]" % [Data.KW_ICON[used[i]], used[i]])
 	return t
@@ -1299,6 +1325,9 @@ func _art(col: Color, kind: String) -> Texture2D:
 
 
 func _process(dt: float) -> void:
+	if big:
+		_fit_screen(overlay)
+		_fit_screen(sheet_layer)
 	if touch_box:
 		# menu toujours là ; caméra, annuler et danger seulement sur le plateau
 		for i in range(1, touch_box.get_child_count()):
@@ -1377,17 +1406,22 @@ func _refresh_frieze() -> void:
 		else:
 			l.text = "%s %s" % [u.nm.split(" ")[0], battle.intent(u)]
 			l.add_theme_color_override("font_color", Color("#ffc48a"))
-		p.tooltip_text = "%s · vitesse %d\n%s" % [u.nm, u.speed, battle.sheet(u)]
-		p.mouse_filter = Control.MOUSE_FILTER_PASS
+		# survol = comme survoler l'unité sur le plateau (case, fiche, silhouette) ; clic = la caméra y va
+		p.mouse_filter = Control.MOUSE_FILTER_STOP
+		p.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		var uu: Unit = u
+		if frieze_unit == uu:
+			p.add_theme_stylebox_override("panel", sb(Color(0.2, 0.16, 0.08, 0.95), Color.WHITE, 6, 2, 8))
 		p.mouse_entered.connect(func():
 			if is_instance_valid(uu):
-				set_sheet(uu)
-				uu.set_xray(true))
+				frieze_unit = uu)
 		p.mouse_exited.connect(func():
-			if is_instance_valid(uu):
-				uu.set_xray(false)
-				main.refresh_hover())
+			if frieze_unit == uu:
+				frieze_unit = null)
+		p.gui_input.connect(func(e):
+			if is_instance_valid(uu) and (e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT or e is InputEventScreenTouch and e.pressed):
+				frieze_unit = uu
+				main.target = Vector3(uu.position.x, main.target.y, uu.position.z))
 		p.add_child(l)
 		frieze.add_child(p)
 	_boss_bars(boss)
@@ -1498,7 +1532,7 @@ func _place_tags() -> void:
 # ------------------------------------------------------------------ écrans de choix
 
 var last_n := 0            # nombre d'options du dernier choix (pilote de test)
-func choose(title: String, subtitle: String, options: Array, allow_skip := false, skip_text := "Passer") -> int:
+func choose(title: String, subtitle: String, options: Array, allow_skip := false, skip_text := "Passer", portrait := "") -> int:
 	_close_overlay()
 	last_n = options.size()
 	overlay = Control.new()
@@ -1511,8 +1545,28 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 	dim.color = Color(0.03, 0.03, 0.04, dim_alpha)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.add_child(dim)
+	if portrait != "" and ResourceLoader.exists(portrait):
+		# l'Ancien en pied, à gauche, qui s'avance doucement
+		var pr := TextureRect.new()
+		pr.texture = load(portrait)
+		pr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		pr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		pr.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+		pr.offset_left = 20
+		pr.offset_right = 20 + root.size.y * 0.6
+		pr.offset_top = 30
+		pr.offset_bottom = -30
+		pr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		overlay.add_child(pr)
+		pr.modulate.a = 0.0
+		pr.position.x -= 40
+		var tw := create_tween().set_parallel()
+		tw.tween_property(pr, "modulate:a", 1.0, 0.6)
+		tw.tween_property(pr, "position:x", pr.position.x + 40, 0.8).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	var box := VBoxContainer.new()
 	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	if portrait != "":
+		box.offset_left = root.size.y * 0.6
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.add_theme_constant_override("separation", 18)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1954,6 +2008,19 @@ func _option(o: Dictionary, w := 250) -> Control:
 	return p
 
 
+func _fit_screen(layer: Control) -> void:
+	## Portable : un téléphone 20:9 n'a que 720 de haut ; un écran trop grand se réduit pour tenir en entier.
+	## ponytail: la hauteur seulement, la largeur (1600 en 20:9) n'a jamais débordé
+	if not layer or not is_instance_valid(layer):
+		return
+	var vs := layer.size
+	for c in layer.get_children():
+		if c is Container and c.anchor_top == 0.0 and c.anchor_bottom == 1.0:
+			var s := minf(1.0, vs.y / maxf(c.get_combined_minimum_size().y, 1.0))
+			c.pivot_offset = Vector2(vs.x / 2.0, 0)
+			c.scale = Vector2(s, s)
+
+
 func _close_overlay() -> void:
 	if overlay and is_instance_valid(overlay):
 		overlay.queue_free()
@@ -2228,6 +2295,9 @@ func library_screen() -> void:
 		for ch in list.get_children():
 			ch.queue_free()
 		var sections: Array = []
+		if which == "bestiaire":
+			_fill_bestiary(list)
+			return
 		if which == "classes":
 			for k in Data.HEROES:
 				var ids: Array = Data.CARDS.keys().filter(func(id): return Data.CARDS[id].owner == k)
@@ -2260,15 +2330,22 @@ func library_screen() -> void:
 					var w := make_card({"id": id, "lvl": 1})
 					w.scale = Vector2.ONE * 0.8
 					w.pivot_offset = Vector2.ZERO
-					holder.tooltip_text = w.tooltip_text
+					holder.tooltip_text = w.tooltip_text + "
+(clic : ses trois niveaux)"
 					_passthrough(w)
 					holder.add_child(w)
+					holder.mouse_filter = Control.MOUSE_FILTER_STOP
+					holder.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+					var cid: String = id
+					holder.gui_input.connect(func(e):
+						if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT or e is InputEventScreenTouch and e.pressed:
+							_lib_focus(cid))
 				else:
 					var rar: int = Data.def(id).get("rar", 1)
 					card_back(holder, rar)
 					holder.tooltip_text = "%s à découvrir" % Data.RARITY_NAME[rar]
 				flow.add_child(holder)
-	for t in [["Classes", "classes"], ["Guildes", "guildes"]]:
+	for t in [["Classes", "classes"], ["Guildes", "guildes"], ["Bestiaire", "bestiaire"]]:
 		var tb := Button.new()
 		tb.text = t[0]
 		tb.add_theme_font_override("font", title_f)
@@ -2290,6 +2367,131 @@ func library_screen() -> void:
 	await lib_closed
 	lib_layer.queue_free()
 	lib_layer = null
+
+
+func _lib_focus(id: String) -> void:
+	## Une carte en grand avec ses trois niveaux, même ceux qu'on n'a jamais forgés.
+	var fl := Control.new()
+	fl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	lib_layer.add_child(fl)
+	var dim := ColorRect.new()
+	dim.color = Color(0.02, 0.02, 0.03, 0.9)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fl.add_child(dim)
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 16)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fl.add_child(box)
+	var d := Data.def(id)
+	var tl := _shadowed(_label(d.name, 38, INK, wide_f), 8)
+	tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(tl)
+	var sl := _shadowed(_label("%s · les trois niveaux de la forge" % Data.RARITY_NAME[d.get("rar", 1)], 16, Data.RARITY_COL[d.get("rar", 1)]), 5)
+	sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(sl)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 30)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(row)
+	var k := minf(1.35, (root.size.y - 260.0) / CARD.y)
+	var prev := {}
+	for lv in range(1, Data.MAX_LVL + 1):
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 8)
+		col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(col)
+		var hl := _shadowed(_label("Niveau %d" % lv, 20, GOLD if lv > 1 else DIM, title_f), 5)
+		hl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		col.add_child(hl)
+		var holder := Control.new()
+		holder.custom_minimum_size = CARD * k
+		holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var ci := {"id": id, "lvl": lv}
+		var w := make_card(ci)
+		w.scale = Vector2.ONE * k
+		w.pivot_offset = Vector2.ZERO
+		_passthrough(w)
+		holder.add_child(w)
+		col.add_child(holder)
+		var diff := Data.upgrade_diff(prev, ci) if lv > 1 else ""
+		if Data.def(id).has("tool") and lv == 3 and not main.library.has(id + "#3"):
+			diff = "Légendaire : ???"
+		var dl := _label(diff, 14, Color("#bfe8a8"))
+		dl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		dl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		dl.custom_minimum_size = Vector2(CARD.x * k, 0)
+		col.add_child(dl)
+		prev = ci
+	var hint := _label("clic : retour", 14, DIM)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(hint)
+	fl.modulate.a = 0.0
+	create_tween().tween_property(fl, "modulate:a", 1.0, 0.18)
+	dim.gui_input.connect(func(e):
+		if e is InputEventMouseButton and e.pressed or e is InputEventScreenTouch and e.pressed:
+			fl.queue_free())
+
+
+func _fill_bestiary(list: VBoxContainer) -> void:
+	## Seulement les ennemis déjà croisés : les autres n'existent pas encore pour le joueur.
+	var seen: Array = Data.FOES.keys().filter(func(k): return main.bestiary.has(k))
+	var hd := _label("%d ennemis rencontrés" % seen.size() if seen.size() > 0 else "Aucun ennemi croisé pour l'instant", 22, GOLD, title_f)
+	hd.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	list.add_child(hd)
+	var flow := HFlowContainer.new()
+	flow.alignment = FlowContainer.ALIGNMENT_CENTER
+	flow.add_theme_constant_override("h_separation", 14)
+	flow.add_theme_constant_override("v_separation", 14)
+	flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_child(flow)
+	for k in seen:
+		var f: Dictionary = Data.FOES[k]
+		var boss: bool = f.has("titre")
+		var p := PanelContainer.new()
+		var st := sb(Color(0.07, 0.06, 0.065, 0.92), Color("#ffb070") if boss else Color("#c9463a").darkened(0.2), 12, 2 if boss else 1, 6)
+		st.content_margin_left = 12
+		st.content_margin_right = 12
+		st.content_margin_top = 10
+		st.content_margin_bottom = 10
+		p.add_theme_stylebox_override("panel", st)
+		p.custom_minimum_size = Vector2(430, 0)
+		flow.add_child(p)
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 12)
+		p.add_child(hb)
+		var por := TextureRect.new()
+		var pp := "res://assets/art/foe_%s.png" % k
+		if ResourceLoader.exists(pp):
+			por.texture = load(pp)
+		por.custom_minimum_size = Vector2(120, 120)
+		por.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		por.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		hb.add_child(por)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 3)
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hb.add_child(v)
+		v.add_child(_label(f.name, 20, INK, title_f))
+		var rg: Array = f.get("range", [1, 1])
+		var stats := "PV %d · dégâts %d · portée %s · vitesse %d · déplacement %d" % [f.hp, f.dmg, str(rg[1]) if rg[0] == rg[1] else "%d-%d" % [rg[0], rg[1]], f.speed, f.move]
+		if f.get("armor", 0) > 0:
+			stats += " · armure %d" % f.armor
+		v.add_child(_label(stats, 13, GOLD))
+		var txt: String = f.get("ligne", "")
+		for q in f.get("passives", []):
+			if Data.PASSIVES.has(q):
+				txt += ("
+" if txt != "" else "") + "%s : %s" % [Data.PASSIVES[q].name, Data.PASSIVES[q].text]
+		if Data.FOE_TIPS.has(k):
+			txt += ("
+" if txt != "" else "") + Data.FOE_TIPS[k]
+		var tx := _label(txt, 13, INK)
+		tx.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tx.custom_minimum_size = Vector2(270, 0)
+		v.add_child(tx)
 
 
 # ------------------------------------------------------------------ équipement
@@ -2564,17 +2766,9 @@ func equipment_screen(heroes: Array, bag: Array) -> Dictionary:
 	done.add_theme_stylebox_override("hover", sb(Color(0.2, 0.16, 0.1, 0.96), GOLD, 10, 2, 8))
 	done.custom_minimum_size = Vector2(260, 50)
 	done.pressed.connect(func(): act.call({}))
-	if big:  # en portable l'écran déborde en hauteur : le bouton du bas serait hors champ
-		done.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		done.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-		done.offset_left = -284
-		done.offset_right = -24
-		done.offset_top = 24
-		overlay.add_child(done)
-	else:
-		var dc := CenterContainer.new()
-		dc.add_child(done)
-		box.add_child(dc)
+	var dc := CenterContainer.new()
+	dc.add_child(done)
+	box.add_child(dc)
 	overlay.modulate.a = 0
 	create_tween().tween_property(overlay, "modulate:a", 1.0, 0.2)
 	await picked

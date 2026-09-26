@@ -15,7 +15,7 @@ func _init() -> void:
 		var lv := []
 		for L in [1, 2, 3]:
 			var c := Data.card({"id": id, "lvl": L, "h": h})
-			lv.append({"text": Data.card_text(c), "cost": c.cost})
+			lv.append({"text": Data.card_text(c), "cost": c.cost, "name": c.name})
 		cards.append({"id": id, "name": d.name, "cls": Data.classes_of(id), "rar": d.get("rar", 1), "kind": d.kind,
 			"range": d.get("range", []), "target": d.get("target", "foe"), "lv": lv, "starter": Data.STARTER.get(h, []).has(id), "arch": d.get("arch", "")})
 	var items := {}
@@ -46,7 +46,7 @@ func _init() -> void:
 		"difficulty": Data.DIFFICULTY, "mastery": Data.MASTERY, "biomes": Data.BIOMES.map(func(b): return b.name),
 		"archetypes": Data.ARCHETYPES, "companions": Data.COMPANIONS,
 		"new_guild_cards": Guildes.CARDS.keys().filter(func(id): return Guildes.CARDS[id].has("arch")),
-		"encounters": Data.ENCOUNTERS, "elites": Data.ELITES, "elites_noyes": Data.ELITES_NOYES, "boss": Data.BOSS, "price": Data.PRICE}
+		"encounters": Data.ENCOUNTERS, "elites": Data.ELITES, "boss": Data.BOSS, "price": Data.PRICE}
 	var f := FileAccess.open(OS.get_cmdline_user_args()[0], FileAccess.WRITE)
 	f.store_string(JSON.stringify(out, "\t"))
 	quit()

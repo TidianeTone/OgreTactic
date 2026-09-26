@@ -69,18 +69,28 @@ var piles := {}               # héros -> {draw, discard, exhausted} : chacun so
 var _first_turn := {}         # héros -> a déjà joué (Ambre du Gué)
 var power_val := {}           # pouvoir -> force, selon le niveau de la carte
 var bonus := {}               # héros -> énergie en plus à son prochain tour
-var besace: Array = []      # objets à usage unique de l'escouade (tableau de la run)
-var besace_max := 3
-var tool_sel := -1
+var sim := {}               # compteurs de simulation (auto-jeu) : objets joués, arbres, explosions, percées
+var spent: Array = []       # cartes-objets sans charge : quittent le paquet en fin de combat
+var won_objs: Array = []    # cartes-objets volées ou ramassées ce combat (revendables au butin)
+var brasero_aura := {}      # case -> brûlure du brasero posé par une carte, en fin de manche
+var oriel_turn := false     # Dame Oriel : première carte-objet du tour déjà doublée
+var fourgue_turn := false   # Le Fourgue : soin sur vol, une fois par tour
+var _alambic := false       # Alambic : Fabrique 1 au premier tour d'un héros
 var tool_rate := 0.3        # part des ennemis qui portent un objet
-var bricole := 0            # réserve du Receleur : améliore le prochain objet fabriqué
 var smoke := {}             # case -> tours de fumée restants
 var smoke_nodes := {}
 var trap_kind := {}         # case -> "piege" | "picots"
+var picot_root := {}        # case -> tours d'entrave des picots (Ronces d'acier)
 var tiles := {}             # case -> rune au sol (Data.TILES)
 var twins := {}             # portail -> portail jumeau
 var tile_nodes: Array = []
-var oaks := {}              # case -> chêne planté
+var oaks := {}              # case -> arbre (décor ou planté) : nœud 3D
+var tree_hp := {}           # case -> PV de l'arbre ; tout arbre se coupe
+var oak_arm := {}           # case -> écorce du chêne (retirée de chaque coup)
+var oak_aura := {}          # case -> armure donnée aux héros voisins à leur tour (0 pour un arbre du décor)
+var oak_fp := {}            # case -> le feu ne le consume pas (8 dégâts à la place)
+var oak_max := {}           # case -> PV de départ (barre de vie)
+var smolder := {}           # case -> l'arbre couve : il flambe au round suivant (nœud de la flamme)
 var loot := {}              # case -> [objet, nœud] lâché par un ennemi
 var _blast := false         # les dégâts en cours viennent d'une explosion
 # multiclasse : cartes de guilde
@@ -96,7 +106,6 @@ var double_trap := false    # Rabatteur : le piège frappe deux fois
 var pending_relics := 0     # Découpe : reliques à choisir après le combat
 var elite_fight := false
 var suien_hits := 0
-var oriel_back := {}        # objet -> déjà revenu (Dame Oriel)
 var plume_used := false
 var masque_used := false
 var _pre := false           # déclencheur évalué avant la résolution de la carte en cours
@@ -162,12 +171,19 @@ func start(hs: Array, foe_ids: Array, deck_ref: Array, relics_ref: Array) -> voi
 		for n in d.values():
 			n.queue_free()
 		d.clear()
+	for n in smolder.values():
+		if is_instance_valid(n):
+			n.queue_free()
+	for dd in [tree_hp, oak_arm, oak_aura, oak_fp, oak_max, smolder]:
+		dd.clear()
 	smoke.clear()
 	for e in loot.values():
 		e[1].queue_free()
 	loot.clear()
-	tool_sel = -1
-	bricole = 0
+	spent.clear()
+	won_objs.clear()
+	brasero_aura.clear()
+	sim.clear()
 	turrets.clear()
 	echo = false
 	bonus_energy = 0
@@ -258,8 +274,7 @@ func start(hs: Array, foe_ids: Array, deck_ref: Array, relics_ref: Array) -> voi
 			f.tool = Data.FOE_TOOLS[rng.randi_range(0, Data.FOE_TOOLS.size() - 1)]
 	spawn_props()
 	_place_tiles()
-	if has("alambic"):
-		_craft(1)
+	_alambic = has("alambic")
 	if mods.has("hate"):
 		for f in foes:
 			f.move += 1
@@ -272,7 +287,7 @@ func start(hs: Array, foe_ids: Array, deck_ref: Array, relics_ref: Array) -> voi
 	piles.clear()
 	log_lines.clear()
 	for ci in deck:
-		for k in ["bump", "free", "cut"]:
+		for k in ["bump", "free", "cut", "rch"]:
 			ci.erase(k)
 	for ci in deck:
 		var cls: Array = Data.classes_of(ci.id)
@@ -291,7 +306,7 @@ func start(hs: Array, foe_ids: Array, deck_ref: Array, relics_ref: Array) -> voi
 	trophy = false
 	pending_relics = 0
 	suien_hits = 0
-	oriel_back.clear()
+	oriel_turn = false
 	_enclume_q.clear()
 	draw_pile = []
 	discard = []
@@ -320,6 +335,7 @@ func spawn_foe(id: String, c: Vector2i) -> Unit:
 	units_root.add_child(u)
 	u.place(c, board)
 	foes.append(u)
+	main.bestiary_see(id)
 	return u
 
 
@@ -452,6 +468,10 @@ func spawn_props() -> void:
 	prop_nodes.clear()
 	for c in board.props:
 		_make_prop(c)
+	# les arbres du plateau deviennent destructibles (10 PV)
+	for c in board.blocked.keys():
+		if board.blocked[c] == "tree" and board._in(c) and not oaks.has(c):
+			_plant(c, 10, 0, 0, false, false)
 	if _portal_node:
 		_portal_node.queue_free()
 		_portal_node = null
@@ -494,7 +514,7 @@ func _make_prop(c: Vector2i) -> void:
 		node.add_child(mi)
 	node.position = board.world(c)
 	node.rotation.y = randi_range(0, 3) * PI * 0.5
-	var mk: Array = {"coffre": ["◆", Color(1.0, 0.85, 0.35)], "levier": ["⚙", Color(0.5, 0.9, 1.0)],
+	var mk: Array = {"coffre": ["◆", Color(1.0, 0.85, 0.35)],
 		"brasero": ["✹", Color(1.0, 0.55, 0.2)], "baril": ["✹", Color(1.0, 0.55, 0.2)], "pilier": ["⚠", Color(0.95, 0.9, 0.8)]}.get(board.props[c], [])
 	if mk.size() > 0:
 		var l3 := Label3D.new()
@@ -538,7 +558,7 @@ func _remove_prop(c: Vector2i) -> void:
 func _open_chest(h: Unit, c: Vector2i) -> void:
 	_remove_prop(c)
 	Fx.burst(main, board.world(c) + Vector3(0, 0.5, 0), Color(1.0, 0.85, 0.4), 50, 3.0, 6.0)
-	main.open_chest(h)
+	await main.open_chest(h)
 	coach.emit("coffre", h)
 
 
@@ -549,19 +569,10 @@ func interact(h: Unit, c: Vector2i) -> void:
 	await h.cast()
 	match k:
 		"coffre":
-			_open_chest(h, c)
+			await _open_chest(h, c)
 			busy = false
 			changed.emit()
 			return  # ouvrir un coffre au contact est gratuit : le déplacement reste
-		"levier":
-			board.props[c] = "levier_ok"
-			if prop_nodes.has(c) and prop_nodes[c].has_meta("mark"):
-				prop_nodes[c].get_meta("mark").queue_free()
-				prop_nodes[c].remove_meta("mark")
-			board.lower_drawbridge()
-			board.build_visuals()
-			main.shake(0.4)
-			main.ui.toast("Le pont-levis s'abaisse.")
 	h.moved = true
 	h.walked = true
 	busy = false
@@ -572,8 +583,10 @@ func interact(h: Unit, c: Vector2i) -> void:
 func trigger_prop(c: Vector2i, d: Vector2i) -> void:
 	## Brasero : explosion. Pilier : effondrement dans la direction d.
 	var k: String = board.props.get(c, "")
+	brasero_aura.erase(c)
 	if k in BOOM:
 		booms += 1
+		_sim("explosion")
 		if powers.has("fonderie") and board.kind.get(c, "") != "water" and board.kind.get(c, "") != "tower":
 			_fonderie_q.append(c)
 		if powers.has("pip"):
@@ -592,7 +605,7 @@ func trigger_prop(c: Vector2i, d: Vector2i) -> void:
 					damage(u, 7)
 					_blast = false
 				if oaks.has(t):
-					_burn(t)
+					_hit_tree(t, 0, true)
 				if board.props.get(t, "") in BOOM:
 					await wait(0.12)
 					await trigger_prop(t, d)
@@ -629,6 +642,7 @@ func _next_round() -> void:
 	log_add("— Round %d —" % turn)
 	if turn > 1:
 		_smoke_tick()
+		_brasero_tick()
 		await _turrets_fire()
 		if over:
 			return
@@ -819,6 +833,7 @@ func _fall_water(u: Unit) -> void:
 
 func _round_start() -> void:
 	## Début de round : amarres, Appels de l'Obélisque et du Gardien.
+	_smolder_tick()
 	for b in alive_foes().filter(func(o): return o.data.ai == "tether"):
 		for o in foes:
 			if _meta(o, "amarre") == b:
@@ -1082,6 +1097,8 @@ func _hero_turn(h: Unit) -> void:
 	booms = 0
 	hurt_turn = false
 	stolen_turn = 0
+	oriel_turn = false
+	fourgue_turn = false
 	plume_used = false
 	masque_used = false
 	for f in foes:
@@ -1111,8 +1128,12 @@ func _hero_turn(h: Unit) -> void:
 		h.walked = true
 		h.root -= 1
 		Fx.number(main, h.position + Vector3(0, 0.5, 0), "⛓ Entravé", Color(0.8, 0.9, 1.0))
-	if oaks.keys().any(func(o): return dist(o, h.cell) == 1):
-		gain_block(h, 3)
+	var aura := 0
+	for o in oaks:
+		if dist(o, h.cell) == 1:
+			aura = maxi(aura, int(oak_aura.get(o, 0)))  # le meilleur voisin, sans cumul
+	if aura > 0:
+		gain_block(h, aura)
 	echo = false
 	played = 0
 	voices.clear()
@@ -1157,14 +1178,20 @@ func _hero_turn(h: Unit) -> void:
 	draw(hand_size + (1 if has("grimoire") and int(_turns_of.get(h, 0)) <= 2 else 0) + (1 if h.trait_id == "insomniaque" else 0)
 		+ (1 if h.has_p("prelude") and not _first_turn.has(h) else 0) + ((1 + int(power_val.get("dnb", 0))) if h.key == "tidiane" and powers.has("dnb") else 0)
 		+ (1 if tiles.get(h.cell, "") == "autel" else 0))
+	if h.key == "receleur":
+		# Double fond : ses cartes-objets ne lui bouchent pas la main
+		while hand.filter(func(ci): return not Data.def(ci.id).has("tool")).size() < hand_size and hand.size() < 5 and not (draw_pile.is_empty() and discard.is_empty()):
+			draw(1)
 	_extra_move.erase(h)
 	_start_draw = false
+	if _alambic:
+		_alambic = false
+		_craft(1, h)
 	if powers.has("metronome") and power_owner.get("metronome") == h:
 		h.bpm = mini(12, h.bpm + maxi(1, int(power_val.get("metronome", 1))))
 		Fx.number(main, h.position + Vector3(0, 1.3, 0), "♪ %d" % h.bpm, Color(0.95, 0.5, 0.8))
 	first_free = has("sablier")
 	_first_turn[h] = true
-	tool_sel = -1
 	card_sel = -1
 	player_turn = true
 	busy = false
@@ -1227,7 +1254,6 @@ func end_turn() -> void:
 		coach.emit("orient", active)
 		_orient_from = active.facing
 		card_sel = -1
-		tool_sel = -1
 		main.ui.banner("Orientation", "Où regarde %s ? · souris, flèches ou manette, puis clic ou Espace" % active.nm)
 		main.refresh_hover()
 		changed.emit()
@@ -1235,7 +1261,6 @@ func end_turn() -> void:
 	orienting = false
 	player_turn = false
 	card_sel = -1
-	tool_sel = -1
 	var keep: Array = []
 	for ci in hand:
 		var c := Data.card(ci)
@@ -1389,7 +1414,6 @@ func select(u: Unit) -> void:
 func select_card(i: int) -> void:
 	if not player_turn or busy or orienting or i >= hand.size():
 		return
-	tool_sel = -1
 	if card_sel == i:
 		card_sel = -1
 		changed.emit()
@@ -1437,13 +1461,6 @@ func click(c: Vector2i) -> void:
 			active.face(c - active.cell)
 		end_turn()
 		return
-	if tool_sel >= 0:
-		if tool_sel < besace.size() and selected and tool_targets(besace[tool_sel], selected).has(c):
-			use_tool(tool_sel, c)
-		else:
-			tool_sel = -1
-			changed.emit()
-		return
 	if card_sel >= 0:
 		var card := Data.card(hand[card_sel])
 		var h := owner_of(card)
@@ -1461,7 +1478,7 @@ func click(c: Vector2i) -> void:
 		toggle_inspect(u)  # la fiche reste affichée jusqu'au prochain clic
 		return
 	var pk: String = board.props.get(c, "")
-	if pk in ["coffre", "levier"] and selected:
+	if pk == "coffre" and selected:
 		var near := dist(selected.cell, c) == 1 and absi(board.h[selected.cell] - board.h[c]) <= 2
 		if near and (pk == "coffre" or not selected.moved):
 			interact(selected, c)
@@ -1567,9 +1584,7 @@ func cancel() -> void:
 		inspect = null
 		main.refresh_hover()
 		return
-	if tool_sel >= 0:
-		tool_sel = -1
-	elif card_sel >= 0:
+	if card_sel >= 0:
 		card_sel = -1
 	changed.emit()
 
@@ -1639,6 +1654,8 @@ func card_range(c: Dictionary, h: Unit) -> Vector2i:
 
 
 func card_targets(c: Dictionary, h: Unit) -> Array:
+	if c.has("tool"):
+		return tool_targets(c.tool, h, c.get("range", Data.TOOLS[c.tool].get("range", [0, 0])))
 	var out: Array = []
 	var r := card_range(c, h)
 	match c.get("target", "foe"):
@@ -1669,7 +1686,7 @@ func card_targets(c: Dictionary, h: Unit) -> Array:
 				var p := h.cell
 				for i in r.y:
 					var n := p + dir
-					if board.props.get(n, "") in BOOM + ["pilier"]:
+					if board.props.get(n, "") in BOOM + ["pilier"] or oaks.has(n):
 						out.append(n)
 						break
 					if not board.walkable(n) or absi(board.h[n] - board.h[p]) > 2:
@@ -1686,6 +1703,8 @@ func card_targets(c: Dictionary, h: Unit) -> Array:
 			for pc in board.props:
 				if board.props[pc] in (BOOM if c.get("detonate", false) else BOOM + ["pilier", "coffre"]):
 					cells.append(pc)
+			if not c.get("detonate", false) and c.get("kind", "") == "atk":
+				cells.append_array(oaks.keys())  # tout arbre se coupe
 			for t in cells:
 				var dd := dist(h.cell, t)
 				if dd < r.x or dd > r.y:
@@ -1837,6 +1856,8 @@ func play_card(i: int, t: Vector2i) -> void:
 		hand.append(ci)
 	elif c.get("eph", false):
 		pass
+	elif c.has("tool"):
+		_spend_obj(ci)  # charges : une de moins ; à zéro, la carte quittera le paquet en fin de combat
 	elif c.get("exhaust", false) or c.kind == "power":
 		exhausted.append(ci)
 		if c.kind != "power" and not c.get("flashback", false):
@@ -1851,6 +1872,20 @@ func play_card(i: int, t: Vector2i) -> void:
 
 
 func resolve(c: Dictionary, h: Unit, t: Vector2i) -> void:
+	if c.has("tool"):
+		# carte-objet : l'effet de l'outil, monté au niveau de la carte
+		c = _tour_de_main(c, h)
+		if powers.has("oriel") and not oriel_turn and DOUBLABLE.has(c.tool):
+			oriel_turn = true
+			item_echo = h
+		_sim("objet_niv%d" % c.lvl)
+		await _apply_tool(c.tool, h, t, c)
+		if c.get("draw", 0) > 0 and c.tool != "carnet":
+			draw(int(c.draw))
+		if c.get("energy", 0) > 0:
+			energy += int(c.energy)
+		_item_consumed(h)
+		return
 	var tgt: String = c.get("target", "foe")
 	var col: Color = Data.CLASS_COLOR[c.owner]
 	if c.kind == "power":
@@ -1910,15 +1945,15 @@ func resolve(c: Dictionary, h: Unit, t: Vector2i) -> void:
 		await wait(0.3)
 		return
 	if c.has("place"):
-		if c.get("consume", false) and _consume(h) == "":
+		if c.get("consume", false) and (await _consume(h)) == "":
 			return
 		await _place(c, t, h)
 		if c.get("draw", 0) > 0:
 			draw(c.draw)
 		if c.get("block", 0) > 0:
 			gain_block(h, c.block)
-		if c.get("bricole", 0) > 0:
-			_add_bricole(h, c.bricole)
+		if c.get("recharge", 0) > 0:
+			await _recharge(h, int(c.recharge))
 		if c.get("energy", 0) > 0:
 			energy += c.energy
 		if c.has("rune") and not tiles.has(t):
@@ -1974,21 +2009,6 @@ func resolve(c: Dictionary, h: Unit, t: Vector2i) -> void:
 						gain_block(a, c.block)
 		if c.get("craft", 0) > 0:
 			_craft(c.craft, h)
-		if c.get("recycle", false):
-			if besace.is_empty():
-				main.ui.toast("La besace est vide.")
-			else:
-				var gone: String = besace.pop_front()
-				used_turn += 1
-				energy += 1 + int(c.get("val", 0))
-				_add_bricole(h, 1)
-				Fx.number(main, h.position + Vector3(0, 0.6, 0), "%s recyclé · +1 énergie" % Data.TOOLS[gone].name, GOLD_FX)
-		if c.get("dupe", false):
-			if besace.is_empty() or besace.size() >= besace_cap():
-				main.ui.toast("Rien à copier, ou besace pleine.")
-			else:
-				besace.append(besace.back())
-				Fx.number(main, h.position + Vector3(0, 0.6, 0), "Copie : " + Data.TOOLS[besace.back()].name, GOLD_FX)
 		if c.get("taunt", false):
 			h.taunt = true
 			Fx.number(main, h.position + Vector3(0, 0.4, 0), "Défi !", Color(1, 0.8, 0.4))
@@ -2042,8 +2062,8 @@ func resolve(c: Dictionary, h: Unit, t: Vector2i) -> void:
 		if c.get("ambush", false):
 			h.ambush = true
 			Fx.number(main, h.position + Vector3(0, 0.8, 0), "Embuscade", col.lightened(0.4))
-		if c.get("iblock", 0) > 0 and besace.size() > 0:
-			gain_block(h, int(c.iblock) * besace.size())
+		if c.get("iblock", 0) > 0 and stock() > 0:
+			gain_block(h, int(c.iblock) * stock())
 		if c.get("block", 0) > 0:
 			gain_block(h, c.block)
 			if c.get("near_ally", false):
@@ -2073,7 +2093,7 @@ func resolve(c: Dictionary, h: Unit, t: Vector2i) -> void:
 		await charge(h, t, c)
 		return
 	if c.get("aoe", false):
-		if c.get("need_item", false) and _consume(h) == "":
+		if c.get("need_item", false) and (await _consume(h)) == "":
 			c = c.duplicate()
 			c.dmg = 0
 		h.face(t - h.cell)
@@ -2093,8 +2113,8 @@ func resolve(c: Dictionary, h: Unit, t: Vector2i) -> void:
 				_blast = c.owner in ["artificier", "oracle"]  # grenades, mortier, cendre : du feu
 				damage(u, calc(h, u, _base(c, h, t), c).dmg, h, true, true)
 				_blast = false
-			elif oaks.has(cell) and c.owner in ["artificier", "oracle"]:
-				_burn(cell)
+			elif oaks.has(cell):
+				_hit_tree(cell, _base(c, h, t) + h.gear_dmg() + h.dmg_bonus, c.owner in ["artificier", "oracle"])
 			elif board.props.get(cell, "") in BOOM:
 				await trigger_prop(cell, _dir(h.cell, cell))
 		if c.get("aoe_baril", false) and board.walkable(t) and unit_at(t) == null and not board.props.has(t) and not traps.has(t):
@@ -2109,6 +2129,14 @@ func resolve(c: Dictionary, h: Unit, t: Vector2i) -> void:
 				await attack(h, o, c)
 	elif f:
 		await attack(h, f, c)
+	elif oaks.has(t):
+		h.face(t - h.cell)
+		if card_range(c, h).y > 1:
+			await h.cast()
+			await Fx.bolt(main, h.position, board.world(t), col.lightened(0.3))
+		else:
+			await h.lunge(board.world(t))
+		_hit_tree(t, _base(c, h, t) + h.gear_dmg() + h.dmg_bonus)
 	elif board.props.has(t):
 		h.face(t - h.cell)
 		if card_range(c, h).y > 1:
@@ -2117,7 +2145,7 @@ func resolve(c: Dictionary, h: Unit, t: Vector2i) -> void:
 		else:
 			await h.lunge(board.world(t))
 		if board.props.get(t, "") == "coffre":
-			_open_chest(h, t)  # un coup suffit à faire sauter le couvercle
+			await _open_chest(h, t)  # un coup suffit à faire sauter le couvercle
 		else:
 			await trigger_prop(t, _dir(h.cell, t))
 			if c.get("craft_id", "") != "":
@@ -2165,15 +2193,11 @@ func attack(h: Unit, f: Unit, c: Dictionary) -> void:
 	var ranged: bool = card_range(c, h).y > 1 and not c.get("behind", false) and not c.get("dash", false)
 	if c.get("steal", false) and not _steal(h, f) and c.get("craft_else", false):
 		_craft(1, h)
-	if c.get("throw", false) and besace.size() > 0:
-		var tid: String = besace.pop_front()
-		used_turn += 1
-		await Fx.bolt(main, h.position, f.position, GOLD_FX)
-		if not tid in ["grappin", "tonnelet", "gland", "picots"]:
-			await _apply_tool(tid, h, f.cell if Data.TOOLS[tid].target in ["foe", "tile", "ally"] else h.cell)
+	if c.get("throw", false):
+		await _throw_item(h, f.cell)
 		if not f.alive:
 			return
-	var no_item: bool = c.get("need_item", false) and _consume(h) == ""
+	var no_item: bool = c.get("need_item", false) and (await _consume(h)) == ""
 	var base := _base(c, h, f.cell)
 	if no_item:
 		base = 0
@@ -2239,9 +2263,9 @@ func attack(h: Unit, f: Unit, c: Dictionary) -> void:
 		pending_relics += 1
 		Fx.number(main, f.position + Vector3(0, 1.2, 0), "Découpe : une relique !", GOLD_FX, true)
 	if c.get("iblock", 0) > 0:
-		gain_block(h, int(c.iblock) * besace.size())
-	if c.get("bricole", 0) > 0:
-		_add_bricole(h, c.bricole)
+		gain_block(h, int(c.iblock) * stock())
+	if c.get("recharge", 0) > 0:
+		await _recharge(h, int(c.recharge))
 	if c.get("leech", 0) > 0:
 		heal(h, c.leech)
 	if c.kind == "atk" and c.get("block", 0) > 0:
@@ -2326,7 +2350,7 @@ func charge(h: Unit, t: Vector2i, c: Dictionary) -> void:
 	var p := h.cell
 	while p != t:
 		var n := p + d
-		if unit_at(n) or board.props.has(n):
+		if unit_at(n) or board.props.has(n) or oaks.has(n):
 			break
 		path.append(n)
 		p = n
@@ -2348,6 +2372,9 @@ func charge(h: Unit, t: Vector2i, c: Dictionary) -> void:
 	elif board.props.get(nx, "") in BOOM + ["pilier"]:
 		await h.lunge(board.world(nx))
 		await trigger_prop(nx, d)
+	elif oaks.has(nx):
+		await h.lunge(board.world(nx))
+		_hit_tree(nx, _base(c, h, nx) + h.gear_dmg() + h.dmg_bonus)
 
 
 func _dir(a: Vector2i, b: Vector2i) -> Vector2i:
@@ -2630,7 +2657,7 @@ func damage(u: Unit, amount: int, src: Unit = null, show := true, ranged := fals
 			u.boomguard = 0
 			_boom_foes(src.cell, bg)
 		if melee_hit and powers.has("octroi") and power_owner.get("octroi") == u and src.alive:
-			if src.tool != "" and besace.size() < besace_cap():
+			if src.tool != "":
 				_steal(u, src)
 			else:
 				Fx.number(main, src.position + Vector3(0, 0.7, 0), "Octroi", GOLD_FX)
@@ -2941,6 +2968,11 @@ func _push_steps(u: Unit, d: Vector2i, n: int) -> void:
 			damage(u, 3 + crash_bonus)
 			await trigger_prop(nx, d)
 			return
+		if oaks.has(nx):
+			Fx.number(main, u.position, "Choc", Color(1, 0.8, 0.5))
+			damage(u, 3 + crash_bonus)
+			_hit_tree(nx, 3 + crash_bonus)  # l'arbre encaisse le même choc
+			return
 		if not board._in(nx) or board.kind[nx] == "tower" or board.blocked.has(nx) or board.props.has(nx) or (board.kind[nx] != "water" and board.h[nx] > board.h[u.cell] + 1):
 			Fx.number(main, u.position, "Choc", Color(1, 0.8, 0.5))
 			damage(u, 3 + crash_bonus)
@@ -2990,6 +3022,9 @@ func check_end() -> void:
 
 
 func _finish(v: bool) -> void:
+	for ci in spent:
+		main.deck.erase(ci)
+	spent.clear()
 	await wait(1.1)
 	ended.emit(v)
 
@@ -3130,7 +3165,9 @@ func foe_act(f: Unit) -> void:
 			if board.kind[c] == "water" or c == f.cell:
 				wet[c] = true
 		R = {"prev": R.prev, "cells": wet, "dist": R.dist}
-	if ai == "dancer":
+	# le dernier debout vient se battre au lieu de danser au loin (plus de combats de 11 manches)
+	var last: bool = alive_foes().filter(func(o): return not o.data.get("structure", false)).size() == 1
+	if ai == "dancer" and not last:
 		await _dance(f, R)
 		return
 	if ai == "commander" and not f.has_meta("hit") and alive_foes().filter(func(o): return o != f and not o.data.get("structure", false)).size() >= 2 \
@@ -3186,7 +3223,7 @@ func foe_act(f: Unit) -> void:
 	var best_t: Unit = null
 	var best_s := -INF
 	var saved := f.cell
-	var far_ai: bool = ai in ["ranged", "healer", "cleanser"]
+	var far_ai: bool = ai in ["ranged", "healer", "cleanser"] and not last  # le dernier debout ne recule plus
 	for cell in R.cells:
 		f.cell = cell
 		var near_allies := 0
@@ -3270,6 +3307,23 @@ func foe_act(f: Unit) -> void:
 	if ai == "assassin" and not taunter:
 		targets = [live.reduce(func(a, b): return a if (40 - a.hp + (30 if _isolated(a) else 0)) >= (40 - b.hp + (30 if _isolated(b) else 0)) else b)]
 	var dm := board.bfs_dist(targets.map(func(u): return u.cell), f.jump, f.fly)
+	if not f.fly and not R.cells.keys().any(func(cl): return dm.has(cl)) and oaks.size() > 0:
+		# enfermé par des arbres : il va frapper celui qui le sépare le mieux des héros
+		var dt := board.bfs_dist(targets.map(func(u): return u.cell), f.jump, false, true)
+		var pick := [null, null, 999]
+		for cl in R.cells:
+			for d in Board.DIRS:
+				if oaks.has(cl + d) and dt.get(cl + d, 999) < pick[2]:
+					pick = [cl, cl + d, dt[cl + d]]
+		if pick[0] != null:
+			if pick[0] != f.cell:
+				await _foe_walk(f, path_to(R.prev, pick[0]))
+			if f.alive and not over and oaks.has(pick[1]):
+				_sim("percee_ia")
+				f.face(pick[1] - f.cell)
+				await f.lunge(board.world(pick[1]))
+				_hit_tree(pick[1], f.atk())
+			return
 	var go := f.cell
 	var gd: int = dm.get(f.cell, 999)
 	for cell in R.cells:
@@ -3779,16 +3833,7 @@ func refresh_highlight(hover) -> void:
 		board.highlight(cells)
 		return
 	if player_turn and not busy:
-		if tool_sel >= 0 and tool_sel < besace.size() and selected:
-			var tid: String = besace[tool_sel]
-			var tg := tool_targets(tid, selected)
-			for t in tg:
-				cells[t] = Color(0.3, 1.0, 0.8, 0.9)
-			if hover != null and tg.has(hover) and tid in ["bombe", "fumigene", "picots"]:
-				for d in Board.DIRS:
-					if board._in(hover + d):
-						cells[hover + d] = Color(1.0, 0.6, 0.2, 0.9)
-		elif card_sel >= 0 and card_sel < hand.size():
+		if card_sel >= 0 and card_sel < hand.size():
 			var c := Data.card(hand[card_sel])
 			var h := owner_of(c)
 			var col := Color(1.0, 0.3, 0.22)
@@ -3814,13 +3859,13 @@ func refresh_highlight(hover) -> void:
 				if t != selected.cell:
 					cells[t] = Color(0.85, 0.6, 1.0, 0.45) if sp else Color(0.4, 0.68, 1.0, 0.75)
 			for pc in board.props:
-				if board.props[pc] in ["coffre", "levier"] and dist(pc, selected.cell) == 1:
+				if board.props[pc] == "coffre" and dist(pc, selected.cell) == 1:
 					cells[pc] = Color(1.0, 0.85, 0.35, 0.95)
 		# zone de déplacement de l'ennemi épinglé ou survolé
 		var look: Unit = inspect if inspect and inspect.alive else null
 		if look == null and hover != null:
 			look = unit_at(hover)
-		if card_sel < 0 and tool_sel < 0 and look and look.side == "foe":
+		if card_sel < 0 and look and look.side == "foe":
 			for t in reach(look).cells:
 				cells[t] = Color(1.0, 0.45, 0.2, 0.6)
 			var ar: int = {"fanal": 3, "etendard": 2, "ordre": 2}.get(look.data.get("aura", ""), 0)
@@ -3916,13 +3961,17 @@ func preview(hover) -> String:
 			t += "  ·  " + ", ".join(ps.map(func(p): return Data.PASSIVES[p].name))
 		return t
 	if loot.has(hover):
-		var lt: Dictionary = Data.TOOLS[loot[hover][0]]
-		return "Butin : %s — %s  (un héros qui y passe le ramasse)" % [lt.name, lt.text]
+		return "Butin : %s — un héros qui y passe en prend la carte" % Data.def(Data.obj_of(loot[hover][0])).name
 	if tiles.has(hover):
 		var tl: Dictionary = Data.TILES[tiles[hover]]
 		return "%s — %s" % [tl.name, tl.text]
 	if oaks.has(hover):
-		return "Chêne planté — barre la case ; +3 armure aux héros voisins ; une explosion l'embrase"
+		var th: String = " — %d/%d PV" % [tree_hp.get(hover, 0), oak_max.get(hover, 10)]
+		if smolder.has(hover):
+			return "Ce chêne couve : il prendra feu à la prochaine manche" + th
+		if int(oak_aura.get(hover, 0)) > 0:
+			return "Chêne%s · +%d armure aux héros voisins%s. Frappe-le pour l'abattre." % [th, oak_aura[hover], " · le feu ne le consume pas" if oak_fp.has(hover) else ""]
+		return "Arbre%s. Frappe-le pour l'abattre. Le feu le consume et gagne les arbres voisins." % th
 	if smoke.has(hover):
 		return "Fumée (%d tour(s)) — on n'y vise pas de loin ; au contact, coups de dos" % smoke[hover]
 	if traps.has(hover):
@@ -3937,9 +3986,9 @@ func preview(hover) -> String:
 	if board._in(hover):
 		var k: String = board.kind[hover]
 		if k == "water":
-			return "Eau profonde — y pousser un ennemi le noie" + (" (pont-levis)" if board.drawbridge.has(hover) else "")
+			return "Eau profonde — y pousser un ennemi le noie"
 		if board.blocked.has(hover):
-			return "Arbre" if board.blocked[hover] == "tree" else "Lanterne"
+			return "Arbre"
 		if k == "tower":
 			return "Tour"
 		return "Hauteur %d" % board.h[hover]
@@ -3973,7 +4022,7 @@ func sheet(u: Unit) -> String:
 		var worn: Array = Data.SLOTS.filter(func(sl): return u.equip.get(sl, "") != "").map(func(sl): return Data.ITEMS[u.equip[sl]].name)
 		L.append("Équipement — %s" % (", ".join(worn) if worn.size() > 0 else "rien") + " · clic sur son portrait : la fiche")
 		if u.key == "receleur":
-			L.append("Bricole %d / 3" % bricole)
+			L.append("Double fond : ses cartes-objets ne comptent pas dans sa main · Tour de main : ses objets +2 (sinon pioche 1) · Stock %d" % stock())
 		if tiles.has(u.cell):
 			L.append("Sur %s : %s" % [Data.TILES[tiles[u.cell]].name, Data.TILES[tiles[u.cell]].text])
 		var n := hand.filter(func(ci): return Data.card(ci).owner == u.key).size()
@@ -3994,7 +4043,7 @@ func sheet(u: Unit) -> String:
 	L.append(_intent_text(u))
 	if u.tool != "":
 		var td: Dictionary = Data.TOOLS[u.tool]
-		L.append("%s Porte : %s — %s. À voler, ou il le lâche en tombant." % [td.glyph, td.name, td.get("foe_ai", "")])
+		L.append("%s Porte : %s — il %s. Vole-le : sa carte arrive dans ta main (ou il la lâche en tombant)." % [td.glyph, td.name, td.get("foe_ai", "s'en servira")])
 	L.append(Data.FOE_TIPS.get(u.key, ""))
 	if u.affix != "":
 		L.append("♛ %s : %s" % [Data.AFFIXES[u.affix].name, Data.AFFIXES[u.affix].text])
@@ -4136,7 +4185,7 @@ func _place(c: Dictionary, t: Vector2i, h: Unit) -> void:
 		if k == "tourelle":
 			var tt := int(c.get("turns", 3))
 			if c.get("turns_items", false):
-				tt = maxi(tt, besace.size())
+				tt = maxi(tt, stock())
 			turrets[t] = {"turns": tt, "dmg": int(c.get("tdmg", 4)), "push": int(c.get("tpush", 0)), "mark": c.get("tmark", false),
 				"pierce": c.get("tpierce", false), "far": c.get("tfar", false), "range": int(c.get("trange", 5)),
 				"grow": int(c.get("tgrow", 0)), "base": int(c.get("tdmg", 4))}
@@ -4194,6 +4243,7 @@ func _spring(f: Unit) -> void:
 	traps.erase(f.cell)
 	trap_kind.erase(f.cell)
 	trap_dmg.erase(f.cell)
+	picot_root.erase(f.cell)
 	node.queue_free()
 	main.shake(0.35 if k == "piege" else 0.2)
 	Fx.number(main, f.position + Vector3(0, 0.6, 0), "Piège !" if k == "piege" else "Picots !", Color(1.0, 0.8, 0.4), true)
@@ -4227,7 +4277,9 @@ func _spring(f: Unit) -> void:
 				_steal(active if active else heroes[0], f)
 				damage(f, td + plus)
 			_:
-				damage(f, 5 + plus)
+				if int(picot_root.get(cell, 0)) > 0:
+					f.root = maxi(f.root, int(picot_root[cell]))
+				damage(f, td + plus)  # les picots portent leurs dégâts (trap_dmg)
 		if rep_i == 0 and k != "mine" and powers.has("piquets"):
 			var po: Unit = power_owner.get("piquets")
 			if po and po.alive:
@@ -4429,46 +4481,212 @@ func _hero_dist(c: Vector2i) -> int:
 	return best
 
 
-# ------------------------------------------------------------------ besace : objets à usage unique
+# ------------------------------------------------------------------ cartes-objets
 
-func besace_cap() -> int:
-	return besace_max + ((2 + int(power_val.get("poches", 0))) if powers.has("poches") else 0)
-
-
-func _base(c: Dictionary, h: Unit, t) -> int:
-	## Dégâts de base d'une carte avant hauteur, dos, marque...
-	return int(c.get("dmg", 0)) + int(c.get("combo", 0)) * h.combo + _trig_dmg(c, h, t) + int(c.get("flow", 0)) * played + int(c.get("junk", 0)) * besace.size() \
-		+ int(h.block * float(c.get("per_block", 0.0))) + int(c.get("per_boom", 0)) * booms \
-		+ int(c.get("per_missing", 0)) * ((h.max_hp - h.hp) / 5) + int(c.get("per_tele", 0)) * h.teles \
-		+ int(c.get("per_used", 0)) * used_turn + int(c.get("_dropv", 0)) + int(c.get("_chg", 0)) \
-		+ int(c.get("per_drawn", 0)) * drawn_turn + int(c.get("per_exhaust", 0)) * int(exhaust_n.get(h, 0)) \
-		+ int(c.get("per_marked", 0)) * alive_foes().filter(func(o): return o.mark > 0).size() \
-		+ (int(c.get("consume_root", 0)) * (unit_at(t).root if t is Vector2i and unit_at(t) else 0))
+func _sim(k: String, n := 1) -> void:
+	sim[k] = int(sim.get(k, 0)) + n
 
 
-func select_tool(i: int) -> void:
-	if not player_turn or busy or over or i >= besace.size():
+func stock() -> int:
+	## Stock : cartes-objets de l'escouade encore en jeu (Éphémères exclues), 4 au plus.
+	var is_obj := func(ci): return Data.def(ci.id).has("tool") and not ci.get("eph", false)
+	var n := hand.filter(is_obj).size()
+	for u in alive_heroes():
+		if piles.has(u):
+			for k in ["draw", "discard", "keep"]:
+				n += piles[u][k].filter(is_obj).size()
+	return mini(n, 4)
+
+
+func objs_in_hand(filter := Callable()) -> Array:
+	## Indices des cartes-objets de la main (le filtre reçoit l'instance).
+	return range(hand.size()).filter(func(i): return Data.def(hand[i].id).has("tool") and (not filter.is_valid() or filter.call(hand[i])))
+
+
+func _pick_obj(title: String, idx: Array) -> int:
+	## Quelle carte-objet de la main : d'office s'il n'y en a qu'une ; sinon au choix (auto-jeu : la plus basse).
+	if idx.is_empty():
+		return -1
+	if idx.size() == 1 or main._testing():
+		idx.sort_custom(func(a, b): return Data.level(hand[a]) + (5 if Data.card(hand[a]).get("legend", false) else 0) < Data.level(hand[b]) + (5 if Data.card(hand[b]).get("legend", false) else 0))
+		return idx[0]
+	var j: int = await main.ui.choose(title, "Quelle carte-objet ?", idx.map(func(i): return {"card": hand[i]}))
+	return idx[maxi(0, j)]
+
+
+func _spend_obj(ci: Dictionary) -> void:
+	## Comptabilité d'une carte-objet qui quitte la main (jouée, démontée ou lancée).
+	var c := Data.card(ci)
+	if c.get("eph", false):
 		return
-	if tool_sel == i:
-		tool_sel = -1
-		changed.emit()
+	if c.get("legend", false):
+		exhausted.append(ci)
 		return
-	if selected == null or not selected.alive:
-		main.ui.toast("Choisissez d'abord le héros qui s'en sert.")
+	ci["uses"] = int(ci.get("uses", Data.level(ci))) - 1
+	if int(ci.uses) <= 0:
+		spent.append(ci)
+		exhausted.append(ci)
+	else:
+		exhausted.append(ci)
+
+
+func _item_consumed(h: Unit) -> void:
+	## Chaque carte-objet jouée, démontée ou lancée : compteurs et pouvoirs qui s'en nourrissent.
+	used_turn += 1
+	if powers.has("linfei") and power_owner.get("linfei") == h:
+		h.hits += 1
+		_count_hit(h)
+	if powers.has("marchenoir") and not over:
+		var near: Unit = null
+		for f in alive_foes():
+			if near == null or dist(f.cell, h.cell) < dist(near.cell, h.cell):
+				near = f
+		if near:
+			Fx.bolt(main, h.position, near.position, Data.CLASS_COLOR.receleur.lightened(0.3))
+			damage(near, 4 + int(power_val.get("marchenoir", 0)))
+
+
+const TOOL_MAIN := {"bombe": "bomb", "picots": "picots", "gland": "oak_hp", "sels": "block"}
+
+
+func _tour_de_main(c: Dictionary, h: Unit) -> Dictionary:
+	## Tour de main : les cartes-objets du Receleur gagnent +2 sur leur valeur principale, sinon piochent 1.
+	if h.key != "receleur":
+		return c
+	c = c.duplicate()
+	if TOOL_MAIN.has(c.tool):
+		c[TOOL_MAIN[c.tool]] = int(c.get(TOOL_MAIN[c.tool], 0)) + 2
+	elif c.tool != "fiole":
+		c["draw"] = int(c.get("draw", 0)) + 1
+	return c
+
+
+func _consume(h: Unit) -> String:
+	## Démonte : une carte-objet quitte la main sans son effet (elle perd une charge). "" si la main n'en a pas.
+	var i: int = await _pick_obj("DÉMONTE", objs_in_hand())
+	if i < 0:
+		main.ui.toast("Aucune carte-objet en main.")
+		return ""
+	var ci: Dictionary = hand[i]
+	hand.remove_at(i)
+	_spend_obj(ci)
+	_item_consumed(h)
+	var nm: String = Data.card(ci).name
+	Fx.number(main, h.position + Vector3(0, 1.0, 0), "Démonté : " + nm, GOLD_FX)
+	changed.emit()
+	return Data.def(ci.id).tool
+
+
+func _recharge_ci(ci: Dictionary, n: int, rule := true) -> bool:
+	var c := Data.card(ci)
+	if c.tool == "fiole" or c.get("eph", false) or c.get("legend", false) or (rule and ci.get("rch", false)):
+		return false
+	ci["uses"] = mini(3, int(ci.get("uses", Data.level(ci))) + n)
+	if rule:
+		ci["rch"] = true
+	return true
+
+
+func _recharge(h: Unit, n: int) -> void:
+	## Recharge : +n charges à une carte-objet de la main, sinon à la première de la pioche du héros.
+	var ok := func(ci): return _recharge_ci(ci.duplicate(), 0)
+	var idx := objs_in_hand(ok)
+	var ci = null
+	if idx.size() > 0:
+		ci = hand[await _pick_obj("RECHARGE", idx)]
+	else:
+		for x in draw_pile:
+			if Data.def(x.id).has("tool") and _recharge_ci(x.duplicate(), 0):
+				ci = x
+				break
+	if ci == null:
+		main.ui.toast("Rien à recharger.")
 		return
-	card_sel = -1
-	tool_sel = i
-	if Data.TOOLS[besace[i]].target == "self":
-		use_tool(i, selected.cell)
-		return
-	if tool_targets(besace[i], selected).is_empty():
-		main.ui.toast("Aucune cible à portée de %s." % selected.nm)
+	_recharge_ci(ci, n)
+	Fx.number(main, h.position + Vector3(0, 1.2, 0), "Recharge : %s (%d)" % [Data.card(ci).name, int(ci.uses)], GOLD_FX)
 	changed.emit()
 
 
-func tool_targets(id: String, h: Unit) -> Array:
+func _craft(n: int, h: Unit = null, min_rar := 1, tool := "") -> void:
+	## Fabrique : des cartes-objets Éphémères dans la main (commune 75 %, peu commune 20 %, rare 3 %, légendaire 2 %).
+	if h == null:
+		h = active
+	if h == null:
+		return
+	for k in n:
+		var id := Data.obj_of(tool) if tool != "" else ""
+		var lvl := 1
+		if id == "":
+			var roll := rng.randf()
+			if roll < 0.02:
+				lvl = 3
+			var rar := 3 if roll < 0.05 else (2 if roll < 0.25 else 1)
+			rar = maxi(rar, min_rar)
+			var ids: Array = Data.CARDS.keys().filter(func(x): return Data.CARDS[x].has("tool") and (lvl == 3 or Data.CARDS[x].rar == rar))
+			id = ids[rng.randi_range(0, ids.size() - 1)]
+		if hand.size() >= 10:
+			break
+		hand.append({"id": id, "lvl": lvl, "h": h.key, "eph": true})
+		if lvl == 3:
+			main.library_see(id + "#3")
+			main.ui.banner("Coup de chance !", "%s fabrique un légendaire : %s" % [h.nm, Data.card({"id": id, "lvl": 3, "h": h.key}).name])
+		Fx.number(main, h.position + Vector3(0, 1.0 + k * 0.35, 0), "+ " + Data.card({"id": id, "lvl": lvl, "h": h.key}).name, GOLD_FX)
+	changed.emit()
+
+
+func _craft_id(id: String, n: int, h: Unit) -> void:
+	_craft(n, h, 1, id)
+
+
+func give_obj(h: Unit, id: String, lvl := 1) -> Dictionary:
+	## Une carte-objet gagnée en combat : dans la main si c'est le tour du héros, sinon en réserve pour son tour.
+	var ci: Dictionary = main.gain_obj(id, h.key, lvl)
+	if ci.is_empty():
+		return ci
+	if not (hand.has(ci) or (piles.has(h) and (piles[h].draw.has(ci) or piles[h].discard.has(ci) or piles[h].keep.has(ci) or piles[h].exhausted.has(ci)))):
+		if active == h:
+			hand.append(ci)
+		elif piles.has(h):
+			piles[h].keep.append(ci)
+	won_objs.append(ci)
+	changed.emit()
+	return ci
+
+
+func _copy_item(h: Unit) -> bool:
+	## Contrefaçon : une copie niveau 1, Éphémère, d'une carte-objet de la main.
+	var i: int = await _pick_obj("COPIE", objs_in_hand())
+	if i < 0 or hand.size() >= 10:
+		main.ui.toast("Rien à copier.")
+		return false
+	hand.append({"id": hand[i].id, "lvl": 1, "h": h.key, "eph": true})
+	Fx.number(main, h.position + Vector3(0, 0.6, 0), "Copie : " + Data.def(hand[i].id).name, GOLD_FX)
+	changed.emit()
+	return true
+
+
+func _throw_item(h: Unit, t: Vector2i) -> void:
+	## Lance : une carte-objet de la main joue son effet sur la cible (jamais un outil de soin d'allié).
+	var i: int = await _pick_obj("LANCE", objs_in_hand(func(ci): return Data.TOOLS[Data.def(ci.id).tool].target != "ally"))
+	if i < 0:
+		return
+	var ci: Dictionary = hand[i]
+	hand.remove_at(i)
+	var c := _tour_de_main(Data.card(ci), h)
+	var tt: String = Data.TOOLS[c.tool].target
+	var at := h.cell if tt == "self" else t
+	if tt == "free" and not (board.walkable(t) and unit_at(t) == null):
+		at = _nearest_free(t)
+	await Fx.bolt(main, h.position, board.world(t), GOLD_FX)
+	await _apply_tool(c.tool, h, at, c)
+	_spend_obj(ci)
+	_item_consumed(h)
+
+
+func tool_targets(id: String, h: Unit, r: Array = []) -> Array:
 	var t: Dictionary = Data.TOOLS[id]
-	var r: Array = t.get("range", [0, 0])
+	if r.is_empty():
+		r = t.get("range", [0, 0])
 	var out: Array = []
 	match t.target:
 		"self":
@@ -4494,150 +4712,189 @@ func tool_targets(id: String, h: Unit) -> Array:
 	return out
 
 
-func use_tool(i: int, t: Vector2i) -> void:
-	var id: String = besace[i]
-	var h := selected
-	besace.remove_at(i)
-	used_turn += 1
-	if powers.has("oriel") and not oriel_back.has(id):
-		oriel_back[id] = true
-		besace.append(id)
-		Fx.number(main, h.position + Vector3(0, 1.2, 0), "Dame Oriel : %s revient" % Data.TOOLS[id].name, GOLD_FX)
-	if powers.has("linfei") and power_owner.get("linfei") == h:
-		h.hits += 1
-		_count_hit(h)
-	tool_sel = -1
-	busy = true
-	board.highlight({})
-	main.ui.toast("%s — %s" % [h.nm, Data.TOOLS[id].name])
-	changed.emit()
-	await _apply_tool(id, h, t)
-	if item_echo == h and DOUBLABLE.has(id) and not over:
-		item_echo = null
-		Fx.number(main, h.position + Vector3(0, 1.3, 0), "Écho : %s" % Data.TOOLS[id].name, GOLD_FX)
-		await _apply_tool(id, h, t)
-	if powers.has("marchenoir") and not over:
-		var near: Unit = null
-		for f in alive_foes():
-			if near == null or dist(f.cell, h.cell) < dist(near.cell, h.cell):
-				near = f
-		if near:
-			await Fx.bolt(main, h.position, near.position, Data.CLASS_COLOR.receleur.lightened(0.3))
-			damage(near, 4 + int(power_val.get("marchenoir", 0)))
-	busy = false
-	changed.emit()
-	_after_action()
+func _area(t: Vector2i, kind: String) -> Array:
+	## Croix (5 cases), anneau 3×3 ou losange de rayon 2.
+	var out: Array = [t]
+	match kind:
+		"ring":
+			for d in RING8:
+				out.append(t + d)
+		"diamond":
+			for dx in range(-2, 3):
+				for dz in range(-2, 3):
+					if absi(dx) + absi(dz) <= 2 and (dx != 0 or dz != 0):
+						out.append(t + Vector2i(dx, dz))
+		_:
+			for d in Board.DIRS:
+				out.append(t + d)
+	return out
 
 
-func _apply_tool(id: String, u: Unit, t: Vector2i) -> void:
-	## Effet d'un objet, qu'un héros ou un ennemi s'en serve.
+func _apply_tool(id: String, u: Unit, t: Vector2i, c := {}) -> void:
+	## Effet d'un outil, qu'un héros le joue en carte (c : la carte montée au niveau) ou qu'un ennemi s'en serve.
 	if t != u.cell:
 		u.face(t - u.cell)
 	await u.cast()
 	var tgt := unit_at(t)
-	if item_poison > 0 and u.side == "hero" and tgt and tgt.side == "foe":
+	var hero: bool = u.side == "hero"
+	if item_poison > 0 and hero and tgt and tgt.side == "foe":
 		tgt.poison += item_poison
-	match id:
-		"fiole":
-			if tgt:
-				heal(tgt, 20 if fiole2 and u.side == "hero" else 10)
-		"sels":
-			if tgt:
-				tgt.poison = 0
-				tgt.root = 0
-				gain_block(tgt, 6)
-		"elixir":
-			energy += 2
-			Fx.number(main, u.position + Vector3(0, 0.6, 0), "+2 énergie", GOLD_FX)
-		"carnet":
-			draw(3)
-		"de":
-			var n := hand.size()
-			discard.append_array(hand)
-			hand.clear()
-			draw(n)
-		"sablier":
-			for f in alive_foes():
-				f.root = maxi(f.root, 1)
-				Fx.number(main, f.position + Vector3(0, 0.5, 0), "⛓", Color(0.8, 0.9, 1.0))
-		"filet":
-			if tgt:
-				await Fx.bolt(main, u.position, tgt.position, Color(0.9, 0.85, 0.7))
-				if root_hero(tgt, 2):
-					Fx.number(main, tgt.position + Vector3(0, 0.5, 0), "⛓ Entravé", Color(0.8, 0.9, 1.0))
-		"fumigene":
-			await Fx.bolt(main, u.position, board.world(t), Color(0.85, 0.85, 0.85))
-			for c in [t, t + Vector2i(1, 0), t + Vector2i(-1, 0), t + Vector2i(0, 1), t + Vector2i(0, -1)]:
-				if board._in(c) and board.kind[c] != "tower":
-					_smoke(c, 2)
-		"bombe":
-			await Fx.bolt(main, u.position, board.world(t), EMBER)
-			_explode(t, 8 if u.side == "hero" else 6, true)
-		"tonnelet":
-			board.props[t] = "baril"
-			_make_prop(t)
-		"picots":
-			for c in [t, t + Vector2i(1, 0), t + Vector2i(-1, 0), t + Vector2i(0, 1), t + Vector2i(0, -1)]:
-				if board.walkable(c) and unit_at(c) == null and not traps.has(c):
-					var node := Node3D.new()
-					var mi := MeshInstance3D.new()
-					mi.mesh = Board.mesh_of("prop_picots").mesh
-					mi.material_override = Board.material("prop")
-					node.add_child(mi)
-					node.position = board.world(c)
-					node.rotation.y = randf() * TAU
-					units_root.add_child(node)
-					traps[c] = node
-					trap_kind[c] = "picots"
-		"grappin":
-			await Fx.bolt(main, u.position + Vector3(0, 0.8, 0), board.world(t) + Vector3(0, 0.3, 0), Color(0.85, 0.85, 0.8))
-			await u.teleport(t, board)
-			if loot.has(u.cell):
-				_pick_loot(u, u.cell)
-			await _landed(u)
-			_check_portal(u)
-		"gland":
-			_plant(t)
+	var times := 1
+	if hero and item_echo == u and DOUBLABLE.has(id):
+		item_echo = null
+		times = 2
+		Fx.number(main, u.position + Vector3(0, 1.3, 0), "Écho : " + Data.TOOLS[id].name, GOLD_FX)
+	for rep_i in times:
+		match id:
+			"fiole":
+				if tgt:
+					var amt: int = int(c.get("heal", 10)) * (2 if fiole2 and hero else 1)
+					var extra := maxi(0, amt - (tgt.max_hp - tgt.hp))
+					heal(tgt, amt)
+					if c.get("cleanse", "") != "":
+						tgt.poison = 0
+						if c.cleanse == "all":
+							tgt.root = 0
+					if c.get("overheal", false) and extra > 0:
+						gain_block(tgt, extra)
+			"sels":
+				for a in (alive_heroes() if c.get("all", false) and hero else ([tgt] if tgt else [])):
+					a.poison = 0
+					a.root = 0
+					gain_block(a, int(c.get("block", 6)))
+			"elixir":
+				Fx.number(main, u.position + Vector3(0, 0.6, 0), "+%d énergie" % int(c.get("energy", 2)), GOLD_FX)
+				if c.is_empty():
+					energy += 2
+			"carnet":
+				var before := hand.size()
+				draw(int(c.get("draw", 3)))
+				if int(c.get("cut_drawn", 0)) > 0:
+					for k in range(before, hand.size()):
+						hand[k]["cut"] = int(c.cut_drawn)
+			"de":
+				var n := hand.size()
+				discard.append_array(hand)
+				hand.clear()
+				draw(n + int(c.get("reroll", 0)))
+			"sablier":
+				for f in alive_foes():
+					f.root = maxi(f.root, int(c.get("root_all", 1)))
+					if c.get("expose_all", false):
+						f.exposed = true
+					Fx.number(main, f.position + Vector3(0, 0.5, 0), "⛓", Color(0.8, 0.9, 1.0))
+				if int(c.get("block", 0)) > 0:
+					for a in (alive_heroes() if c.get("all", false) else [u]):
+						gain_block(a, int(c.block))
+			"filet":
+				if tgt:
+					await Fx.bolt(main, u.position, tgt.position, Color(0.9, 0.85, 0.7))
+					var hit: Array = [tgt]
+					if c.get("splash", false):
+						for o in alive_foes():
+							if o != tgt and dist(o.cell, tgt.cell) == 1:
+								hit.append(o)
+					for o in hit:
+						if root_hero(o, int(c.get("root", 2))):
+							Fx.number(main, o.position + Vector3(0, 0.5, 0), "⛓ Entravé", Color(0.8, 0.9, 1.0))
+						if c.get("expose", false) or c.get("splash", false):
+							o.exposed = true
+			"fumigene":
+				await Fx.bolt(main, u.position, board.world(t), Color(0.85, 0.85, 0.85))
+				for cc in _area(t, c.get("area", "cross")):
+					if board._in(cc) and board.kind[cc] != "tower":
+						_smoke(cc, int(c.get("smoke", 2)))
+						var a := unit_at(cc)
+						if a and a.side == "hero" and int(c.get("smoke_block", 0)) > 0:
+							gain_block(a, int(c.smoke_block))
+				if int(c.get("block", 0)) > 0:
+					gain_block(u, int(c.block))
+			"bombe":
+				await Fx.bolt(main, u.position, board.world(t), EMBER)
+				var area: String = c.get("area", "cross")
+				_explode(t, int(c.get("bomb", 8 if hero else 6)), area != "ring")
+				if int(c.get("push", 0)) > 0:
+					for cc in _area(t, area):
+						var o := unit_at(cc)
+						if o and o.alive and cc != t and o.side == "foe":
+							await push(o, _dir(t, cc), int(c.push))
+			"tonnelet":
+				var dirv := _dir(u.cell, t) if t != u.cell else Vector2i(1, 0)
+				var at := t
+				for k in int(c.get("barils", 1)):
+					if not (board.walkable(at) and unit_at(at) == null and not traps.has(at)):
+						break
+					board.props[at] = "baril"
+					_make_prop(at)
+					at += dirv
+			"brasero":
+				if board.walkable(t) and unit_at(t) == null:
+					board.props[t] = "brasero"
+					_make_prop(t)
+					brasero_aura[t] = int(c.get("aura", 3))
+			"picots":
+				for cc in _area(t, c.get("area", "cross")):
+					if board.walkable(cc) and unit_at(cc) == null and not traps.has(cc):
+						var node := Node3D.new()
+						var mi := MeshInstance3D.new()
+						mi.mesh = Board.mesh_of("prop_picots").mesh
+						mi.material_override = Board.material("prop")
+						node.add_child(mi)
+						node.position = board.world(cc)
+						node.rotation.y = randf() * TAU
+						units_root.add_child(node)
+						traps[cc] = node
+						trap_kind[cc] = "picots"
+						trap_dmg[cc] = int(c.get("picots", 5))
+						if int(c.get("trap_root", 0)) > 0:
+							picot_root[cc] = int(c.trap_root)
+			"grappin":
+				await Fx.bolt(main, u.position + Vector3(0, 0.8, 0), board.world(t) + Vector3(0, 0.3, 0), Color(0.85, 0.85, 0.8))
+				await u.teleport(t, board)
+				if loot.has(u.cell):
+					_pick_loot(u, u.cell)
+				if int(c.get("land_dmg", 0)) > 0:
+					for d in Board.DIRS:
+						var o := unit_at(u.cell + d)
+						if o and o.side == "foe":
+							damage(o, int(c.land_dmg), u)
+				await _landed(u)
+				_check_portal(u)
+			"gland":
+				var cells: Array = [t]
+				for d in Board.DIRS:
+					if cells.size() < int(c.get("oaks_n", 1)) and board.walkable(t + d) and unit_at(t + d) == null and not traps.has(t + d):
+						cells.append(t + d)
+				for cc in cells:
+					_plant(cc, int(c.get("oak_hp", 10)), int(c.get("oak_arm", 0)), int(c.get("oak_aura", 3)), c.get("fireproof", false))
+		if rep_i + 1 < times:
+			await wait(0.25)
 	await wait(0.2)
 
 
-func _craft(n: int, h: Unit = null) -> void:
-	## Bricolage : un objet tiré selon la Bricole accumulée, qui se vide.
-	for k in n:
-		if besace.size() >= besace_cap():
-			main.ui.toast("Besace pleine.")
-			break
-		var top := 1 + mini(bricole, 2)
-		var rar: int = top if rng.randf() < 0.6 else rng.randi_range(1, top)
-		var ids: Array = Data.TOOLS.keys().filter(func(id): return Data.TOOLS[id].rar == rar)
-		var id: String = ids[rng.randi_range(0, ids.size() - 1)]
-		besace.append(id)
-		bricole = 0
-		_fourgue(h, false)
-		var at: Vector3 = h.position if h else main.target
-		Fx.number(main, at + Vector3(0, 1.0 + k * 0.35, 0), "+ " + Data.TOOLS[id].name, GOLD_FX)
-	changed.emit()
+func _base(c: Dictionary, h: Unit, t) -> int:
+	## Dégâts de base d'une carte avant hauteur, dos, marque...
+	return int(c.get("dmg", 0)) + int(c.get("combo", 0)) * h.combo + _trig_dmg(c, h, t) + int(c.get("flow", 0)) * played + int(c.get("junk", 0)) * stock() \
+		+ int(h.block * float(c.get("per_block", 0.0))) + int(c.get("per_boom", 0)) * booms \
+		+ int(c.get("per_missing", 0)) * ((h.max_hp - h.hp) / 5) + int(c.get("per_tele", 0)) * h.teles \
+		+ int(c.get("per_used", 0)) * used_turn + int(c.get("_dropv", 0)) + int(c.get("_chg", 0)) \
+		+ int(c.get("per_drawn", 0)) * drawn_turn + int(c.get("per_exhaust", 0)) * int(exhaust_n.get(h, 0)) \
+		+ int(c.get("per_marked", 0)) * alive_foes().filter(func(o): return o.mark > 0).size() \
+		+ (int(c.get("consume_root", 0)) * (unit_at(t).root if t is Vector2i and unit_at(t) else 0))
 
 
 func _fourgue(h: Unit, stolen: bool) -> void:
-	## Le Fourgue : chaque objet volé ou fabriqué soigne l'escouade ; un vol rapporte aussi une Bricole.
-	if not powers.has("fourgue"):
+	## Le Fourgue : un vol soigne l'escouade, une fois par tour.
+	if not powers.has("fourgue") or not stolen or fourgue_turn:
 		return
+	fourgue_turn = true
 	for a in alive_heroes():
 		if a.hp < a.max_hp or powers.has("maree_haute"):
 			heal(a, maxi(1, int(power_val.get("fourgue", 1))))
-	var o: Unit = power_owner.get("fourgue")
-	if stolen and o and o.alive:
-		_add_bricole(o, 1)
-
-
-func _add_bricole(h: Unit, n: int) -> void:
-	bricole = mini(3, bricole + n)
-	Fx.number(main, h.position + Vector3(0, 1.1, 0), "Bricole %d / 3" % bricole, Data.CLASS_COLOR.receleur.lightened(0.3))
 
 
 func _steal(h: Unit, f: Unit) -> bool:
-	## Voler rapporte toujours : l'objet porté, sinon ce qui traîne dans ses poches ; besace pleine, on revend.
+	## Voler rapporte toujours : la carte de l'objet porté arrive en main ; sinon ce qui traîne dans ses poches (Éphémère).
 	if f.card_id != "":
 		_card_won(f, "Carte volée")
 		stolen_turn += 1
@@ -4654,30 +4911,28 @@ func _steal(h: Unit, f: Unit) -> bool:
 			Fx.number(main, f.position + Vector3(0, 1.2, 0), "Volé : %s (au sac)" % Data.ITEMS[gid].name, GOLD_FX, true)
 			changed.emit()
 			return true
-	if f.tool == "":
-		var common: Array = Data.TOOLS.keys().filter(func(k): return Data.TOOLS[k].rar == 1)
-		f.tool = common[randi() % common.size()]
-		Fx.number(main, f.position + Vector3(0, 1.5, 0), "Poches fouillées", GOLD_FX)
-	if besace.size() >= besace_cap():
-		main.gold += 12
-		main.ui.set_gold(main.gold)
-		Fx.number(main, f.position + Vector3(0, 1.2, 0), "Revendu : +12 or", GOLD_FX, true)
-		f.tool = ""
-		stolen_turn += 1
-		_fourgue(h, true)
-		changed.emit()
-		return true
-	besace.append(f.tool)
 	stolen_turn += 1
 	_fourgue(h, true)
-	Fx.number(main, f.position + Vector3(0, 1.2, 0), "Volé : " + Data.TOOLS[f.tool].name, GOLD_FX, true)
+	if f.tool == "":
+		# Poches fouillées : une carte-objet commune, Éphémère, dans la main du voleur
+		var common: Array = Data.CARDS.keys().filter(func(k): return Data.CARDS[k].has("tool") and Data.CARDS[k].rar == 1)
+		var id: String = common[randi() % common.size()]
+		if active == h and hand.size() < 10:
+			hand.append({"id": id, "lvl": 1, "h": h.key, "eph": true})
+		Fx.number(main, f.position + Vector3(0, 1.5, 0), "Poches fouillées : " + Data.def(id).name, GOLD_FX, true)
+		changed.emit()
+		return true
+	var ci := give_obj(h, Data.obj_of(f.tool))
+	if powers.has("fourgue") and not ci.is_empty():
+		_recharge_ci(ci, 1, false)
+	Fx.number(main, f.position + Vector3(0, 1.2, 0), "Volé : " + Data.def(Data.obj_of(f.tool)).name, GOLD_FX, true)
 	f.tool = ""
 	changed.emit()
 	return true
 
 
 func _drop(u: Unit) -> void:
-	## L'ennemi qui portait un objet le lâche en tombant : un héros qui passe dessus le ramasse.
+	## L'ennemi qui portait un objet le lâche en tombant : un héros qui passe dessus en prend la carte.
 	if u.tool == "":
 		return
 	var c := u.cell if board.walkable(u.cell) else _nearest_free(u.cell)
@@ -4715,13 +4970,10 @@ func _drop(u: Unit) -> void:
 
 func _pick_loot(h: Unit, c: Vector2i) -> void:
 	var e: Array = loot[c]
-	if besace.size() >= besace_cap():
-		main.ui.toast("Besace pleine : %s reste au sol." % Data.TOOLS[e[0]].name)
-		return
 	loot.erase(c)
 	e[1].queue_free()
-	besace.append(e[0])
-	Fx.number(main, h.position + Vector3(0, 1.1, 0), "+ " + Data.TOOLS[e[0]].name, GOLD_FX)
+	give_obj(h, Data.obj_of(e[0]))
+	Fx.number(main, h.position + Vector3(0, 1.1, 0), "+ " + Data.def(Data.obj_of(e[0])).name, GOLD_FX)
 	changed.emit()
 
 
@@ -4775,6 +5027,7 @@ func _explode(c: Vector2i, dmg: int, cross := false) -> void:
 		dmg += 2
 	Fx.burst(main, board.world(c) + Vector3(0, 0.6, 0), EMBER, 80, 5.0)
 	Fx.number(main, board.world(c), "Boum", EMBER, true)
+	_sim("explosion")
 	main.shake(0.5)
 	var cells: Array = [c]
 	for d in (Board.DIRS if cross else RING8):
@@ -4787,19 +5040,25 @@ func _explode(c: Vector2i, dmg: int, cross := false) -> void:
 			_blast = false
 	for t in cells:
 		if oaks.has(t):
-			_burn(t)
+			_hit_tree(t, 0, true)
 		elif board.props.get(t, "") in BOOM:
 			trigger_prop(t, Vector2i.ZERO)
 	changed.emit()
 
 
-func _plant(c: Vector2i) -> void:
-	board.blocked[c] = "oak"
+func _plant(c: Vector2i, hp := 10, arm := 0, aura := 3, fireproof := false, grow := true) -> void:
+	## Un arbre à PV : du décor (aura 0, sans pousse) ou un chêne planté par une carte-objet.
+	board.blocked[c] = "oak" if aura > 0 else "tree"
+	tree_hp[c] = hp
+	oak_max[c] = hp
+	oak_arm[c] = arm
+	oak_aura[c] = aura
+	if fireproof:
+		oak_fp[c] = true
 	var ess: String = board.biome.get("tree", "green")
-	if ess in ["", "pine"]:
-		ess = "green"
+	var key := "pine_0" if ess == "pine" else "tree_%s_small" % ("green" if ess == "" else ess)
 	var node := Node3D.new()
-	var md := Board.mesh_of("tree_%s_small" % ess)
+	var md := Board.mesh_of(key)
 	for part in ["mesh", "glow"]:
 		if md[part] == null:
 			continue
@@ -4808,28 +5067,104 @@ func _plant(c: Vector2i) -> void:
 		mi.material_override = Board.material_for("tree", part == "glow")
 		node.add_child(mi)
 	node.position = board.world(c)
-	node.scale = Vector3.ONE * 0.1
-	node.create_tween().tween_property(node, "scale", Vector3.ONE * 0.95, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	node.rotation.y = randf() * TAU
 	units_root.add_child(node)
 	oaks[c] = node
-	Fx.burst(main, board.world(c) + Vector3(0, 0.4, 0), Color(0.5, 0.9, 0.4), 30, 2.5, 5.0)
+	var sc := (0.7 if ess == "pine" else 1.0) * (1.0 + 0.08 * arm)
+	if grow:
+		node.scale = Vector3.ONE * 0.1
+		node.create_tween().tween_property(node, "scale", Vector3.ONE * sc, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		Fx.burst(main, board.world(c) + Vector3(0, 0.4, 0), Color(0.5, 0.9, 0.4), 30, 2.5, 5.0)
+	else:
+		node.scale = Vector3.ONE * sc
 
 
-func _burn(c: Vector2i) -> void:
+func _hit_tree(c: Vector2i, n: int, fire := false) -> void:
+	## Un coup sur un arbre : il perd des PV et tombe à zéro (la case se libère). Le feu le consume, sauf s'il est ignifugé.
+	if not oaks.has(c):
+		return
+	if fire and not oak_fp.has(c):
+		_burn(c)
+		return
+	n = 8 if fire else maxi(0, n - int(oak_arm.get(c, 0)))
+	tree_hp[c] = tree_hp.get(c, 10) - n
+	Fx.number(main, board.world(c) + Vector3(0, 1.1, 0), "−%d" % n, Color(0.75, 0.95, 0.55))
+	var node: Node3D = oaks[c]
+	var tw := node.create_tween()
+	tw.tween_property(node, "rotation:z", 0.12, 0.06)
+	tw.tween_property(node, "rotation:z", 0.0, 0.18)
+	if tree_hp[c] <= 0:
+		_sim("arbre_abattu")
+		_fell(c, "L'arbre tombe")
+	changed.emit()
+
+
+func _fell(c: Vector2i, why: String, fire := false) -> void:
 	var node: Node3D = oaks[c]
 	oaks.erase(c)
+	for dd in [tree_hp, oak_arm, oak_aura, oak_fp, oak_max]:
+		dd.erase(c)
 	board.blocked.erase(c)
-	Fx.burst(main, board.world(c) + Vector3(0, 0.8, 0), EMBER, 70, 4.0)
-	Fx.number(main, board.world(c) + Vector3(0, 1.0, 0), "Le chêne flambe", EMBER, true)
+	if smolder.has(c):
+		if is_instance_valid(smolder[c]):
+			smolder[c].queue_free()
+		smolder.erase(c)
+	Fx.burst(main, board.world(c) + Vector3(0, 0.8, 0), EMBER if fire else Color(0.55, 0.8, 0.35), 60, 3.5)
+	Fx.number(main, board.world(c) + Vector3(0, 1.0, 0), why, EMBER if fire else Color(0.75, 0.95, 0.55), true)
 	var tw := node.create_tween()
 	tw.tween_property(node, "scale", Vector3(1.2, 0.05, 1.2), 0.4)
 	tw.tween_callback(node.queue_free)
+
+
+func _burn(c: Vector2i) -> void:
+	## Le feu : l'arbre flambe (6 autour, braseros et barils voisins sautent), les arbres collés couvent.
+	if not oaks.has(c):
+		return
+	_sim("arbre_brule")
+	_fell(c, "L'arbre flambe", true)
 	for d in RING8:
 		var o := unit_at(c + d)
 		if o:
 			_blast = true
 			damage(o, 6)
 			_blast = false
+		if board.props.get(c + d, "") in BOOM:
+			trigger_prop(c + d, Vector2i.ZERO)
+	for d in Board.DIRS:
+		var nb := c + d
+		if oaks.has(nb) and not smolder.has(nb) and not oak_fp.has(nb):
+			smolder[nb] = _ember_mark(nb)
+
+
+func _ember_mark(c: Vector2i) -> Node3D:
+	## La flamme qui couve : on la voit venir un round à l'avance.
+	var l := Label3D.new()
+	l.text = "♨"
+	l.font_size = 64
+	l.outline_size = 12
+	l.modulate = EMBER
+	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l.no_depth_test = true
+	l.position = board.world(c) + Vector3(0, 1.6, 0)
+	units_root.add_child(l)
+	var tw := l.create_tween().set_loops()
+	tw.tween_property(l, "modulate:a", 0.45, 0.5)
+	tw.tween_property(l, "modulate:a", 1.0, 0.5)
+	return l
+
+
+func _smolder_tick() -> void:
+	## Début de round : les arbres qui couvaient s'embrasent, 3 au plus par manche (les autres attendent).
+	var n := 0
+	for c in smolder.keys():
+		if n >= 3:
+			break
+		n += 1
+		if is_instance_valid(smolder[c]):
+			smolder[c].queue_free()
+		smolder.erase(c)
+		if oaks.has(c):
+			_burn(c)
 
 
 func _smoke(c: Vector2i, turns: int) -> void:
@@ -4837,6 +5172,20 @@ func _smoke(c: Vector2i, turns: int) -> void:
 	if smoke_nodes.has(c):
 		return
 	smoke_nodes[c] = Fx.smoke_cloud(units_root, board.world(c) + Vector3(0, 0.35, 0))
+
+
+func _brasero_tick() -> void:
+	## Fin de manche : un brasero posé par une carte brûle les ennemis à son contact.
+	for c in brasero_aura.keys():
+		if board.props.get(c, "") != "brasero":
+			brasero_aura.erase(c)
+			continue
+		for d in RING8:
+			var o := unit_at(c + d)
+			if o and o.side == "foe" and o.alive:
+				_blast = true
+				damage(o, int(brasero_aura[c]))
+				_blast = false
 
 
 func _smoke_tick() -> void:
@@ -5228,29 +5577,6 @@ func _delay(f: Unit, n: int) -> void:
 	Fx.number(main, f.position + Vector3(0, 0.9, 0), "Recule de %d" % n, Color(0.7, 0.85, 1.0))
 
 
-func _consume(h: Unit) -> String:
-	## Détruit le premier objet de la besace ; "" si elle est vide.
-	if besace.is_empty():
-		main.ui.toast("La besace est vide.")
-		return ""
-	var id: String = besace.pop_front()
-	used_turn += 1
-	Fx.number(main, h.position + Vector3(0, 1.0, 0), "Détruit : " + Data.TOOLS[id].name, GOLD_FX)
-	changed.emit()
-	return id
-
-
-func _craft_id(id: String, n: int, h: Unit) -> void:
-	for k in n:
-		if besace.size() >= besace_cap():
-			main.ui.toast("Besace pleine.")
-			break
-		besace.append(id)
-		_fourgue(h, false)
-		Fx.number(main, h.position + Vector3(0, 1.0 + k * 0.35, 0), "+ " + Data.TOOLS[id].name, GOLD_FX)
-	changed.emit()
-
-
 func _lure(t: Vector2i, n: int) -> void:
 	## Les ennemis à 4 cases avancent vers la case ; un piège sur la route les prend.
 	var near: Array = alive_foes().filter(func(f): return dist(f.cell, t) <= 4 and f.cell != t)
@@ -5372,26 +5698,36 @@ func _self_fx(c: Dictionary, h: Unit) -> void:
 			if n > 0 and board.walkable(sp) and unit_at(sp) == null and not traps.has(sp) and not board.props.has(sp):
 				_make_trap(sp, "piege", 8)
 				n -= 1
-	if c.get("consume", false):
-		if _consume(h) != "":
-			if c.get("c_block", 0) > 0:
-				gain_block(h, c.c_block)
-			if c.get("c_energy", 0) > 0:
-				energy += c.c_energy
-				Fx.number(main, h.position + Vector3(0, 0.6, 0), "+%d énergie" % c.c_energy, GOLD_FX)
+	if c.get("copy_item", false):
+		await _copy_item(h)
+	var dem := ""
+	if c.get("consume", false) or c.get("sell", 0) > 0:
+		dem = await _consume(h)
+	if dem != "":
+		if c.get("c_block", 0) > 0:
+			gain_block(h, c.c_block)
+		if c.get("c_energy", 0) > 0:
+			energy += c.c_energy
+			Fx.number(main, h.position + Vector3(0, 0.6, 0), "+%d énergie" % c.c_energy, GOLD_FX)
+		if c.get("sell", 0) > 0:
+			var got := mini(int(c.sell), 30 - sold_gold)
+			sold_gold += got
+			main.gold += got
+			main.ui.set_gold(main.gold)
+			Fx.number(main, h.position + Vector3(0, 1.3, 0), ("+%d or" % got) if got > 0 else "Le fourgue n'en veut plus", GOLD_FX, true)
 	if c.get("craft_id", "") != "":
 		_craft_id(c.craft_id, int(c.get("craft_n", 1)), h)
-	if c.get("iblock", 0) > 0 and besace.size() > 0:
-		gain_block(h, int(c.iblock) * besace.size())
+	if c.get("iblock", 0) > 0 and stock() > 0:
+		gain_block(h, int(c.iblock) * stock())
 	if c.get("idraw", 0) > 0:
-		draw(mini(int(c.idraw), besace.size()))
+		draw(mini(int(c.idraw), objs_in_hand().size()))
 	if c.get("filiere", false):
 		var n := mini(2, stolen_turn)
 		if n > 0:
 			draw(n)
 			energy += n
-	if c.get("bricole", 0) > 0:
-		_add_bricole(h, c.bricole)
+	if c.get("recharge", 0) > 0:
+		await _recharge(h, int(c.recharge))
 	if c.get("rpoison", 0) > 0:
 		var live := alive_foes()
 		if live.size() > 0:
@@ -5461,10 +5797,10 @@ func _self_fx(c: Dictionary, h: Unit) -> void:
 			turrets[tc].dmg = int(turrets[tc].dmg) + int(c.hone)
 			turrets[tc]["base"] = int(turrets[tc].get("base", 4)) + int(c.hone)
 			Fx.number(main, board.world(tc) + Vector3(0, 1.0, 0), "Affûtée +%d" % int(c.hone), GOLD_FX)
-	if c.get("add_card", "") != "" and c.get("add_per_item", false) and besace.is_empty():
-		main.ui.toast("Besace vide.")
+	if c.get("add_card", "") != "" and c.get("add_per_item", false) and stock() == 0:
+		main.ui.toast("Stock vide.")
 	elif c.get("add_card", "") != "":
-		for k in (mini(besace.size(), 3) if c.get("add_per_item", false) else int(c.get("add_n", 1))):
+		for k in (mini(stock(), 3) if c.get("add_per_item", false) else int(c.get("add_n", 1))):
 			if hand.size() < 10:
 				hand.append({"id": c.add_card, "lvl": 1, "eph": true, "h": h.key})
 	if c.get("flashback", false):
@@ -5474,13 +5810,6 @@ func _self_fx(c: Dictionary, h: Unit) -> void:
 			Fx.number(main, h.position + Vector3(0, 1.1, 0), "Flashback : " + Data.def(fb.id).name, Color(0.85, 0.7, 1.0))
 		else:
 			draw(1)
-	if c.get("sell", 0) > 0:
-		if _consume(h) != "":
-			var got := mini(int(c.sell), 30 - sold_gold)
-			sold_gold += got
-			main.gold += got
-			main.ui.set_gold(main.gold)
-			Fx.number(main, h.position + Vector3(0, 1.3, 0), ("+%d or" % got) if got > 0 else "Le fourgue n'en veut plus", GOLD_FX, true)
 	if c.get("oeuvre", false):
 		var idx: Array = range(deck.size()).filter(func(q): return Data.level(deck[q]) < Data.MAX_LVL)
 		if idx.size() > 0:

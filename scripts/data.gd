@@ -10,6 +10,7 @@ const CLASS_COLOR := {
 	"trappeur": Color("#c9a23a"),
 	"tidiane": Color("#d0409a"),
 	"receleur": Color("#9fb4c2"),
+	"objet": Color("#c9a86a"),
 }
 const CLASS_GLYPH := {"garde": "🛡", "lame": "🗡", "oracle": "✺"}
 
@@ -21,7 +22,7 @@ const HEROES := {
 	"moine": {"name": "Moine", "title": "Paume du Ressac", "hp": 32, "speed": 7, "move": 4, "jump": 3, "role": "Enchaîne au contact, bondit, tourbillonne."},
 	"trappeur": {"name": "Trappeur", "title": "Chasseur des Hauts-Fonds", "hp": 28, "speed": 7, "move": 4, "jump": 3, "role": "Pièges, marques, filets, harpons."},
 	"tidiane": {"name": "Tidiane", "title": "Le Paradoxe du Potentiel", "hp": 30, "speed": 6, "move": 4, "jump": 3, "role": "Artisan Grixis : Analyse, Émotion, Ambition. Paie en PV pour frapper fort."},
-	"receleur": {"name": "Receleur", "title": "Main leste des Hauts-Quais", "hp": 30, "speed": 8, "move": 4, "jump": 3, "role": "Vole les objets des ennemis, bricole et recycle la besace."},
+	"receleur": {"name": "Receleur", "title": "Main leste des Hauts-Quais", "hp": 30, "speed": 8, "move": 4, "jump": 3, "role": "Vole les objets des ennemis, les fabrique et les recharge. Ses cartes-objets ne lui bouchent pas la main."},
 }
 
 const FOES := {
@@ -206,17 +207,17 @@ const CARDS := {
 	"dnb": {"name": "Drum & Bass", "owner": "tidiane", "voix": "B", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "dnb", "text": "Pouvoir : pioche 1 carte de plus à chaque tour."},
 	"obsession": {"name": "Obsession", "owner": "tidiane", "voix": "N", "rar": 3, "cost": 3, "kind": "power", "target": "self", "power": "obsession", "text": "Pouvoir : +1 énergie à chaque tour."},
 	"larcin": {"name": "Larcin", "owner": "receleur", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 4, "steal": true, "trig": {"on": "grace", "draw": 1}, "text": "Vole l'objet de la cible, puis inflige {dmg}."},
-	"cle": {"name": "Clé anglaise", "owner": "receleur", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 6, "bricole": 1, "trig": {"on": "mur", "dmg": 3}, "text": "Inflige {dmg}. +1 Bricole."},
-	"bricolage": {"name": "Bricolage", "owner": "receleur", "rar": 1, "cost": 1, "kind": "skill", "target": "self", "craft": 1, "block": 3, "text": "Fabrique un objet dans la besace. +{block} armure."},
-	"camelote": {"name": "Jet de camelote", "owner": "receleur", "rar": 1, "cost": 1, "kind": "atk", "range": [2, 4], "dmg": 3, "junk": 3, "trig": {"on": "precision", "dmg": 3}, "text": "Inflige {dmg}, +3 par objet en besace."},
-	"crochetage": {"name": "Crochetage", "owner": "receleur", "rar": 2, "cost": 0, "kind": "atk", "range": [1, 3], "dmg": 0, "steal": true, "draw": 1, "text": "Vole l'objet d'un ennemi à 3 cases. Pioche 1."},
-	"recyclage": {"name": "Recyclage", "owner": "receleur", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "recycle": true, "text": "Détruit le premier objet de la besace : +1 énergie, +1 Bricole."},
-	"contrefacon": {"name": "Contrefaçon", "owner": "receleur", "rar": 2, "cost": 1, "kind": "skill", "target": "self", "dupe": true, "exhaust": true, "text": "Copie le dernier objet de la besace. Épuise."},
-	"coupdesac": {"name": "Coup de sac", "owner": "receleur", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 7, "push": 1, "trig": {"on": "grace", "energy": 1}, "text": "Inflige {dmg} et repousse 1."},
-	"etal": {"name": "Étal volant", "owner": "receleur", "rar": 2, "cost": 1, "kind": "skill", "target": "self", "craft": 2, "exhaust": true, "text": "Fabrique deux objets. Épuise."},
-	"lecasse": {"name": "Le Casse", "owner": "receleur", "rar": 3, "cost": 2, "kind": "atk", "range": [1, 1], "dmg": 11, "steal": true, "craft_else": true, "text": "Vole l'objet de la cible (sinon en fabrique un), puis inflige {dmg}."},
-	"marchenoir": {"name": "Marché noir", "owner": "receleur", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "marchenoir", "text": "Pouvoir : chaque objet utilisé inflige 4 à l'ennemi le plus proche."},
-	"poches": {"name": "Poches sans fond", "owner": "receleur", "rar": 3, "cost": 2, "kind": "power", "target": "self", "power": "poches", "text": "Pouvoir : besace +2 places, un objet fabriqué à chaque tour."},
+	"cle": {"name": "Clé anglaise", "owner": "receleur", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 6, "trig": {"on": "mur", "dmg": 3}, "text": "Inflige {dmg}."},
+	"bricolage": {"name": "Bricolage", "owner": "receleur", "rar": 1, "cost": 1, "kind": "skill", "target": "self", "craft": 1, "block": 4, "text": "Fabrique 1. +{block} armure."},
+	"camelote": {"name": "Jet de camelote", "owner": "receleur", "rar": 1, "cost": 1, "kind": "atk", "range": [2, 4], "dmg": 3, "junk": 2, "trig": {"on": "precision", "dmg": 3}, "text": "Inflige {dmg}, +{junk} par Stock."},
+	"crochetage": {"name": "Crochetage", "owner": "receleur", "rar": 2, "cost": 0, "kind": "atk", "range": [1, 3], "dmg": 0, "steal": true, "draw": 1, "text": "Vole l'objet d'un ennemi à {rmax} cases. Pioche {draw}."},
+	"recyclage": {"name": "Recyclage", "owner": "receleur", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "consume": true, "c_energy": 1, "text": "Démonte 1 : +{c_energy} énergie."},
+	"contrefacon": {"name": "Contrefaçon", "owner": "receleur", "rar": 2, "cost": 1, "kind": "skill", "target": "self", "copy_item": true, "exhaust": true, "text": "Copie une carte-objet de ta main : la copie, niveau 1, est Éphémère. Épuise."},
+	"coupdesac": {"name": "Coup de sac", "owner": "receleur", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 7, "push": 1, "throw": true, "trig": {"on": "grace", "energy": 1}, "text": "Lance une carte-objet, puis inflige {dmg} et repousse 1."},
+	"etal": {"name": "Étal volant", "owner": "receleur", "rar": 2, "cost": 1, "kind": "skill", "target": "self", "craft": 2, "exhaust": true, "text": "Fabrique 2. Épuise."},
+	"lecasse": {"name": "Le Casse", "owner": "receleur", "rar": 3, "cost": 2, "kind": "atk", "range": [1, 1], "dmg": 11, "steal": true, "craft_else": true, "text": "Vole l'objet de la cible (sinon Fabrique 1), puis inflige {dmg}."},
+	"marchenoir": {"name": "Marché noir", "owner": "receleur", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "marchenoir", "text": "Pouvoir : chaque objet consommé inflige 4 à l'ennemi le plus proche."},
+	"poches": {"name": "Poches sans fond", "owner": "receleur", "rar": 3, "cost": 2, "kind": "power", "target": "self", "power": "poches", "text": "Pouvoir : au début de chaque tour du Receleur, Fabrique 1."},
 	"lotus": {"name": "Lotus", "owner": "oracle", "rar": 3, "cost": 2, "kind": "skill", "target": "self", "heal_all": 5, "text": "Soigne {heal_all} tous les alliés."},
 	# ---- 80 cartes de classe (25/09) : 3 archétypes par classe, conçues par designers puis panel Timmy, Johnny, Spike, Vorthos, Melvin
 	"c_ancrage": {"name": "Ancrage", "owner": "garde", "rar": 1, "cost": 1, "kind": "skill", "target": "self", "block": 4, "trig": {"on": "immobile", "block": 4, "keep": true}, "text": "+{block} armure.", "up": [{"block": 2}, {"trig": {"on": "immobile", "block": 6, "keep": true, "draw": 1}}], "arch": "L'Enclume"},
@@ -289,16 +290,74 @@ const CARDS := {
 	"c_trinite": {"name": "Trinité", "owner": "tidiane", "voix": "N", "rar": 2, "cost": 1, "kind": "skill", "target": "self", "echo": true, "exhaust": true, "trig": {"on": "grixis", "energy": 1}, "text": "La prochaine carte jouée agit deux fois. Épuise.", "up": [{"retain": true, "text": "Conservé. La prochaine carte jouée agit deux fois. Épuise."}, {"draw": 1, "text": "Conservé. La prochaine carte jouée agit deux fois. Pioche {draw}. Épuise."}], "arch": "Trinité Grixis"},
 	"c_metronome": {"name": "Métronome", "owner": "tidiane", "voix": "B", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "metronome", "val": 2, "text": "Pouvoir : BPM +{val} au début de chaque tour du héros.", "up": [{"val": 1}, {"cost": -1}], "arch": "174 BPM"},
 	"c_catharsis": {"name": "Catharsis", "owner": "tidiane", "voix": "R", "rar": 3, "cost": 2, "kind": "atk", "range": [1, 1], "dmg": 6, "per_missing": 4, "trig": {"on": "grace", "heal": 8}, "text": "Inflige {dmg}, +{per_missing} par tranche de 5 PV manquants.", "up": [{"per_missing": 1}, {"cost": -1}], "arch": "Pacte de sang"},
-	"c_brocante": {"name": "Brocante", "owner": "receleur", "rar": 1, "cost": 1, "kind": "skill", "target": "self", "idraw": 2, "iblock": 2, "text": "Pioche 1 par objet en besace ({idraw} au plus). +{iblock} armure par objet.", "up": [{"iblock": 1}, {"idraw": 1}], "arch": "Brocanteur"},
-	"c_revente": {"name": "Revente à la sauvette", "owner": "receleur", "rar": 1, "cost": 0, "kind": "skill", "target": "self", "sell": 10, "draw": 1, "exhaust": true, "text": "Détruit le premier objet de la besace : +{sell} or. Pioche {draw}. Épuise.", "up": [{"sell": 5}, {"draw": 1}], "arch": "Casse et Revente"},
-	"c_tire_laine": {"name": "Tire-laine", "owner": "receleur", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 2], "dmg": 6, "trig": {"on": "butin", "heal": 4}, "text": "Inflige {dmg}.", "up": [{"dmg": 3}, {"steal": true, "text": "Vole l'objet de la cible, puis inflige {dmg}."}], "arch": "Pickpocket"},
-	"c_casse_tout": {"name": "Casse-tout", "owner": "receleur", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 4, "per_used": 4, "text": "Inflige {dmg}, +{per_used} par objet utilisé ou détruit ce tour.", "up": [{"per_used": 1}, {"cost": -1}], "arch": "Casse et Revente"},
-	"c_bonneteau": {"name": "Bonneteau", "owner": "receleur", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 3], "dmg": 0, "steal": true, "pull": 2, "text": "Vole l'objet d'un ennemi à {rmax} cases et l'attire de {pull}.", "up": [{"dmg": 5, "text": "Vole l'objet d'un ennemi à {rmax} cases, l'attire de {pull} et inflige {dmg}."}, {"cost": -1}], "arch": "Pickpocket"},
-	"c_feu_de_joie": {"name": "Feu de joie", "owner": "receleur", "rar": 2, "cost": 1, "kind": "atk", "target": "self", "around": true, "dmg": 3, "per_used": 3, "text": "Inflige {dmg} à chaque voisin, +{per_used} par objet utilisé ou détruit ce tour.", "up": [{"per_used": 1}, {"block": 6, "text": "Inflige {dmg} à chaque voisin, +{per_used} par objet utilisé ou détruit ce tour. +{block} armure."}], "arch": "Casse et Revente"},
-	"c_inventaire": {"name": "Inventaire", "owner": "receleur", "rar": 2, "cost": 1, "kind": "atk", "range": [2, 4], "throw": true, "dmg": 4, "junk": 2, "text": "Lance le premier objet de la besace sur la cible, puis inflige {dmg}, +{junk} par objet restant.", "up": [{"junk": 1}, {"reach": 1}], "arch": "Brocanteur"},
-	"c_marchandage": {"name": "Marchandage", "owner": "receleur", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "dupe": true, "sell": 10, "exhaust": true, "text": "Copie le dernier objet de la besace, puis revend le premier : +{sell} or. Épuise.", "up": [{"sell": 5}, {"draw": 1, "text": "Copie le dernier objet de la besace, puis revend le premier : +{sell} or. Pioche {draw}. Épuise."}], "arch": "Brocanteur"},
-	"c_fourgue": {"name": "Le Fourgue", "owner": "receleur", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "fourgue", "val": 2, "text": "Pouvoir : chaque objet volé ou fabriqué soigne {val} à chaque héros. Vol : +1 Bricole.", "up": [{"val": 1}, {"cost": -1}], "arch": "Pickpocket"},
-	"c_benne": {"name": "Benne à ferraille", "owner": "receleur", "rar": 3, "cost": 2, "kind": "atk", "range": [1, 1], "dmg": 6, "need_item": true, "per_used": 4, "text": "Détruit le premier objet (besace vide : 0 dégât), puis inflige {dmg}, +{per_used} par objet utilisé ou détruit ce tour.", "up": [{"per_used": 1}, {"cost": -1}], "arch": "Casse et Revente"},
+	"c_brocante": {"name": "Établi portatif", "owner": "receleur", "rar": 1, "cost": 1, "kind": "skill", "target": "self", "recharge": 1, "iblock": 2, "text": "Recharge 1. +{iblock} armure par Stock.", "up": [{"iblock": 1}, {"recharge": 1, "text": "Recharge {recharge}. +{iblock} armure par Stock."}], "arch": "L'Établi"},
+	"c_revente": {"name": "Revente à la sauvette", "owner": "receleur", "rar": 1, "cost": 0, "kind": "skill", "target": "self", "consume": true, "sell": 10, "draw": 1, "exhaust": true, "text": "Démonte 1 : +{sell} or. Pioche {draw}. Épuise.", "up": [{"sell": 5}, {"draw": 1}], "arch": "Casse et Revente"},
+	"c_tire_laine": {"name": "Tire-laine", "owner": "receleur", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 2], "dmg": 6, "trig": {"on": "butin", "heal": 4}, "text": "Inflige {dmg}.", "up": [{"dmg": 3}, {"steal": true, "text": "Vole l'objet de la cible, puis inflige {dmg}."}], "arch": "Vide-poches"},
+	"c_casse_tout": {"name": "Casse-tout", "owner": "receleur", "rar": 1, "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 4, "per_used": 5, "text": "Inflige {dmg}, +{per_used} par objet consommé ce tour.", "up": [{"per_used": 1}, {"cost": -1}], "arch": "Casse et Revente"},
+	"c_bonneteau": {"name": "Bonneteau", "owner": "receleur", "rar": 2, "cost": 1, "kind": "atk", "range": [1, 3], "dmg": 0, "steal": true, "pull": 2, "text": "Vole l'objet d'un ennemi à {rmax} cases et l'attire de {pull}.", "up": [{"dmg": 5, "text": "Vole l'objet d'un ennemi à {rmax} cases, l'attire de {pull} et inflige {dmg}."}, {"cost": -1}], "arch": "Vide-poches"},
+	"c_feu_de_joie": {"name": "Feu de joie", "owner": "receleur", "rar": 2, "cost": 1, "kind": "atk", "target": "self", "around": true, "dmg": 3, "per_used": 3, "text": "Inflige {dmg} à chaque voisin, +{per_used} par objet consommé ce tour.", "up": [{"per_used": 1}, {"block": 6, "text": "Inflige {dmg} à chaque voisin, +{per_used} par objet consommé ce tour. +{block} armure."}], "arch": "Casse et Revente"},
+	"c_inventaire": {"name": "Inventaire", "owner": "receleur", "rar": 2, "cost": 1, "kind": "atk", "range": [2, 4], "throw": true, "dmg": 4, "junk": 2, "text": "Lance une carte-objet sur la cible, puis inflige {dmg}, +{junk} par Stock.", "up": [{"junk": 1}, {"reach": 1}], "arch": "L'Établi"},
+	"c_marchandage": {"name": "Marchandage", "owner": "receleur", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "copy_item": true, "consume": true, "sell": 10, "exhaust": true, "text": "Copie une carte-objet de ta main (Éphémère), puis Démonte l'original : +{sell} or. Épuise.", "up": [{"sell": 5}, {"draw": 1, "text": "Copie une carte-objet de ta main (Éphémère), puis Démonte l'original : +{sell} or. Pioche {draw}. Épuise."}], "arch": "L'Établi"},
+	"c_fourgue": {"name": "Le Fourgue", "owner": "receleur", "rar": 3, "cost": 1, "kind": "power", "target": "self", "power": "fourgue", "val": 2, "text": "Pouvoir : chaque vol soigne {val} à chaque héros (une fois par tour) et Recharge 1 la carte volée.", "up": [{"val": 1}, {"cost": -1}], "arch": "Vide-poches"},
+	"c_benne": {"name": "Benne à ferraille", "owner": "receleur", "rar": 3, "cost": 2, "kind": "atk", "range": [1, 1], "dmg": 6, "need_item": true, "per_used": 4, "text": "Démonte 1 (sinon 0 dégât), puis inflige {dmg}, +{per_used} par objet consommé ce tour.", "up": [{"per_used": 1}, {"cost": -1}], "arch": "Casse et Revente"},
+	# ---- Cartes-objets (owner « objet » ; c.has("tool") est le seul test fiable en jeu, Data.card écrase owner)
+	"o_fiole": {"name": "Fiole de sève", "owner": "objet", "tool": "fiole", "rar": 2, "cost": 0, "kind": "skill", "target": "ally", "range": [0, 3], "heal": 10, "forge2": true,
+		"text": "Soigne {heal} un allié.",
+		"up": [{"heal": 2, "cleanse": "poison", "text": "Soigne {heal} un allié et retire son poison."},
+			{"heal": 4, "cleanse": "all", "overheal": true, "exhaust": true, "legend": true, "name": "Sève-Mère", "text": "Soigne {heal} un allié, retire poison et entraves ; le surplus devient armure."}]},
+	"o_fumigene": {"name": "Fumigène", "owner": "objet", "tool": "fumigene", "rar": 1, "cost": 0, "kind": "skill", "target": "tile", "range": [0, 3], "smoke": 2,
+		"text": "Fumée {smoke} tours sur la case et autour : on n'y vise plus à distance, et tout coup au contact y compte de dos.",
+		"up": [{"smoke": 1, "block": 4, "text": "Fumée {smoke} tours en croix. +{block} armure au lanceur."},
+			{"block": -4, "area": "diamond", "smoke_block": 6, "exhaust": true, "legend": true, "name": "Brume des Quais", "text": "Fumée {smoke} tours sur 2 cases de rayon. +{smoke_block} armure à chaque héros dans la brume."}]},
+	"o_picots": {"name": "Picots", "owner": "objet", "tool": "picots", "rar": 1, "cost": 0, "kind": "skill", "target": "free", "range": [1, 3], "picots": 5,
+		"text": "Picots sur la case et autour : l'ennemi qui y marche s'arrête et subit {picots}.",
+		"up": [{"picots": 2, "range": [1, 4], "text": "Picots en croix à {rmax} cases : l'ennemi qui y marche s'arrête et subit {picots}."},
+			{"picots": 1, "area": "ring", "trap_root": 1, "exhaust": true, "legend": true, "name": "Ronces d'acier", "text": "Picots sur 9 cases : {picots} dégâts, et la proie reste entravée 1 tour."}]},
+	"o_grappin": {"name": "Grappin", "owner": "objet", "tool": "grappin", "rar": 1, "cost": 0, "kind": "skill", "target": "free", "range": [2, 5],
+		"text": "Le héros se hisse sur une case libre à {rmax} cases, relief ignoré, et ramasse ce qui s'y trouve.",
+		"up": [{"range": [1, 6], "draw": 1, "text": "Se hisse sur une case libre à {rmax} cases, relief ignoré. Pioche {draw}."},
+			{"range": [1, 7], "land_dmg": 6, "exhaust": true, "legend": true, "name": "Croc du Passeur", "text": "Se hisse à {rmax} cases, relief ignoré. À l'atterrissage : {land_dmg} à chaque ennemi voisin. Pioche {draw}."}]},
+	"o_arbre": {"name": "Arbre", "owner": "objet", "tool": "gland", "rar": 2, "cost": 0, "kind": "skill", "target": "free", "range": [1, 3], "oaks_n": 1, "oak_hp": 10, "oak_aura": 3,
+		"text": "Plante un chêne ({oak_hp} PV). Il barre la case ; les héros voisins gagnent {oak_aura} armure par tour. Le feu l'embrase.",
+		"up": [{"oak_hp": 4, "range": [1, 4], "text": "Plante un chêne ({oak_hp} PV) à {rmax} cases. Les héros voisins gagnent {oak_aura} armure par tour."},
+			{"oaks_n": 1, "oak_hp": 4, "oak_arm": 2, "oak_aura": 2, "fireproof": true, "exhaust": true, "legend": true, "name": "Chêne-Borne",
+				"text": "Plante 2 chênes côte à côte ({oak_hp} PV, 2 armure). Les héros voisins gagnent {oak_aura} armure par tour. Le feu ne les consume pas."}]},
+	"o_bombe": {"name": "Bombe à mèche", "owner": "objet", "tool": "bombe", "rar": 1, "cost": 0, "kind": "skill", "target": "tile", "range": [2, 4], "bomb": 8, "forge2": true,
+		"text": "{bomb} dégâts en croix. Fait sauter barils et braseros, embrase les arbres.",
+		"up": [{"bomb": 2, "range": [2, 5], "text": "{bomb} dégâts en croix, à {rmax} cases."},
+			{"bomb": 2, "area": "ring", "push": 1, "exhaust": true, "legend": true, "name": "Soleil de poudre", "text": "{bomb} dégâts sur 9 cases, repousse de 1 depuis le centre. Fait tout sauter."}]},
+	"o_baril": {"name": "Baril", "owner": "objet", "tool": "tonnelet", "rar": 1, "cost": 0, "kind": "skill", "target": "free", "range": [1, 2], "barils": 1,
+		"text": "Pose un baril de poudre : frappé, il explose (7 autour).",
+		"up": [{"barils": 1, "range": [1, 3], "text": "Pose 2 barils en ligne, dans l'axe du lancer."},
+			{"barils": 1, "draw": 1, "exhaust": true, "legend": true, "name": "Sainte-Barbe", "text": "Pose 3 barils en ligne, dans l'axe du lancer. Pioche {draw}."}]},
+	"o_brasero": {"name": "Brasero", "owner": "objet", "tool": "brasero", "rar": 1, "cost": 0, "kind": "skill", "target": "free", "range": [1, 2], "aura": 3,
+		"text": "Pose un brasero : l'ennemi qui finit la manche à côté subit {aura}. Frappé, il explose (7 autour).",
+		"up": [{"aura": 1, "range": [1, 3], "text": "Pose un brasero à {rmax} cases : {aura} à chaque ennemi voisin en fin de manche."},
+			{"aura": 2, "exhaust": true, "legend": true, "name": "Feu de Veille", "text": "Pose un brasero à {rmax} cases : {aura} à chaque ennemi voisin en fin de manche. Frappé, il explose."}]},
+	"o_filet": {"name": "Filet lesté", "owner": "objet", "tool": "filet", "rar": 1, "cost": 0, "kind": "skill", "target": "foe", "range": [1, 4], "root": 2,
+		"text": "Entrave {root} tours.",
+		"up": [{"expose": true, "range": [1, 5], "text": "Entrave {root} tours. La cible est Exposée."},
+			{"splash": true, "exhaust": true, "legend": true, "name": "Rets du Pêcheur-Roi", "text": "Entrave {root} tours la cible et tout ennemi à son contact ; tous sont Exposés."}]},
+	"o_sels": {"name": "Sels de réveil", "owner": "objet", "tool": "sels", "rar": 1, "cost": 0, "kind": "skill", "target": "ally", "range": [0, 3], "cleanse": "all", "block": 6,
+		"text": "Retire poison et entraves, +{block} armure.",
+		"up": [{"block": 2, "draw": 1, "text": "Retire poison et entraves, +{block} armure. Pioche {draw}."},
+			{"draw": -1, "all": true, "energy": 1, "exhaust": true, "legend": true, "name": "Sel des Noyés", "text": "Toute l'escouade : poison et entraves retirés, +{block} armure. +{energy} énergie."}]},
+	"o_elixir": {"name": "Élixir de braise", "owner": "objet", "tool": "elixir", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "energy": 2, "forge2": true,
+		"text": "+{energy} énergie.",
+		"up": [{"draw": 1, "text": "+{energy} énergie. Pioche {draw}."},
+			{"energy": 1, "draw": 1, "exhaust": true, "legend": true, "name": "Braise Première", "text": "+{energy} énergie. Pioche {draw}."}]},
+	"o_carnet": {"name": "Carnet de croquis", "owner": "objet", "tool": "carnet", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "draw": 3,
+		"text": "Pioche {draw} cartes.",
+		"up": [{"draw": 1},
+			{"cut_drawn": 1, "exhaust": true, "legend": true, "name": "Carnet d'Éclusier", "text": "Pioche {draw} cartes ; elles coûtent 1 de moins ce tour."}]},
+	"o_de": {"name": "Dé pipé", "owner": "objet", "tool": "de", "rar": 2, "cost": 0, "kind": "skill", "target": "self", "reroll": 1,
+		"text": "Défausse la main et repioche autant de cartes, plus {reroll}.",
+		"up": [{"reroll": 1},
+			{"energy": 1, "exhaust": true, "legend": true, "name": "Dé du Faussaire", "text": "Défausse la main et repioche autant de cartes, plus {reroll}. +{energy} énergie."}]},
+	"o_sablier": {"name": "Sablier fêlé", "owner": "objet", "tool": "sablier", "rar": 3, "cost": 0, "kind": "skill", "target": "self", "root_all": 1, "forge2": true,
+		"text": "Tous les ennemis sont entravés {root_all} tour.",
+		"up": [{"block": 4, "all": true, "text": "Tous les ennemis sont entravés {root_all} tour. +{block} armure à l'escouade."},
+			{"block": -4, "expose_all": true, "draw": 1, "exhaust": true, "legend": true, "name": "Heure Figée", "text": "Tous les ennemis sont entravés {root_all} tour et Exposés. Pioche {draw}."}]},
 }
 
 # Trois routes par classe (25/09) : les cartes portent « arch », le butin en propose de différentes.
@@ -310,7 +369,7 @@ const ARCHETYPES := {
 	"moine": [["Ressac", "l'enchaînement de coups"], ["Pas de grue", "bonds et téléportations"], ["Contre-courant", "punir et se battre ensanglanté"]],
 	"trappeur": [["Collets et rabattage", "pousser la proie dans les pièges"], ["Affût", "tirer sans bouger d'un pas"], ["Curée", "marquer, entraver, pièges en chaîne"]],
 	"tidiane": [["174 BPM", "monter le rythme, lâcher le Drop"], ["Pacte de sang", "les PV manquants frappent"], ["Trinité Grixis", "Analyse, Émotion, Ambition"]],
-	"receleur": [["Brocanteur", "la besace pleine"], ["Casse et Revente", "détruire ses objets pour frapper"], ["Pickpocket", "voler, et le Butin"]],
+	"receleur": [["L'Établi", "fabriquer, recharger, faire durer ses objets"], ["Casse et Revente", "démonter ses objets pour frapper"], ["Vide-poches", "voler, et le Butin"]],
 }
 
 # Decks de départ (revus le 25/09) : les bases plus une graine de chaque route de ARCHETYPES.
@@ -373,10 +432,13 @@ const KEYWORDS := {
 	"piège": "L'ennemi qui y marche s'arrête, subit 8 et reste entravé.",
 	"Niveau": "Forge ou fusion de deux doubles : +1 niveau (3 au maximum). Chaque niveau change la carte.",
 	"perd": "Coût en PV : ne peut pas tuer le héros (il reste à 1).",
-	"Vole": "Prend l'objet que porte l'ennemi et le range dans la besace.",
-	"Bricole": "Réserve du Receleur (3 au plus) : chaque Bricole améliore le prochain objet fabriqué, puis se vide.",
-	"besace": "Objets à usage unique de l'escouade : clic sur l'objet, puis sur la cible. Sans énergie.",
-	"Fabrique": "Ajoute un objet tiré au sort à la besace ; plus de Bricole, plus rare.",
+	"Vole": "Prend l'objet que porte l'ennemi : sa carte arrive dans ta main.",
+	"Fabrique": "Crée des cartes-objets Éphémères dans ta main (rarement, un légendaire).",
+	"Démonte": "Retire une carte-objet de ta main sans jouer son effet : elle perd 1 charge.",
+	"Recharge": "+1 charge à une carte-objet de ta main (3 au plus, une fois par combat et par carte ; jamais une Fiole).",
+	"Lance": "Joue une carte-objet de ta main sur la cible de la carte.",
+	"Stock": "Cartes-objets de l'escouade encore en jeu (pioche, main, défausse), Éphémères exclues. 4 au plus.",
+	"Charges": "Carte-objet, gratuite. Jouée, elle perd 1 charge et quitte le combat ; à 0, elle quitte le paquet. Niveau 3 : légendaire, inépuisable, une fois par combat. Un doublon ajoute une charge.",
 	"Conservé": "Reste en main à la fin du tour au lieu d'aller en défausse.",
 	"Éphémère": "Épuisée si elle est encore en main à la fin du tour.",
 	"Égide": "Le prochain coup reçu ne fait aucun dégât.",
@@ -396,9 +458,8 @@ const KEYWORDS := {
 	"Présage": "Marque une case : au début de ton prochain tour, l'ennemi qui s'y tient encaisse, armure ignorée.",
 	"Conservé chargé": "Chaque tour passé en main, la carte gagne des dégâts (3 fois au plus).",
 	"Exposée": "Le prochain coup qu'elle reçoit d'un héros compte de dos.",
-		"Revends": "Détruit le premier objet de la besace contre de l'or (30 or de revente au plus par combat).",
 }
-# Objets de besace : à usage unique, sans énergie, utilisés par le héros sélectionné.
+# Outils : effets des cartes-objets (o_*) et des objets portés par les ennemis.
 # target : self | ally | foe | free (case libre) | tile. foe_ai : ce que fait un ennemi qui le porte.
 const TOOLS := {
 	"fiole": {"name": "Fiole de sève", "glyph": "♥", "rar": 1, "target": "ally", "range": [0, 3], "text": "Soigne 10 un allié.", "foe_ai": "la boit sous la moitié de ses PV"},
@@ -413,6 +474,7 @@ const TOOLS := {
 	"elixir": {"name": "Élixir de braise", "glyph": "☄", "rar": 2, "target": "self", "text": "+2 énergie."},
 	"carnet": {"name": "Carnet de croquis", "glyph": "✎", "rar": 2, "target": "self", "text": "Pioche 3 cartes."},
 	"de": {"name": "Dé pipé", "glyph": "⚄", "rar": 2, "target": "self", "text": "Défausse la main et repioche autant de cartes."},
+	"brasero": {"name": "Brasero", "glyph": "♨", "rar": 1, "target": "free", "range": [1, 2], "text": "Pose un brasero."},
 	"sablier": {"name": "Sablier fêlé", "glyph": "⧗", "rar": 3, "target": "self", "text": "Tous les ennemis sont entravés 1 tour."},
 }
 const FOE_TOOLS := ["fiole", "fiole", "bombe", "bombe", "fumigene", "filet", "sels"]
@@ -452,8 +514,8 @@ const BOONS := {
 	"soin": {"name": "Eau lustrale", "glyph": "✚", "text": "Tous les héros retrouvent leurs PV."},
 	"forge2": {"name": "Main de maître", "glyph": "⚒", "text": "Deux cartes du paquet, au hasard, gagnent un niveau."},
 	"racines": {"name": "Racines", "glyph": "♣", "text": "Les cartes de départ d'un héros au choix gagnent un niveau."},
-	"besace": {"name": "Besace pleine", "glyph": "☁", "text": "Trois objets de besace."},
-	"place": {"name": "Poches cousues", "glyph": "▣", "text": "Besace +1 place pour la run, et un objet rare."},
+	"besace": {"name": "Trois babioles", "glyph": "☁", "text": "Trois cartes-objets, chacune à un héros de ton choix ou revendue."},
+	"place": {"name": "Poches cousues", "glyph": "▣", "text": "Une carte-objet de ton paquet gagne un niveau, puis une carte-objet rare."},
 	"arme": {"name": "Arme d'antan", "glyph": "⚔", "text": "Un équipement rare."},
 	"reflet": {"name": "Reflet", "glyph": "⧉", "text": "Copie une carte du paquet (la copie n'est pas une carte de départ)."},
 	"vocation": {"name": "Vocation", "glyph": "⚔", "text": "Un héros au choix prend ou change sa vocation."},
@@ -462,7 +524,7 @@ const BOONS := {
 # Idéogramme de chaque mot-clé (assets/ui/kw_*.png) ; les déclencheurs ont le leur.
 const KW_ICON := {"Épuise": "epuise", "Pouvoir": "pouvoir", "Marqué": "marque", "Entravé": "entrave", "enchaînement": "enchainement",
 	"repousse": "repousse", "attire": "attire", "tire": "attire", "De dos": "dos", "de dos": "dos", "baril": "baril", "piège": "piege",
-	"perd": "perd", "Vole": "vole", "Bricole": "bricole", "besace": "besace", "Fabrique": "fabrique", "poison": "poison",
+	"perd": "perd", "Vole": "vole", "Démonte": "bricole", "Stock": "besace", "Charges": "fabrique", "Fabrique": "fabrique", "poison": "poison",
 	"Pioche": "pioche", "pioche": "pioche", "énergie": "energie",
 	"Coup de grâce": "grace", "Dos au mur": "mur", "Enchaîné": "enchaine", "Surplomb": "surplomb", "Précision": "precision",
 	"Premier jet": "premier", "Grixis": "grixis"}
@@ -495,6 +557,23 @@ const CARD_CONDS := {
 	"piege": {"name": "Défi : collet", "text": "Achevez-le avec un piège pour gagner sa carte."},
 	"marque": {"name": "Défi : curée", "text": "Achevez-le pendant qu'il est Marqué pour gagner sa carte."},
 }
+# cartes-objets : l'outil porté par un ennemi -> sa carte ; barème de revente
+const OBJ_OF := {"gland": "o_arbre", "tonnelet": "o_baril"}
+const SELL_OBJ := {1: 15, 2: 25, 3: 40}
+const SELL_CARD := {1: 25, 2: 40, 3: 60, 4: 100}
+
+
+static func obj_of(tool: String) -> String:
+	return OBJ_OF.get(tool, "o_" + tool)
+
+
+static func sell_value(ci: Dictionary) -> int:
+	var d := def(ci.id)
+	if d.has("tool"):
+		return 60 if level(ci) >= 3 else int(SELL_OBJ[d.rar] * (1.5 if level(ci) == 2 else 1.0))
+	return SELL_CARD[d.get("rar", 1)]
+
+
 const RARITY_COL := {1: Color("#a79d8b"), 2: Color("#6fb0e0"), 3: Color("#ffcf5a"), 4: Color("#ff8a3d")}
 const RARITY_NAME := {1: "Commune", 2: "Peu commune", 3: "Rare", 4: "Légendaire"}
 
@@ -519,8 +598,8 @@ const RELICS := {
 	"ecaille": {"name": "Écaille de Carpe", "glyph": "◈", "text": "Chaque héros commence le combat avec 6 d'armure."},
 	"heron": {"name": "Aigrette du héron", "glyph": "⇶", "text": "+1 déplacement pour tous les héros."},
 	"oeil": {"name": "Longue-vue embuée", "glyph": "◉", "text": "Choix de 4 cartes au lieu de 3."},
-	"sacoche": {"name": "Sacoche de cuir", "glyph": "▣", "text": "Besace +1 place."},
-	"alambic": {"name": "Alambic de poche", "glyph": "☄", "text": "Un objet fabriqué au début de chaque combat."},
+	"sacoche": {"name": "Sacoche de cuir", "glyph": "▣", "text": "Toute carte-objet obtenue arrive au niveau 2 (2 charges)."},
+	"alambic": {"name": "Alambic de poche", "glyph": "☄", "text": "Au début de chaque combat, Fabrique 1 dans la main du premier héros à jouer."},
 	"livret": {"name": "Livret d'apprenti", "glyph": "◇", "text": "Un héros au choix prend sa vocation tout de suite."},
 	"blason": {"name": "Blason écartelé", "glyph": "⚜", "text": "Un héros gagne une deuxième vocation, et donc une deuxième guilde."},
 	"touriste": {"name": "Carnet du colporteur", "glyph": "⚐", "text": "Chaque butin propose en plus une carte d'une classe absente de l'escouade."},
@@ -644,7 +723,7 @@ const PASSIVES := {
 	"meche": {"name": "Mèche courte", "text": "Pendant son tour, les explosions infligent +2."},
 	"prelude": {"name": "Prélude", "text": "Pioche 1 carte de plus à son premier tour de chaque combat."},
 	"affut": {"name": "Embusqué", "text": "+2 aux attaques à distance si le porteur n'a pas bougé ce tour."},
-	"main_leste": {"name": "Main leste", "text": "Tuer un ennemi équipé récupère sa pièce à coup sûr."},
+	"main_leste": {"name": "Main leste", "text": "Tuer un ennemi équipé récupère sa pièce à coup sûr, et la carte de son objet, dans la main du tueur."},
 	"pavois_face": {"name": "Pavois", "text": "Les coups de face (hors magie) sont divisés par deux."},
 }
 
@@ -718,7 +797,6 @@ const PROPS := {
 	"pilier": {"name": "Pilier fendu", "text": "Frappé ou poussé, il s'effondre sur les 2 cases suivantes : 9 dégâts."},
 	"baril": {"name": "Baril de poudre", "text": "Un coup le fait exploser : 7 dégâts autour."},
 	"tourelle": {"name": "Tourelle", "text": "Tire 4 sur l'ennemi le plus proche à chaque fin de tour."},
-	"levier": {"name": "Levier d'écluse", "text": "Un héros adjacent l'actionne : le pont-levis s'abaisse."},
 }
 
 
@@ -884,18 +962,18 @@ const UPGRADES := {
 	"hyperfocus": [{"val": 2, "text": "Pouvoir : les attaques de Tidiane infligent +5."}, {"cost": -1}],
 	"dnb": [{"cost": -1}, {"val": 1, "text": "Pouvoir : Tidiane pioche 2 cartes de plus à chaque tour."}],
 	"obsession": [{"cost": -1}, {"cost": -1}],
-	"larcin": [{"dmg": 3}, {"reach": 2, "text": "Vole l'objet d'une cible jusqu'à 3 cases, puis inflige {dmg}."}],
-	"cle": [{"dmg": 3}, {"bricole": 1, "text": "Inflige {dmg}. +2 Bricole."}],
-	"bricolage": [{"block": 3}, {"craft": 1, "text": "Fabrique deux objets dans la besace. +{block} armure."}],
-	"camelote": [{"junk": 1, "text": "Inflige {dmg}, +{junk} par objet en besace."}, {"cost": -1}],
-	"crochetage": [{"draw": 1, "text": "Vole l'objet d'un ennemi à {rmax} cases. Pioche {draw}."}, {"reach": 2}],
-	"recyclage": [{"val": 1, "text": "Détruit le premier objet de la besace : +2 énergie, +1 Bricole."}, {"draw": 2, "text": "Détruit le premier objet de la besace : +2 énergie, +1 Bricole, pioche 2."}],
-	"contrefacon": [{"cost": -1}, {"exhaust": false, "text": "Copie le dernier objet de la besace."}],
-	"coupdesac": [{"dmg": 3}, {"push": 1, "text": "Inflige {dmg} et repousse 2."}],
-	"etal": [{"craft": 1, "text": "Fabrique trois objets. Épuise."}, {"exhaust": false, "text": "Fabrique trois objets."}],
+	"larcin": [{"dmg": 3}, {"reach": 2, "text": "Vole l'objet d'une cible jusqu'à {rmax} cases, puis inflige {dmg}."}],
+	"cle": [{"dmg": 3}, {"push": 1, "text": "Inflige {dmg} et repousse 1."}],
+	"bricolage": [{"block": 3}, {"craft": 1, "text": "Fabrique 2. +{block} armure."}],
+	"camelote": [{"junk": 1}, {"cost": -1}],
+	"crochetage": [{"draw": 1}, {"reach": 2}],
+	"recyclage": [{"c_energy": 1}, {"draw": 2, "text": "Démonte 1 : +{c_energy} énergie, pioche {draw}."}],
+	"contrefacon": [{"cost": -1}, {"draw": 1, "text": "Copie une carte-objet de ta main : la copie, niveau 1, est Éphémère. Pioche {draw}. Épuise."}],
+	"coupdesac": [{"dmg": 3}, {"push": 1, "text": "Lance une carte-objet, puis inflige {dmg} et repousse 2."}],
+	"etal": [{"craft": 1, "text": "Fabrique 3. Épuise."}, {"craft_min": 2, "text": "Fabrique 3, peu communes ou mieux. Épuise."}],
 	"lecasse": [{"dmg": 4}, {"cost": -1}],
-	"marchenoir": [{"val": 2, "text": "Pouvoir : chaque objet utilisé inflige 6 à l'ennemi le plus proche."}, {"cost": -1}],
-	"poches": [{"cost": -1}, {"val": 1, "text": "Pouvoir : besace +3 places, deux objets fabriqués à chaque tour du Receleur."}],
+	"marchenoir": [{"val": 2, "text": "Pouvoir : chaque objet consommé inflige 6 à l'ennemi le plus proche."}, {"cost": -1}],
+	"poches": [{"cost": -1}, {"val": 1, "text": "Pouvoir : au début de chaque tour du Receleur, Fabrique 2."}],
 }
 const MAX_LVL := 3
 
@@ -954,11 +1032,11 @@ static func card(ci: Dictionary) -> Dictionary:
 
 const DIFF_NAME := {"cost": "Coût", "dmg": "Dégâts", "block": "Armure", "heal": "Soin", "heal_all": "Soin de groupe", "draw": "Pioche",
 	"push": "Repousse", "energy": "Énergie", "hits": "Coups", "poison": "Poison", "mark": "Marque", "root": "Entrave", "turns": "Tours",
-	"tdmg": "Dégâts posés", "combo": "Enchaînement", "junk": "Par objet", "flow": "Par carte jouée", "leech": "Vol de vie", "selfdmg": "Coût en PV",
-	"val": "Puissance", "val2": "Cibles", "craft": "Objets fabriqués", "bricole": "Bricole", "chain": "Rebonds", "backstab": "De dos ×",
-	"boom": "Explosion", "iblock": "Armure par objet", "mark_all": "Marque", "mark_near": "Marque", "recall": "Cartes reprises", "delay": "Recul d'initiative",
+	"tdmg": "Dégâts posés", "combo": "Enchaînement", "flow": "Par carte jouée", "leech": "Vol de vie", "selfdmg": "Coût en PV",
+	"val": "Puissance", "val2": "Cibles", "craft": "Objets fabriqués", "recharge": "Recharge", "bomb": "Explosion", "picots": "Picots", "oak_hp": "PV du chêne", "aura": "Brûlure", "reroll": "Repioche", "smoke": "Fumée", "root_all": "Entrave", "chain": "Rebonds", "backstab": "De dos ×",
+	"boom": "Explosion", "mark_all": "Marque", "mark_near": "Marque", "recall": "Cartes reprises", "delay": "Recul d'initiative",
 	"stick": "Charge", "rpoison": "Poison", "inner": "Braise", "bph": "Armure par coup", "c_block": "Armure", "c_energy": "Énergie", "lure": "Attirance",
-	"craft_n": "Objets", "crash": "Choc", "per_missing": "Par 5 PV manquants", "per_used": "Par objet utilisé", "per_tele": "Par téléportation", "drop": "Drop", "bpm": "BPM", "sell": "Or de revente", "tgrow": "Croissance", "add_n": "Cartes créées", "per_drawn": "Ouï-dire", "per_marked": "Par Marqué", "per_exhaust": "Par carte épuisée", "omen": "Présage", "hone": "Affûtage", "consume_root": "Par entrave", "charge_up": "Charge", "per_missing_block": "Armure par 5 PV manquants", "pay_gold": "Or", "tpush": "Recul", "heal_ally": "Soin", "per_boom": "Par baril", "fuse": "Explosion", "overload": "Surcharge", "item_poison": "Poison des objets", "idraw": "Pioche max"}
+	"craft_n": "Objets", "crash": "Choc", "per_missing": "Par 5 PV manquants", "per_used": "Par objet consommé", "per_tele": "Par téléportation", "drop": "Drop", "bpm": "BPM", "sell": "Or", "junk": "Par Stock", "iblock": "Armure par Stock", "tgrow": "Croissance", "add_n": "Cartes créées", "per_drawn": "Ouï-dire", "per_marked": "Par Marqué", "per_exhaust": "Par carte épuisée", "omen": "Présage", "hone": "Affûtage", "consume_root": "Par entrave", "charge_up": "Charge", "per_missing_block": "Armure par 5 PV manquants", "pay_gold": "Or", "tpush": "Recul", "heal_ally": "Soin", "per_boom": "Par baril", "fuse": "Explosion", "overload": "Surcharge", "item_poison": "Poison des objets", "idraw": "Pioche max"}
 const DIFF_FLAG := {"exhaust": ["Ne s'épuise plus", "S'épuise"], "pierce": ["Ignore l'armure", ""], "bounce": ["Rebondit", "Ne rebondit plus"], "twin": ["Deux pièges", ""]}
 
 
@@ -1075,6 +1153,10 @@ static func keyword_tip(c: Dictionary) -> String:
 	for kw in KEYWORDS:
 		if txt.to_lower().contains(kw.to_lower()):
 			out.append("%s : %s" % [kw, KEYWORDS[kw]])
+	if c.has("tool"):
+		out.insert(1, "Charges : " + KEYWORDS["Charges"])
+		out.append("Niveau 3 : %s" % ("légendaire, une fois par combat" if c.get("legend", false) else "légendaire (à découvrir à la forge)"))
+		return "\n".join(out)
 	if c.has("guild"):
 		var gl: Array = Guildes.LIST[c.g]
 		out.append("%s (%s + %s) : %s" % [gl[2], HEROES[gl[0]].name, HEROES[gl[1]].name, gl[3]])

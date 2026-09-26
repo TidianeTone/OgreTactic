@@ -17,9 +17,9 @@ var archetype := "ecluse"
 var h := {}          # Vector2i -> niveau (0 = eau)
 var kind := {}       # "water" | "land" | "bridge" | "tower" | "monument"
 var along_x := {}    # pont : vrai s'il court le long de X
-var blocked := {}    # Vector2i -> "tree" | "lantern"
-var props := {}      # Vector2i -> "coffre" | "brasero" | "pilier" | "levier"
-var drawbridge: Array[Vector2i] = []
+var blocked := {}    # Vector2i -> "tree" (décor) | "oak" (planté)
+var live_trees := false  # en combat, les arbres du plateau sont des objets à PV (dessinés par Battle)
+var props := {}      # Vector2i -> "coffre" | "brasero" | "pilier" | "baril"
 var pillars := {}    # colonnade de la couronne
 var paths := {}      # cases réservées aux liaisons
 var rects: Array[Rect2i] = []
@@ -44,6 +44,7 @@ func center() -> Vector3:
 # ------------------------------------------------------------------ génération
 
 func generate(seed: int, b: Dictionary, size := 16, arch := "", with_props := true) -> void:
+	live_trees = with_props
 	for attempt in 20:
 		_generate(seed + attempt * 7919, b, size, arch)
 		if _connected():
@@ -62,7 +63,6 @@ func _generate(seed: int, b: Dictionary, size: int, arch: String) -> void:
 		d.clear()
 	rects.clear()
 	links.clear()
-	drawbridge.clear()
 	portal = Vector2i(-99, -99)
 	for x in range(-RING, dim + RING):
 		for z in range(-RING, dim + RING):
@@ -77,6 +77,8 @@ func _generate(seed: int, b: Dictionary, size: int, arch: String) -> void:
 			_gen_islands(3, 5, dim * dim / 20)
 		"donjon":
 			_gen_dungeon()
+		"damier":
+			_gen_damier()
 		_:
 			_gen_islands(4, 7, dim * dim / 40)  # plateformes larges : de la place pour manœuvrer
 	_ring(seed)
@@ -160,6 +162,42 @@ func _gen_dungeon() -> void:
 	start = rects[slot[Vector2i.ZERO]].get_center()
 
 
+func _gen_damier() -> void:
+	## Mode tactique : un damier plat aux coins coupés, des murets bas posés en symétrie par le centre.
+	## Ni relief ni pente : tout se joue sur le placement, les lignes de vue et les murets.
+	var m := (dim - 1) * 0.5
+	for x in dim:
+		for z in dim:
+			if absf(x - m) + absf(z - m) <= dim * 0.8:
+				kind[Vector2i(x, z)] = "land"
+				h[Vector2i(x, z)] = 2
+	var want := 2 + dim / 5
+	var tries := 0
+	while want > 0 and tries < 300:
+		tries += 1
+		var d := Vector2i(1, 0) if rng.randf() < 0.5 else Vector2i(0, 1)
+		var p := Vector2i(rng.randi_range(1, dim - 2), rng.randi_range(2, dim / 2 - 1))
+		var col := rng.randf() < 0.4  # colonne isolée, ou muret de 2 à 4
+		var cells: Array[Vector2i] = []
+		for k in (1 if col else rng.randi_range(2, 4)):
+			cells.append(p + d * k)
+		for c in cells.duplicate():
+			cells.append(Vector2i(dim - 1 - c.x, dim - 1 - c.y))
+		# murets espacés : jamais collés à un autre ni au bord du damier
+		if cells.any(func(c): return not _in(c) or kind[c] != "land" or DIRS.any(func(dd): return not _in(c + dd) or kind[c + dd] != "land" and not cells.has(c + dd))):
+			continue
+		for c in cells:
+			kind[c] = "tower"
+			h[c] = 6 if col else 4
+		if _connected():
+			want -= 1
+		else:
+			for c in cells:
+				kind[c] = "land"
+				h[c] = 2
+	start = Vector2i(dim / 2, dim - 2)
+
+
 func _gen_terrasses() -> void:
 	## Pente en quatre gradins, coupée d'un canal franchi par deux ponts.
 	var ax := rng.randf() < 0.5
@@ -226,7 +264,7 @@ func _towers_and_trees() -> void:
 	_shuffle(lands)
 	var towers := 0
 	for c in lands:
-		if towers >= 1 + dim / 8 or archetype == "cour":
+		if towers >= 1 + dim / 8 or archetype in ["cour", "damier"]:
 			break
 		if _edge_count(c) >= 1 and rng.randf() < 0.3:
 			var old: int = h[c]
@@ -239,10 +277,10 @@ func _towers_and_trees() -> void:
 				h[c] = old
 	var trees := 0
 	for c in lands:
-		if kind[c] != "land" or trees >= 2 + dim / 6:
+		if kind[c] != "land" or archetype == "damier" or trees >= 2 + dim / 6:
 			continue
 		if (_edge_count(c) > 0 or archetype == "cour") and rng.randf() < 0.08:
-			blocked[c] = "tree" if rng.randf() < 0.7 else "lantern"
+			blocked[c] = "tree"
 			if not _connected():
 				blocked.erase(c)
 			else:
@@ -250,11 +288,14 @@ func _towers_and_trees() -> void:
 
 
 func _place_props() -> void:
-	## Coffres loin du départ, braseros et piliers fragiles près des ennemis, levier de pont-levis.
+	## Coffres loin du départ, braseros et piliers fragiles près des ennemis.
 	var cells := walkable_cells()
 	cells.sort()
 	_shuffle(cells)
 	var near := bfs_dist([_nearest_walkable(start)], 2, false)
+	if archetype == "damier":
+		_damier_props()
+		return
 	var want := {"coffre": 2 + int(dim >= 16), "brasero": dim / 4, "pilier": dim / 5}
 	for c in cells:
 		if paths.has(c) or near.get(c, 99) < 4:
@@ -270,7 +311,42 @@ func _place_props() -> void:
 			else:
 				props.erase(c)
 			break
-	_place_drawbridge()
+
+
+func _damier_props() -> void:
+	## Parvis : une paire (symétrique) d'arbres, de braseros, de barils et de piliers, un coffre au centre.
+	var m := func(c: Vector2i) -> Vector2i: return Vector2i(dim - 1 - c.x, dim - 1 - c.y)
+	var free := func(c: Vector2i) -> bool: return _in(c) and kind[c] == "land" and not blocked.has(c) and not props.has(c) and c.y >= 2 and c.y <= dim - 3
+	for k in ["tree", "brasero", "baril", "pilier"]:
+		for tries in 60:
+			var c := Vector2i(rng.randi_range(1, dim - 2), rng.randi_range(2, dim / 2 - 1))
+			var mc: Vector2i = m.call(c)
+			if not free.call(c) or not free.call(mc) or c == mc:
+				continue
+			for x in [c, mc]:
+				if k == "tree":
+					blocked[x] = "tree"
+				else:
+					props[x] = k
+			if _connected():
+				break
+			for x in [c, mc]:
+				blocked.erase(x)
+				props.erase(x)
+	var mid := Vector2i(dim / 2, dim / 2)
+	for r in 3:
+		var done := false
+		for dx in range(-r, r + 1):
+			for dz in range(-r, r + 1):
+				var c := mid + Vector2i(dx, dz)
+				if not done and free.call(c):
+					props[c] = "coffre"
+					if _connected():
+						done = true
+					else:
+						props.erase(c)
+		if done:
+			break
 
 
 func place_portal() -> void:
@@ -283,42 +359,6 @@ func place_portal() -> void:
 			bd = near[c]
 			best = c
 	portal = best
-
-
-func _place_drawbridge() -> void:
-	## Un bras d'eau droit (2 à 4 cases) entre deux terres : un levier le couvre d'un pont.
-	var cand: Array = []
-	for c in walkable_cells():
-		for d in DIRS:
-			var line: Array[Vector2i] = []
-			var p := c + d
-			while _in(p) and kind[p] == "water" and line.size() < 5:
-				line.append(p)
-				p += d
-			if line.size() >= 2 and line.size() <= 4 and walkable(p) and not props.has(p):
-				cand.append([c, d, line])
-	if cand.is_empty() or (archetype != "ilots" and rng.randf() < 0.4):
-		return
-	var pick_: Array = cand[rng.randi_range(0, cand.size() - 1)]
-	var from: Vector2i = pick_[0]
-	var d: Vector2i = pick_[1]
-	for side in [Vector2i(d.y, d.x), -Vector2i(d.y, d.x), -d]:
-		var lv: Vector2i = from + side
-		if walkable(lv) and not props.has(lv):
-			props[lv] = "levier"
-			if _connected():
-				drawbridge = pick_[2]
-				for c in drawbridge:
-					along_x[c] = d.x != 0
-				return
-			props.erase(lv)
-
-
-func lower_drawbridge() -> void:
-	for c in drawbridge:
-		kind[c] = "bridge"
-		h[c] = 3
-	drawbridge.clear()
 
 
 func _shuffle(a: Array) -> void:
@@ -492,7 +532,7 @@ func spawn_cells(side: String, count: int, avoid: Array = []) -> Array[Vector2i]
 	if side == "foe":
 		# ni au contact ni à l'autre bout du labyrinthe : on se croise au deuxième tour
 		cells.shuffle()
-		cells.sort_custom(func(a, b): return absi(dist.get(a, 99) - 10) < absi(dist.get(b, 99) - 10))
+		cells.sort_custom(func(a, b): return absi(dist.get(a, 99) - (6 + dim / 6)) < absi(dist.get(b, 99) - (6 + dim / 6)))
 	else:
 		cells.sort_custom(func(a, b): return dist.get(a, 999) < dist.get(b, 999))
 	for keep: int in [6, 4, 0]:
@@ -508,7 +548,7 @@ func spawn_cells(side: String, count: int, avoid: Array = []) -> Array[Vector2i]
 	return rest
 
 
-func bfs_dist(sources: Array, jump: int, fly: bool) -> Dictionary:
+func bfs_dist(sources: Array, jump: int, fly: bool, through_trees := false) -> Dictionary:
 	var dist := {}
 	var q: Array = []
 	for s in sources:
@@ -520,7 +560,7 @@ func bfs_dist(sources: Array, jump: int, fly: bool) -> Dictionary:
 		i += 1
 		for d in DIRS:
 			var nb: Vector2i = c + d
-			if dist.has(nb) or not walkable(nb):
+			if dist.has(nb) or not (walkable(nb) or through_trees and _in(nb) and blocked.has(nb) and not props.has(nb)):
 				continue
 			if not fly and absi(h[nb] - h[c]) > jump:
 				continue
@@ -645,6 +685,8 @@ func build_visuals() -> void:
 			continue
 		match blocked.get(c, ""):
 			"tree":
+				if live_trees and _in(c):
+					continue  # arbre destructible : c'est le combat qui le pose
 				var ess: String = biome.get("tree", "autumn")
 				if ess == "":
 					_add(T, "tufts", surf, r.randi_range(0, 3))

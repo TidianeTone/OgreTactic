@@ -32,7 +32,7 @@ ROLE_TIPS = {
     "moine": "Le Moine compte ses coups : chaque carte au contact nourrit l'enchaînement. Bond de grue le met au bon endroit.",
     "trappeur": "Le Trappeur contrôle : pièges, filets, harpons et marques (+50 % de dégâts reçus) préparent les coups des autres.",
     "tidiane": "Tidiane paie en PV pour frapper fort. Jouer une carte bleue, rouge et noire dans le tour déclenche Grixis.",
-    "receleur": "Le Receleur vit des objets : il vole ceux des ennemis, en fabrique, et les transforme en dégâts ou en armure.",
+    "receleur": "Le Receleur est le maître des cartes-objets. Double fond : ses objets ne lui bouchent pas la main. Tour de main : ses objets frappent ou protègent de +2. Il vole, fabrique, recharge, démonte.",
 }
 
 
@@ -83,7 +83,7 @@ def page(body, cls="", title=""):
 pages.append("""<section class='page cover'><img class='bg' src='img/cover.jpg'><div class='veil'></div>
 <div class='ct'><div class='kick'>Guide officiel</div><h1>TONERTACTIC</h1><div class='sub'>Les ruines de l'Écluse</div>
 <ul><li>Les 8 classes, leurs trois routes et leurs """ + str(N_CLS) + """ cartes, niveau par niveau</li><li>Les 28 guildes multiclasses et leurs """ + str(N_GLD) + """ cartes, légendaires comprises</li>
-<li>Bestiaire complet : 20 ennemis, leur IA et comment les battre</li><li>Équipement, objets, reliques, Anciens, pactes, terrains</li>
+<li>Bestiaire complet : 38 ennemis, leur IA et comment les battre</li><li>Équipement, cartes-objets, reliques, Anciens, pactes, terrains destructibles</li>
 <li>Événements, compagnons, marchand et haltes</li><li>Stratégies de run, du premier étage au Gardien</li></ul></div>
 <div class='edition'>Édition du 25 septembre 2026</div></section>""")
 
@@ -96,7 +96,7 @@ page("""<div class='kicker'>Chapitre 1</div><h2>Bienvenue dans l'Écluse</h2>
 <p class='lede'>TonerTactic est un roguelike tactique à cartes : on place son escouade case par case, on joue ses coups depuis un paquet qui grossit à chaque salle.
 Trois héros descendent trois étages de ruines inondées jusqu'au Gardien de l'Écluse. Chaque mort est définitive ; chaque run est différente.</p>
 <div class='cols2'><div class='box'><h4>Deux modes</h4><p><b>Descente</b> : une carte d'étage, 7 salles par étage sur trois voies ;
-on choisit sa route (combats, élites, marchands, sanctuaires, reliquaires). <b>Aventure</b> : on explore un donjon salle par salle, avec des salles « ? », des réserves et des coffres ;
+on choisit sa route (combats, élites, marchands, sanctuaires, reliquaires). <b>Aventure</b> : on explore un donjon salle par salle, avec des salles « ? », des réserves et des coffres. <b>Parvis</b> (le mode tactique, au choix dans les deux modes) : des arènes plates en damier de 12 cases, murets et colonnes symétriques, 4 ennemis au plus : des combats courts et lisibles ;
 un gardien d'élite garde l'escalier.</p></div>
 <div class='box'><h4>Préparer la run</h4><p>Choisissez la <b>difficulté</b> (de 1, Oklm, à 5, Anathème), d'éventuels <b>pactes</b> (des malus contre +25 % d'or et plus de cartes rares chacun),
 puis <b>trois héros</b> parmi huit. Chaque héros reçoit un trait au hasard et son paquet de départ de 6 cartes.</p></div></div>
@@ -110,7 +110,7 @@ chap("Les règles du combat")
 page("""<div class='kicker'>Chapitre 2</div><h2>Les règles du combat</h2>
 <div class='cols2'><div><h3>L'initiative</h3><p>Chaque round, héros et ennemis jouent un par un, <b>du plus rapide au plus lent</b> (à égalité, les héros d'abord). La frise en haut de l'écran montre l'ordre et l'intention de chaque ennemi.</p>
 <h3>Le tour d'un héros</h3><ul><li><b>3 mana</b> et une main de <b>3 cartes</b> tirées de son propre paquet.</li><li>Un <b>déplacement</b> (sa valeur de déplacement, limité par le saut en hauteur).</li>
-<li><b>Course</b> : après avoir bougé, 3 mana paient un second déplacement (cases violettes).</li><li>Les objets de la <b>besace</b> ne coûtent pas de mana.</li>
+<li><b>Course</b> : après avoir bougé, 3 mana paient un second déplacement (cases violettes).</li><li>Les <b>cartes-objets</b> coûtent 0 et s'usent : elles ont des charges.</li>
 <li>Un <b>coffre</b> s'ouvre en le frappant avec une attaque, ou gratuitement au contact.</li></ul>
 <h3>Fin du tour : l'orientation</h3><p>Espace, puis choisissez où regarde le héros (souris ou ← →). <b>Le dos est exposé</b> : l'ennemi qui frappe de dos fait ×1,5, de flanc ×1,2.
 Les ennemis, eux, se tournent vers le héros le plus proche à la fin de leur tour.</p></div>
@@ -131,7 +131,7 @@ page("""<h2>États, positions et éléments du décor</h2><div class='cols2'><di
 <h3>Le décor qui se joue</h3><table class='t'>""" + "".join("<tr><td><b>%s</b></td><td>%s</td></tr>" % (E(n), E(t)) for n, t in [
     ("Baril de poudre", "Un coup le fait exploser : 7 autour, en chaîne avec les barils voisins."), ("Brasero", "Explose comme un baril."),
     ("Pilier fendu", "Frappé ou poussé, il s'effondre sur 2 cases : 9 dégâts."), ("Coffre", "Frappez-le, ou ouvrez-le au contact : équipement ou objet."),
-    ("Levier d'écluse", "Abaisse le pont-levis : un nouveau chemin."), ("Tourelle", "Tire 4 sur l'ennemi le plus proche à chaque fin de tour."),
+    ("Arbre", "10 PV : il barre la case, se coupe à coups ; le feu le consume et gagne les arbres collés au round suivant."), ("Tourelle", "Tire 4 sur l'ennemi le plus proche à chaque fin de tour."),
     ("Piège à mâchoires", "L'ennemi qui y marche s'arrête, subit 8 et reste entravé.")]) + """</table></div>
 <div><img src='img/orientation.jpg' class='wide'><p class='cap'>Fin du tour : la flèche dorée montre où le héros regarde. La case rouge derrière lui est son dos.</p>
 <img src='img/combat_noyes.jpg' class='wide'><p class='cap'>La frise d'initiative : chaque ennemi annonce son action (⚔ frappe, ➶ tir, ♪ danse, ⚑ ordre...).</p></div></div>""", title="Chapitre 2")
@@ -222,24 +222,38 @@ def item_rows(slot):
         img = "img/gear_%s.png" % it["icon"]
         out += "<div class='it'><img src='%s'><div><b>%s</b> <span class='r%d'>%s</span><br>%s</div></div>" % (img, E(it["name"]), it["rarity"], ["", "commun", "peu commun", "rare"][it["rarity"]], fmt(it["text"]))
     return out
-chap("L'arsenal : équipement et besace")
+chap("L'arsenal : équipement et cartes-objets")
 page("<div class='kicker'>Chapitre 6</div><h2>L'arsenal</h2><p class='lede'>Quatre emplacements par héros : une <b>arme</b> propre à sa classe, une <b>armure</b>, des <b>bottes</b> et un <b>bijou</b>. On les trouve dans les coffres, chez le marchand et sur les élites ; à partir du 3e combat, certains ennemis en portent une pièce (rarement lâchée, mais volable). Le sac garde ce qui n'est pas porté.</p><h3>Armes</h3><div class='items'>" + item_rows("arme") + "</div>", title="Arsenal")
-tools = "".join("<div class='it'><img src='img/tool_%s.png'><div><b>%s</b><br>%s%s</div></div>" % (k, E(t["name"]), E(t["text"]), ("<br><i>Porté par un ennemi : il %s.</i>" % E(t["foe_ai"])) if t.get("foe_ai") else "") for k, t in D["tools"].items())
+OBJS = [c for c in CARDS if c["cls"] == ["objet"]]
+tools = "".join("<div class='it'><img src='img/tool_%s.png'><div><b>%s</b> <span class='r%d'>%s</span><br>◆ %s<br>◆◆ %s<br><b style='color:#e0662a'>✦ %s : %s</b></div></div>" % (
+    c["id"][2:] if c["id"] not in ("o_arbre", "o_baril") else {"o_arbre": "gland", "o_baril": "tonnelet"}[c["id"]], E(c["name"]), c["rar"], RAR[c["rar"]].lower(),
+    fmt(c["lv"][0]["text"]), fmt(c["lv"][1]["text"]), E(c["lv"][2].get("name", "")), fmt(c["lv"][2]["text"])) for c in OBJS)
+tools = tools.split("</div></div>")
+tools2 = "</div></div>".join(tools[8:])
+tools = "</div></div>".join(tools[:8]) + "</div></div>"
 pas = "".join("<tr><td><b>%s</b></td><td>%s</td></tr>" % (E(p["name"]), E(p["text"])) for p in D["passives"].values())
 tr = "".join("<tr><td><b>%s</b></td><td>%s</td></tr>" % (E(p["name"]), E(p["text"])) for p in D["traits"].values())
-page("<h3>Armures</h3><div class='items'>" + item_rows("armure") + "</div><h3>Bottes</h3><div class='items'>" + item_rows("bottes") + "</div><h3>Bijoux</h3><div class='items'>" + item_rows("bijou") + "</div><h3>La besace : objets à usage unique</h3><p>Sans mana, utilisés par le héros sélectionné. Les ennemis en portent aussi : volez-les, ou ils les lâchent en tombant.</p><div class='items'>" + tools + "</div>", title="Arsenal")
+page("<h3>Armures</h3><div class='items'>" + item_rows("armure") + "</div><h3>Bottes</h3><div class='items'>" + item_rows("bottes") + "</div><h3>Bijoux</h3><div class='items'>" + item_rows("bijou") + "</div></div>", title="Arsenal")
+page("<h2>Les cartes-objets</h2><p class='lede'>Fiole, bombe, arbre, brasero... chaque objet est une <b>carte neutre qui coûte 0</b>, glissée dans le paquet du héros de votre choix.</p>"
+     "<div class='cols2'><div><h3>Les charges</h3><table class='t'><tr><th>Niveau</th><th>Usage</th></tr><tr><td>1</td><td>1 charge : jouée, elle quitte le combat puis le paquet.</td></tr>"
+     "<tr><td>2</td><td>2 charges, effet un peu meilleur.</td></tr><tr><td>3 ✦</td><td><b>Légendaire</b> : inépuisable, une fois par combat, effet nettement plus fort. Tant qu'on ne l'a jamais eu, la carte affiche « ??? ».</td></tr></table>"
+     "<p>Un doublon renforce la carte au lieu d'en ajouter une. Fiole, Élixir, Sablier et Bombe coûtent 70 or à passer au niveau 3, et seulement à la forge du marchand.</p></div>"
+     "<div><h3>Où les trouver</h3><p><b>Voler</b> un ennemi porteur : sa carte arrive dans votre main. Un ennemi tué lâche un sac au sol. Coffres (on choisit le héros, ou on revend), butins, marchand (2 par visite), événements.</p>"
+     "<p>Au survol, un objet porté ou au sol s'affiche toujours en carte.</p></div></div><div class='items'>" + tools + "</div>", title="Cartes-objets")
+page("<h3>Cartes-objets (suite)</h3><div class='items'>" + tools2 + "</div>", title="Cartes-objets")
 page("<div class='cols2'><div><h3>Capacités d'équipement</h3><table class='t small'>" + pas + "</table></div><div><h3>Traits de héros</h3><p>Tirés au hasard en début de run.</p><table class='t small'>" + tr + "</table></div></div>", title="Arsenal")
 
 # ------------------------------------------------------------------ reliques, anciens, pactes
 rel = "".join("<div class='it'><img src='img/relic_%s.png' onerror=\"this.style.visibility='hidden'\"><div><b>%s</b><br>%s</div></div>" % (k, E(r["name"]), E(r["text"])) for k, r in D["relics"].items())
 chap("Reliques, Anciens et pactes")
 page("<div class='kicker'>Chapitre 7</div><h2>Reliques</h2><p class='lede'>Des effets permanents pour toute la run : au reliquaire, sur les élites, chez les Anciens.</p><div class='items'>" + rel + "</div>", title="Reliques")
+anc_img = "<div class='anc'>" + "".join("<img src='img/ancien_%s.png' style='width:24%%'>" % k for k in D["ancients"]) + "</div>"
 anc = "".join("<div class='box'><h4>%s %s</h4><p><i>%s</i> · « %s »</p><p>%s</p></div>" % (E(a["glyph"]), E(a["name"]), E(a["title"]), E(a["line"]),
               " · ".join("<b>%s</b> : %s" % (E(D["boons"][b]["name"]), E(D["boons"][b]["text"])) for b in a["boons"])) for a in D["ancients"].values())
 pac = "".join("<tr><td><b>%s</b></td><td>%s</td></tr>" % (E(p["name"]), E(p["text"])) for p in D["pacts"].values())
 mod = "".join("<tr><td><b>%s %s</b></td><td>%s</td></tr>" % (E(m["glyph"]), E(m["name"]), E(m["text"])) for m in D["modifiers"].values())
 dif = "".join("<tr><td><b>%d · %s</b></td><td>%s</td></tr>" % (i + 1, E(d["name"]), E(d["text"])) for i, d in enumerate(D["difficulty"]))
-page("<h2>Anciens, pactes et difficulté</h2><div class='cols2'><div><h3>Les Anciens</h3>" + anc + "</div><div><h3>Pactes</h3><p>+25 % d'or et plus de cartes rares par pacte.</p><table class='t small'>" + pac +
+page("<h2>Anciens, pactes et difficulté</h2>" + anc_img + "<div class='cols2'><div><h3>Les Anciens</h3>" + anc + "</div><div><h3>Pactes</h3><p>+25 % d'or et plus de cartes rares par pacte.</p><table class='t small'>" + pac +
      "</table><h3>Modificateurs de salle</h3><p>Butin +50 %, cartes plus rares.</p><table class='t small'>" + mod + "</table><h3>Difficulté</h3><table class='t small'>" + dif + "</table></div></div>", title="Reliques")
 
 # ------------------------------------------------------------------ bestiaire
@@ -270,7 +284,7 @@ for title, ids, intro in fac:
         rg = f["range"]
         blocks += ("<div class='foe'><img src='img/foe_%s.png'><div><h4>%s</h4><div class='stats'><span>PV <b>%d</b></span><span>Dégâts <b>%d</b></span><span>Portée <b>%s</b></span>"
                    "<span>Vit. <b>%d</b></span><span>Dépl. <b>%d</b></span></div><p class='x'>%s</p><p><b>IA :</b> %s</p><p class='tipf'>▶ %s</p></div></div>") % (
-            id, E(f["name"]), f["hp"], f["dmg"], "%d-%d" % (rg[0], rg[1]) if rg[1] > 0 else "—", f["speed"], f["move"], E(" · ".join(extra)), E(AI[f["ai"]]), E(f["tip"]))
+            id, E(f["name"]), f["hp"], f["dmg"], "%d-%d" % (rg[0], rg[1]) if rg[1] > 0 else "—", f["speed"], f["move"], E(" · ".join(extra)), E(AI.get(f["ai"], "Voir sa fiche en jeu : son intention est annoncée dans la frise.")), E(f["tip"]))
     page("<div class='kicker'>Bestiaire</div><h2>%s</h2><p class='lede'>%s</p><div class='foes'>%s</div>" % (E(title), E(intro), blocks), title="Bestiaire")
 aff = "".join("<tr><td><b>%s</b></td><td>%s</td></tr>" % (E(a["name"]), E(a["text"])) for a in D["affixes"].values())
 page("<h2>Champions et rencontres</h2><div class='cols2'><div><h3>Champions</h3><p>Un ennemi peut être un champion : anneau doré, plus de PV et un affixe.</p><table class='t small'>" + aff +
@@ -281,8 +295,9 @@ page("<h2>Champions et rencontres</h2><div class='cols2'><div><h3>Champions</h3>
 tl = "".join("<tr><td><b style='color:#%s'>%s %s</b></td><td>%s</td></tr>" % (t["col"], E(t["glyph"]), E(t["name"]), E(t["text"])) for t in D["tiles"].values())
 chap("Terrains et environnement")
 page("<div class='kicker'>Chapitre 9</div><h2>Terrains et environnement</h2><div class='cols2'><div><table class='t'>" + tl +
-     "</table><p>Les runes et terrains profitent à tout le monde : un ennemi sur un fort se soigne, un ennemi poussé dans la braise brûle. Les ennemis évitent la braise, les ronces et les glyphes.</p></div>"
-     "<div><img src='img/terrain.jpg' class='wide'><p class='cap'>Arènes de 18 à 22 cases : plateformes larges, ponts de deux cases, hauteurs. Les cases spéciales brillent d'un cadre à leur couleur.</p></div></div>"
+     "</table><p>Les runes et terrains profitent à tout le monde : un ennemi sur un fort se soigne, un ennemi poussé dans la braise brûle. Les ennemis évitent la braise, les ronces et les glyphes.</p>"
+     "<h3>Le terrain se casse</h3><p>Les <b>arbres</b> ont 10 PV (chênes plantés : 10, 14 ou 18) : toute attaque les coupe, une poussée contre eux les entame. Le <b>feu</b> les consume : 6 dégâts autour, braseros et barils voisins qui sautent, et les arbres collés <b>couvent</b> (une flamme les signale) avant de flamber au round suivant. Un ennemi enfermé par des arbres les abat pour sortir.</p></div>"
+     "<div><img src='img/terrain.jpg' class='wide'><p class='cap'>Arènes de 16 à 20 cases (cours et terrasses 16, écluses et îlots 18) : plateformes larges, ponts de deux cases, hauteurs. Les cases spéciales brillent d'un cadre à leur couleur.</p></div></div>"
      "<h3>Les 12 biomes</h3><p>" + " · ".join(E(b) for b in D["biomes"]) + "</p><img src='img/biomes2.jpg' class='wide'>", title="Terrains")
 
 # ------------------------------------------------------------------ la run
@@ -322,7 +337,7 @@ page("""<div class='kicker'>Chapitre 11</div><h2>Stratégies d'expert</h2><div c
 <div class='box tip'><h4>9. Faire sauter le décor</h4><p>Barils, braseros et piliers font souvent plus de dégâts que vos cartes. Poussez un ennemi contre un pilier : double peine.</p></div>
 <div class='box tip'><h4>10. Contre la Compagnie noyée</h4><p>Frappez le Lancier de loin (il riposte au contact), coincez le Cavalier contre l'eau, collez-vous à la Baliste (elle ne tire pas à moins de 3 cases).</p></div></div></div>""", title="Stratégies")
 
-page("""<h2>Commandes</h2><table class='t'><tr><td>Clic</td><td>héros, carte, case, objet de besace</td></tr><tr><td>Clic droit</td><td>annuler · maintenu : caméra libre (ZQSD)</td></tr>
+page("""<h2>Commandes</h2><table class='t'><tr><td>Clic</td><td>héros, carte, case ; clic sur la frise : la caméra va sur l'unité</td></tr><tr><td>Clic droit</td><td>annuler · maintenu : caméra libre (ZQSD)</td></tr>
 <tr><td>Q / E · molette</td><td>pivoter · zoomer</td></tr><tr><td>Espace puis ← →</td><td>fin du tour, orientation</td></tr><tr><td>D</td><td>zone de danger</td></tr>
 <tr><td>Tab · 1 à 9</td><td>recentrer · jouer une carte</td></tr><tr><td>Alt</td><td>montrer les objets interactifs</td></tr><tr><td>P · M · H · Échap</td><td>paquet · musique · aide · menu</td></tr>
 <tr><td>I · P · F (Aventure)</td><td>équipement · paquet · fusion</td></tr><tr><td>Manette</td><td>A valider, B annuler, X fin du tour, Y fiche, gâchettes caméra</td></tr></table>

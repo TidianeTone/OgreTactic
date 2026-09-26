@@ -19,7 +19,8 @@ func _init() -> void:
 			if Data.card_text(c).contains("{"):
 				print("texte non résolu : ", id, " niveau ", lv)
 				fails += 1
-			if not Data.HEROES.has(c.owner):
+			if not Data.HEROES.has(c.owner) and not c.has("tool"):
+				print("propriétaire inconnu : ", id)
 				fails += 1
 			if c.has("trig") and not Data.TRIGGERS.has(c.trig.on):
 				print("déclencheur inconnu : ", id)
@@ -53,6 +54,18 @@ func _init() -> void:
 			for c in hs:
 				if fs.has(c):
 					print("spawn partagé seed ", s)
+					fails += 1
+	# mode tactique : le damier est toujours connexe et symétrique par le centre
+	for s2 in 300:
+		b.generate(s2 * 17, Data.BIOMES[s2 % 3], 12 + 2 * (s2 % 2), "damier")
+		if not b._connected():
+			print("damier non connexe ", s2)
+			fails += 1
+		for x in b.dim:
+			for z in b.dim:
+				var c1 := Vector2i(x, z)
+				if b.kind[c1] != b.kind[Vector2i(b.dim - 1 - x, b.dim - 1 - z)] and not b.blocked.has(c1):
+					print("damier asymétrique ", s2)
 					fails += 1
 	b.free()
 	print("OK" if fails == 0 else "ÉCHECS : %d" % fails)
