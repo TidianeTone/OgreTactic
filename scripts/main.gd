@@ -50,7 +50,9 @@ var floor_biomes: Array = []
 var party: Array = ["garde", "lame", "oracle"]
 var leader: Unit            # pion du mode aventure
 var mode := "descente"      # "descente" (carte d'étage) | "aventure" (exploration)
-var tactic := false         # mode tactique : arènes plates en damier, plus petites
+var tactic := false         # vue tactique (réglage) : arènes plates en damier, pour la lisibilité seulement
+var elites_seen: Array = []  # "étage:élite" déjà affrontées
+var fight_loot: Array = []   # ce que le combat en cours a rapporté (écran de fin de combat)
 var aboard: Board           # le donjon du mode aventure, gardé à part de l'arène
 var adv_root: Node3D
 var rooms: Array = []       # salles du donjon : {rect, type, cell, ids, arch, mods, done, seen, node, fog}
@@ -161,6 +163,7 @@ func _setup_world() -> void:
 	var cf := ConfigFile.new()
 	if cf.load("user://reglages.cfg") == OK:
 		music_vol = float(cf.get_value("son", "musique", music_vol))
+		tactic = bool(cf.get_value("ecran", "tactique", false))
 	for i in 2:
 		var mp := AudioStreamPlayer.new()
 		mp.volume_db = -80.0
@@ -758,6 +761,7 @@ func _start_run() -> void:
 	bag = []
 	relics = []
 	deck = []
+	elites_seen = []
 	run_start = Time.get_ticks_msec()
 	deck = Data.starter(party)
 	voc_intro_done = false
@@ -1058,6 +1062,9 @@ func _post_fight(type: String) -> void:
 			h.hp = mini(h.max_hp, h.hp + int(h.max_hp * Data.DIFFICULTY[difficulty].heal[clampi(floor_i, 1, 3) - 1]))
 		if relics.has("lotus_pale"):
 			h.hp = mini(h.max_hp, h.hp + 4)
+	var pj0 := {}
+	for h in heroes:
+		pj0[h] = h.pj
 	if type != "boss":
 		for h in heroes:
 			await _gain_pj(h, 2 if type == "elite" else 1)
@@ -1066,6 +1073,24 @@ func _post_fight(type: String) -> void:
 	for k in battle.pending_relics:
 		await _relic_pick("DÉCOUPE", "Le trophée d'une grande chasse")
 	battle.pending_relics = 0
+	await _summary(pj0)
+
+
+func _summary(pj0: Dictionary) -> void:
+	## Fin de combat : jauge d'expérience, tout le butin, et s'équiper avant de repartir (on ne s'équipe pas en combat).
+	if tuto and tuto_lesson < 3:
+		return
+	var rows: Array = []
+	for h in heroes:
+		var m := mastery(h)
+		rows.append({"nm": h.nm, "key": h.key, "pj0": pj0.get(h, h.pj), "pj1": h.pj, "m": m,
+			"lo": Data.MASTERY[m] if m >= 2 else 0, "hi": Data.MASTERY[mini(m + 1, 4)]})
+	while true:
+		var i := await ui.fight_summary("VICTOIRE", rows, fight_loot, bag.size() > 0)
+		if i != 1:
+			break
+		await _equipment()
+	fight_loot = []
 
 
 func _door() -> String:
@@ -1182,6 +1207,7 @@ func _build_room(seed: int, bi: int, size := 14, arch := "", with_props := false
 
 func _fight(type: String, ids_override: Array = []) -> bool:
 	var ids: Array
+	fight_loot = []
 	var arch := next_arch
 	if arch == "":
 		arch = Board.ARCHETYPES[rng.randi_range(0, Board.ARCHETYPES.size() - 1)]
@@ -1190,6 +1216,11 @@ func _fight(type: String, ids_override: Array = []) -> bool:
 	match type:
 		"elite":
 			ids = Data.elite_pick(floor_i, rng, difficulty)
+			for retry in 6:  # la même élite ne revient pas deux fois dans l'étage (Grelin croisé deux fois : lassant)
+				if not elites_seen.has("%d:%s" % [floor_i, ids[0]]):
+					break
+				ids = Data.elite_pick(floor_i, rng, difficulty)
+			elites_seen.append("%d:%s" % [floor_i, ids[0]])
 			size = 18
 		"boss":
 			ids = Data.BOSS
@@ -1209,16 +1240,13 @@ func _fight(type: String, ids_override: Array = []) -> bool:
 	if extra > 0 and type != "boss":
 		var ex: Array = Data.EXTRAS[clampi(floor_i, 1, 3)]
 		for k in extra:
-			if type == "combat" and ids.size() >= (4 if tactic else 5):
+			if type == "combat" and ids.size() >= 5:
 				break  # au plus 5 unités par combat normal
 			ids.append(ex[rng.randi_range(0, ex.size() - 1)])
 	elif extra < 0 and type == "combat" and ids.size() > 3:
 		ids.resize(ids.size() + extra)
-	if tactic and type == "combat" and ids.size() > 4:
-		ids.resize(4)  # le parvis est petit : de la place pour les poussées
-	if tactic and not tuto:  # mode tactique : damier plat, et plus petit pour des combats courts
+	if tactic and not tuto:  # vue tactique : même combat, sur un damier plat plus lisible
 		arch = "damier"
-		size = 14 if type == "boss" else 12
 	_build_room(run_seed + floor_i * 1009 + step * 37 + fights * 131, _biome(), size, arch, true)
 	ids = compose(ids, type)
 	pitch = 40.0
@@ -1316,9 +1344,11 @@ func _gain_item(id: String, h: Unit = null) -> void:
 		if (it.owner == "any" or it.owner == u.key) and u.equip[it.slot] == "":
 			u.equip[it.slot] = id
 			u.apply_gear()
+			fight_loot.append("%s (équipé)" % it.name)
 			ui.toast("%s : %s, équipé." % [u.nm, it.name])
 			return
 	bag.append(id)
+	fight_loot.append(it.name)
 	ui.toast("%s rejoint le sac." % it.name)
 
 
@@ -1353,7 +1383,8 @@ func open_chest(h: Unit) -> void:
 	if rng.randf() < 0.65:
 		var it := _roll_item()
 		_gain_item(it, h)
-		gains.append({"title": Data.ITEMS[it].name, "glyph": "⚔", "text": "%s · %s" % [Data.SLOT_NAME[Data.ITEMS[it].slot], "équipé ou au sac"], "color": UI.ITEM_COL[Data.ITEMS[it].rarity], "w": 210})
+		gains.append({"title": Data.ITEMS[it].name, "image": "res://assets/ui/gear_%s.png" % Data.ITEM_ICON.get(it, "anneau"), "text": "%s · %s\n(au sac : s'équiper après le combat)" % [Data.SLOT_NAME[Data.ITEMS[it].slot], Data.item_text(it)], "color": UI.ITEM_COL[Data.ITEMS[it].rarity], "w": 250})
+		fight_loot.append(Data.ITEMS[it].name)
 	else:
 		g += rng.randi_range(30, 55)
 	if g > 0:
@@ -1361,19 +1392,20 @@ func open_chest(h: Unit) -> void:
 		ui.set_gold(gold)
 		Fx.number(self, h.position + Vector3(0, 0.6, 0), "+%d or" % g, Color(1.0, 0.85, 0.4))
 		gains.append({"title": "+%d or" % g, "glyph": "◆", "text": "La bourse de l'escouade", "color": UI.GOLD, "w": 210})
-	var sub := "Ouvert par %s" % h.nm
+		fight_loot.append("+%d or" % g)
+	# 1. ce que le coffre donne d'office : tout est reçu, rien à choisir
+	var more := (" · puis une carte à attribuer") if obj != "" or card != "" else ""
+	await ui.choose("COFFRE", "Ouvert par %s · vous recevez tout%s" % [h.nm, more], gains, true, "Continuer")
+	# 2. une carte-objet : à quel héros la donner (ou la revendre)
 	if obj != "":
-		await _gain_obj_ui(obj, 2 if rng.randf() < 0.1 else 1, "COFFRE", sub + " · " + " · ".join(gains.map(func(o): return o.title)))
-		if card == "":
-			return
+		await _gain_obj_ui(obj, 2 if rng.randf() < 0.1 else 1, "COFFRE")
 	if card == "":
-		await ui.choose("COFFRE", sub, gains, true, "Continuer")
 		return
-	# une carte : la garder, ou la revendre tout de suite (un petit paquet ne doit rien coûter)
+	# 3. une carte de classe : la garder, ou la revendre tout de suite (un petit paquet ne doit rien coûter)
 	var val: int = Data.sell_value({"id": card})
-	var opts: Array = [{"card": {"id": card, "lvl": 1}, "tag": "La garder · %s" % Data.HEROES[Data.holder({"id": card})].name}]
-	opts.append_array(gains)
-	var i := await ui.choose("COFFRE", sub + " · la carte rejoint le paquet, ou se revend", opts, true, "Revendre la carte : +%d or" % val)
+	var who: String = Data.holder({"id": card})
+	var opts: Array = [{"title": "La garder", "image": "res://assets/art/portrait_%s.png" % who, "color": Data.CLASS_COLOR[who], "text": "Rejoint le paquet de %s." % Data.HEROES[who].name, "w": 240, "h": 210}]
+	var i := await ui.choose("COFFRE", "Tu as trouvé %s !" % Data.def(card).name, opts, true, "Revendre : +%d or" % val, "", {"id": card, "lvl": 1})
 	if i == 0:
 		deck.append({"id": card, "lvl": 1})
 		library_see(card)
@@ -1387,6 +1419,7 @@ func open_chest(h: Unit) -> void:
 func _rewards(type: String) -> void:
 	var g := int((rng.randi_range(18, 28) + (30 if type == "elite" else 0)) * (1.0 + 0.25 * pacts.size()) * (1.15 if heroes.any(func(h): return h.trait_id == "radin") else 1.0) * (1.5 if next_mods.size() > 0 else 1.0) * (1.25 if relics.has("bourse") else 1.0))
 	gold += g
+	fight_loot.append("+%d or" % g)
 	ui.set_gold(gold)
 	var opts: Array = []
 	var n := 4 if relics.has("oeil") else 3
@@ -1420,6 +1453,7 @@ func _rewards(type: String) -> void:
 		gain_obj(oid, hh.key, int(opts[i].card.lvl))
 	elif i >= 0:
 		deck.append(opts[i].card)
+		fight_loot.append(Data.def(opts[i].card.id).name)
 		if Data.def(opts[i].card.id).get("rar", 1) == 4:
 			ui.banner("Légendaire !", "%s rejoint le paquet de %s" % [Data.def(opts[i].card.id).name, Data.HEROES[Data.holder(opts[i].card)].name])
 	if type == "elite":
@@ -1488,6 +1522,14 @@ func _choose_vocation(h: Unit, second := false) -> void:
 	var g := Guildes.index(h.key, k)
 	var gl: Array = Guildes.LIST[g]
 	ui.banner("Vocation : %s" % Data.HEROES[k].name, h.nm)
+	if not second:
+		# cadeau de vocation : la commune de la guilde, tout de suite dans le paquet (un vrai palier de puissance)
+		var com := Guildes.cards_of(g, [1])
+		if com.size() > 0:
+			var ci := {"id": com[0], "lvl": 1, "h": h.key}
+			deck.append(ci)
+			library_see(com[0])
+			await ui.choose("CADEAU DE VOCATION", "%s rejoint %s : cette carte de la guilde entre dans son paquet." % [h.nm, gl[2]], [{"card": ci, "tag": "Offerte"}], true, "Continuer")
 
 
 # Maîtrise : elle rend les cartes multiclasses plus fréquentes et meilleures, sans rien verrouiller.
@@ -1634,8 +1676,8 @@ func _save_run() -> void:
 	## Point de reprise entre deux salles : tout l'état de la run, pas le combat en cours.
 	if _testing() or _no_save:
 		return
-	var d := {"v": 1, "mode": mode, "tactic": tactic, "difficulty": difficulty, "pacts": pacts, "party": party, "floor_i": floor_i, "step": step,
-		"fights": fights, "gold": gold, "floor_biomes": floor_biomes, "bag": bag, "relics": relics, "deck": deck,
+	var d := {"v": 1, "mode": mode, "difficulty": difficulty, "pacts": pacts, "party": party, "floor_i": floor_i, "step": step,
+		"fights": fights, "gold": gold, "floor_biomes": floor_biomes, "bag": bag, "relics": relics, "deck": deck, "elites_seen": elites_seen,
 		"voc_intro_done": voc_intro_done, "run_seed": run_seed, "rng": rng.state, "minutes": _minutes(),
 		"fmap": fmap, "lane": lane, "visited": visited, "heroes": [], "purges": purges, "companion": companion, "seen_events": seen_events, "pending_mods": pending_mods}
 	for h in heroes:
@@ -1689,7 +1731,7 @@ func _load_run() -> bool:
 		if Data.TOOLS.has(tid):
 			gain_obj(Data.obj_of(tid), party[0])
 	purges = int(d.get("purges", 0))
-	tactic = bool(d.get("tactic", false))
+	elites_seen = d.get("elites_seen", [])
 	companion = str(d.get("companion", ""))
 	seen_events = d.get("seen_events", [])
 	pending_mods = d.get("pending_mods", [])
@@ -1972,6 +2014,8 @@ func _merchant_shop() -> void:
 			{"title": "Épurer  ·  %d or" % _purge_price(), "glyph": "✂", "text": "Retirer une carte du paquet. Le prix monte à chaque épuration de la run."})
 		opts.append({"title": "Forge  ·  fait ✓", "glyph": "✓", "text": "Déjà forgé ici : %s." % done.forge, "color": grey} if done.has("forge") else
 			{"title": "Forge  ·  35 or", "glyph": "⚒", "text": "Une carte du paquet gagne un niveau."})
+		opts.append({"title": "Paquet", "glyph": "▤", "text": "Voir toutes les cartes de l'escouade (%d)." % deck.size()})
+		opts.append({"title": "Équipe", "glyph": "⚔", "text": "PV, équipement, sac : s'équiper avant de repartir."})
 		var i := await ui.choose("MARCHAND", "Vous avez %d or · une carte achetée rejoint le paquet de son héros" % gold, opts, true, "Partir")
 		if i < 0:
 			return
@@ -2004,7 +2048,13 @@ func _merchant_shop() -> void:
 			tstock.remove_at(i - stock.size())
 			gain_obj(tid, hh.key)
 		else:
-			var k: String = ["heal", "purge", "forge"][i - stock.size() - tstock.size()]
+			var k: String = ["heal", "purge", "forge", "deck", "team"][i - stock.size() - tstock.size()]
+			if k == "deck":
+				await view_deck()
+				continue
+			if k == "team":
+				await _equipment()
+				continue
 			if done.has(k):
 				ui.toast("Déjà fait chez ce marchand.")
 				continue
@@ -2270,6 +2320,29 @@ func _capture() -> void:
 		battle.hand = Array(args.hand.split(",")).map(func(id): return {"id": id, "lvl": 1, "h": heroes[0].key})
 	battle.changed.emit()
 	await _frames(150)
+	if args.has("screens"):  # --screens : fin de combat et coffre, pour vérifier la mise en page
+		fight_loot = ["+24 or", "Dossière du guetteur", "Élixir de braise", "Estoc"]
+		bag = ["oeil_vigilant"]
+		heroes[0].pj = 5
+		var f := func(): await _summary({heroes[0]: 3, heroes[1]: 0, heroes[2]: 1})
+		f.call()
+		await _frames(60)
+		_shot(dir, "fin_combat")
+		ui.picked.emit(0)
+		await _frames(10)
+		var g := func(): await _gain_obj_ui("o_elixir", 1, "COFFRE")
+		g.call()
+		await _frames(40)
+		_shot(dir, "coffre_objet")
+		get_tree().quit()
+		return
+	if args.has("kwhover"):  # --kwhover : la souris sur la 2e carte de la main, pour voir les encarts de mots-clés
+		for q in ui._cards.size():
+			ui.kw_force = ui._cards[q]
+			await _frames(40)
+			_shot(dir, "kw_%d" % q)
+		get_tree().quit()
+		return
 	if args.has("focus"):  # --focus=o_fiole,o_bombe : la bibliothèque, chaque carte en grand avec ses trois niveaux
 		ui.library_screen()
 		await _frames(10)
@@ -2391,7 +2464,7 @@ func _autoplay() -> void:
 		Battle.foe_mult = Data.DIFFICULTY[difficulty].foe[floor_i - 1]
 		Battle.foe_hp = Data.FOE_HP[floor_i - 1]
 		var sarch: String = "damier" if args.has("tactic") else Board.ARCHETYPES[n % 4]
-		var ssize: int = (14 if n == fights_n - 1 else 12) if args.has("tactic") else (16 if sarch in ["cour", "terrasses"] else 18)
+		var ssize: int = 16 if Board.ARCHETYPES[n % 4] in ["cour", "terrasses"] else 18
 		if args.has("oldsize"):  # --oldsize : les tailles d'avant le concile (référence)
 			ssize = [14, 16, 18][n % 3]
 		_build_room(run_seed + n * 101, _biome(), ssize, sarch, true)
@@ -2404,8 +2477,6 @@ func _autoplay() -> void:
 			ids = Array(args.foes.split(","))
 		else:
 			ids = compose(ids, "elite" if args.has("elite") else ("boss" if ids == Data.BOSS else "combat"))
-		if args.has("tactic") and ids.size() > 4 and ids != Data.BOSS:
-			ids.resize(4)
 		ui.show_hud(true)
 		battle.start(heroes, ids, deck, relics)
 		var turns := 0
@@ -2972,12 +3043,6 @@ func _pick_mode() -> String:
 		{"title": "Descente", "glyph": "⇣", "art": "res://assets/ui/mode_descente.png", "w": 380, "text": "Carte d'étage à trois voies : on choisit ses salles, combat après combat.", "color": UI.GOLD},
 		{"title": "Aventure", "glyph": "✥", "art": "res://assets/ui/mode_aventure.png", "w": 380, "text": "On mène l'escouade dans le donjon, salle par salle, dans le brouillard. Croiser un monstre lance le combat.", "color": Color("#8fd0a0")},
 	])
-	# interrupteur de terrain, valable pour les deux modes
-	var t := await ui.choose("TERRAIN", "Le relief des ruines, ou un damier plat pour ne penser qu'au placement", [
-		{"title": "Ruines", "glyph": "⛰", "w": 340, "text": "Hauteurs, ponts, eau, tours : le terrain est une arme à part entière.", "color": UI.GOLD},
-		{"title": "Parvis", "glyph": "▦", "w": 340, "text": "Le mode tactique : arènes plates en damier, murets bas en symétrie, plus petites : des combats plus courts et plus lisibles.", "color": Color("#9fd8ff")},
-	])
-	tactic = t == 1
 	return ["descente", "aventure"][i]
 
 
@@ -3559,6 +3624,7 @@ func gain_obj(id: String, hkey: String, lvl := 1) -> Dictionary:
 			ui.toast("%s : doublon absorbé, niveau 2, 2 charges." % Data.def(id).name)
 			return ci
 	var ci := {"id": id, "lvl": lvl, "h": hkey, "uses": mini(lvl, 2)}
+	fight_loot.append(Data.def(id).name)
 	if lvl >= 3:
 		ci.erase("uses")
 		library_see(id + "#3")
@@ -3571,9 +3637,13 @@ func _gain_obj_ui(id: String, lvl := 1, title := "OBJET", sub := "") -> void:
 	## Une carte-objet trouvée : à quel héros la donner, ou la revendre tout de suite.
 	var opts: Array = []
 	for h in heroes:
-		opts.append({"card": {"id": id, "lvl": lvl, "h": h.key, "uses": mini(lvl, 2)}, "tag": h.nm})
+		var has := deck.filter(func(ci): return ci.id == id and ci.get("h", "") == h.key)
+		var note := "Paquet : %d cartes" % deck.filter(func(ci): return Data.holder(ci) == h.key).size()
+		if has.size() > 0:
+			note = "L'a déjà : doublon → niveau 2, 2 charges" if Data.level(has[0]) < 3 else "L'a déjà en légendaire : +60 or"
+		opts.append({"title": h.nm, "image": "res://assets/art/portrait_%s.png" % h.key, "color": Data.CLASS_COLOR[h.key], "text": note, "w": 220, "h": 210})
 	var val := Data.sell_value({"id": id, "lvl": lvl})
-	var i := await ui.choose(title, (sub + " · " if sub != "" else "") + "À quel héros ? (un doublon renforce la carte)", opts, true, "Revendre : +%d or" % val)
+	var i := await ui.choose(title, (sub + " · " if sub != "" else "") + "Tu as trouvé %s !" % Data.def(id).name, opts, true, "Revendre : +%d or" % val, "", {"id": id, "lvl": lvl, "h": heroes[0].key, "uses": mini(lvl, 2)})
 	if i >= 0:
 		gain_obj(id, heroes[i].key, lvl)
 	else:
@@ -4109,6 +4179,16 @@ func set_music_volume(v: float) -> void:
 	cf.load("user://reglages.cfg")
 	cf.set_value("son", "musique", music_vol)
 	cf.save("user://reglages.cfg")
+
+
+func set_tactic(on: bool) -> void:
+	## Vue tactique : un réglage d'affichage (damier plat), appliqué dès le prochain combat.
+	tactic = on
+	var cf := ConfigFile.new()
+	cf.load("user://reglages.cfg")
+	cf.set_value("ecran", "tactique", on)
+	cf.save("user://reglages.cfg")
+	ui.toast("Vue tactique %s : dès le prochain combat." % ("activée" if on else "désactivée"))
 
 
 func _read_mobile() -> bool:

@@ -1168,3 +1168,34 @@ static func keyword_tip(c: Dictionary) -> String:
 	return "\n".join(out)
 
 const KIND_WORD := {"power": "Pouvoir"}
+
+
+static var _kwx := {}
+static func keyword_list(c: Dictionary) -> Array:
+	## Les encarts du survol (façon cartes à collectionner) : un pictogramme, un titre, une phrase. {icon, title, text}
+	var out: Array = []
+	var ic := func(k: String) -> String:
+		for v in [k, k.to_lower(), k.capitalize()]:
+			if KW_ICON.has(v):
+				return KW_ICON[v]
+		return "niveau"
+	if c.has("tool"):
+		out.append({"icon": "fabrique", "title": "Carte-objet", "text": "Gratuite, et elle reste en main d'un tour à l'autre. Jouée, elle perd une charge ; à zéro, elle quitte le paquet."})
+		out.append({"icon": "niveau", "title": "Niveau 3 : légendaire", "text": "Inépuisable : une fois par combat, effet nettement plus fort." if c.get("legend", false) else "À découvrir à la forge : inépuisable et bien plus fort."})
+	var txt: String = card_text(c) + " " + KIND_WORD.get(c.kind, "")
+	for kw in KEYWORDS:
+		if kw in ["Niveau", "Charges"]:
+			continue
+		if not _kwx.has(kw):
+			_kwx[kw] = RegEx.create_from_string("(?i)(?<![A-Za-zÀ-ÿ])" + kw + "(?![A-Za-zÀ-ÿ])")
+		if (_kwx[kw] as RegEx).search(txt):
+			out.append({"icon": ic.call(kw), "title": kw[0].to_upper() + kw.substr(1), "text": KEYWORDS[kw]})
+	if c.has("trig"):
+		var tr: Dictionary = TRIGGERS[c.trig.on]
+		out.append({"icon": ic.call(tr.name), "title": tr.name, "text": "Bonus " + tr.text + "."})
+	if c.has("guild"):
+		var gl: Array = Guildes.LIST[c.g]
+		out.append({"icon": "grixis", "title": gl[2], "text": "%s + %s : %s" % [HEROES[gl[0]].name, HEROES[gl[1]].name, gl[3]]})
+	elif not c.has("tool") and c.cls[0] != c.owner and HEROES.has(c.owner):
+		out.append({"icon": "niveau", "title": "Vocation", "text": "Carte de %s, jouée par %s." % [HEROES[c.cls[0]].name, HEROES[c.owner].name]})
+	return out

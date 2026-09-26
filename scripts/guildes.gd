@@ -32,7 +32,7 @@ const LIST := [
 	["moine", "receleur", "Les Acrobates de foire", "Les objets volés nourrissent le combo.", "Hearthstone (Voleur, Combo)"],
 	["trappeur", "tidiane", "Les Chasseurs de patterns", "Lire le boss, attendre la fenêtre.", "Monster Hunter · Elden Ring"],
 	["trappeur", "receleur", "Les Braconniers", "Chaque piège est une poche de plus.", "Magic (Golgari)"],
-	["tidiane", "receleur", "Grixis Heist", "Braquage : piocher dans un paquet qui n'est pas le tien.", "Grixis Heist · Magic Arena (Heist)"],
+	["tidiane", "receleur", "Chaos Agent", "Braquage : piocher dans un paquet qui n'est pas le tien.", "Grixis Heist · Magic Arena (Heist)"],
 ]
 
 # « g » : indice dans LIST. « up » : niveaux 2 et 3, comme Data.UPGRADES.
@@ -226,7 +226,7 @@ const CARDS := {
 	"g_appat_dore": {"name": "Appât doré", "g": 26, "rar": 3, "cost": 1, "kind": "skill", "target": "tile", "range": [1, 3], "place": "piege", "tdmg": 8, "lure": 2, "text": "Pose un piège ; les ennemis à 4 cases avancent de {lure} vers lui.", "up": [{"lure": 1}, {"cost": -1}]},
 	"g_trophee": {"name": "Trophée", "g": 26, "rar": 3, "cost": 0, "kind": "skill", "target": "self", "draw": 1, "trophy": true, "text": "Pioche 1. Ce combat, chaque ennemi marqué tué rapporte 10 or.", "up": [{"draw": 1, "text": "Pioche {draw}. Ce combat, chaque ennemi marqué tué rapporte 10 or."}, {"mark_near": 2, "text": "Pioche {draw}. L'ennemi le plus proche est Marqué {mark_near} tours. Ce combat, chaque ennemi marqué tué rapporte 10 or."}]},
 	"g_crane": {"name": "Le Vieux Crâne des Hauts-Fonds", "g": 26, "rar": 4, "cost": 2, "kind": "power", "target": "self", "power": "crane", "val": 3, "text": "Pouvoir : chaque piège déclenché inflige +{val} et Fabrique 1.", "up": [{"val": 3}, {"cost": -1}]},
-	# 27 · Grixis Heist
+	# 27 · Chaos Agent
 	"g_reperage_coffre": {"name": "Repérage du coffre", "g": 27, "rar": 1, "voix": "B", "cost": 0, "kind": "skill", "target": "self", "draw": 1, "recharge": 1, "text": "Pioche {draw}. Recharge 1.", "up": [{"draw": 1}, {"craft": 1, "text": "Pioche {draw}. Recharge 1. Fabrique 1."}]},
 	"g_coup_main": {"name": "Coup de main", "g": 27, "rar": 2, "voix": "R", "cost": 1, "kind": "atk", "range": [1, 1], "dmg": 6, "steal": true, "text": "Vole l'objet de la cible, puis inflige {dmg}.", "up": [{"dmg": 3}, {"cost": -1}]},
 	"g_braquage": {"name": "Braquage", "g": 27, "rar": 3, "voix": "N", "cost": 1, "kind": "skill", "target": "self", "heist": 1, "text": "Braquage : regarde 3 cartes d'une classe absente de l'escouade, gardes-en une ; elle coûte 1 de moins.", "up": [{"cost": -1}, {"draw": 1, "text": "Braquage : regarde 3 cartes d'une classe absente de l'escouade, gardes-en une ; elle coûte 1 de moins. Pioche 1."}]},

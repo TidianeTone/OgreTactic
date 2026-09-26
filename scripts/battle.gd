@@ -1268,8 +1268,8 @@ func end_turn() -> void:
 		ci.erase("cut")
 		if not c.get("retain", false):
 			ci.erase("chg")
-		if c.get("retain", false):
-			keep.append(ci)
+		if c.get("retain", false) or (c.has("tool") and not c.get("eph", false)):
+			keep.append(ci)  # une carte-objet reste en main d'un tour à l'autre, comme dans une besace
 		elif c.get("eph", false):
 			pass  # copie éphémère : elle s'efface
 		elif c.get("ethereal", false):
@@ -2758,6 +2758,7 @@ func kill(u: Unit, src: Unit = null) -> void:
 		for sl in u.equip:
 			if u.equip[sl] != "" and (randf() < 0.1 or (src and src.has_p("main_leste"))):
 				main.bag.append(u.equip[sl])
+				main.fight_loot.append(Data.ITEMS[u.equip[sl]].name)
 				Fx.number(main, u.position + Vector3(0, 1.6, 0), "Butin : " + Data.ITEMS[u.equip[sl]].name, GOLD_FX, true)
 				main.ui.toast("%s rejoint le sac." % Data.ITEMS[u.equip[sl]].name)
 				u.equip[sl] = ""
@@ -4028,29 +4029,42 @@ func sheet(u: Unit) -> String:
 		var n := hand.filter(func(ci): return Data.card(ci).owner == u.key).size()
 		L.append("Cartes en main : %d%s" % [n, " · a déjà bougé" if u.moved else ""])
 		return "\n".join(L)
+	# fiche ennemie en sections (« ## » = titre de section, « ~ » = note discrète) : ui.set_sheet les met en forme
+	L.append("## Prochaine action")
+	L.append("%s — %s" % [intent(u), _intent_text(u)])
+	var cap: Array = []
 	var arm := int(u.data.get("armor", 0)) + u.extra_armor
 	if arm > 0:
-		L.append("Armure +%d à chaque tour" % arm)
+		cap.append("Armure : +%d à chaque tour" % arm)
+	if u.data.get("arme", "") == "magie":
+		cap.append("Magie : ses coups passent sous l'armure.")
+	if u.affix != "":
+		cap.append("♛ %s : %s" % [Data.AFFIXES[u.affix].name, Data.AFFIXES[u.affix].text])
+	for q in u.passives():
+		cap.append("%s : %s" % [Data.PASSIVES[q].name, Data.PASSIVES[q].text])
+	if cap.size() > 0:
+		L.append("## Capacités")
+		L.append_array(cap)
+	var gear: Array = []
 	if u.card_id != "":
 		var left := (" Encore %d tour(s)." % (3 - u.flee_n)) if u.card_cond == "fuite" else ""
-		L.append("🃏 %s — garde %s. %s%s" % [Data.CARD_CONDS[u.card_cond].name, Data.def(u.card_id).name, Data.CARD_CONDS[u.card_cond].text, left])
+		gear.append("🃏 %s : garde %s. %s%s" % [Data.CARD_CONDS[u.card_cond].name, Data.def(u.card_id).name, Data.CARD_CONDS[u.card_cond].text, left])
 	for sl in u.equip:
 		if u.equip[sl] != "":
-			L.append("⚙ Équipé : %s — %s" % [Data.ITEMS[u.equip[sl]].name, Data.item_text(u.equip[sl]).split("\n")[1]])
-	if u.data.get("arme", "") == "magie":
-		L.append("Magie : ses coups passent sous l'armure.")
-	L.append("Prochaine action : %s" % intent(u))
-	L.append(_intent_text(u))
+			gear.append("⚙ %s : %s" % [Data.ITEMS[u.equip[sl]].name, Data.item_text(u.equip[sl]).split("
+")[1]])
 	if u.tool != "":
 		var td: Dictionary = Data.TOOLS[u.tool]
-		L.append("%s Porte : %s — il %s. Vole-le : sa carte arrive dans ta main (ou il la lâche en tombant)." % [td.glyph, td.name, td.get("foe_ai", "s'en servira")])
-	L.append(Data.FOE_TIPS.get(u.key, ""))
-	if u.affix != "":
-		L.append("♛ %s : %s" % [Data.AFFIXES[u.affix].name, Data.AFFIXES[u.affix].text])
-	for q in u.passives():
-		L.append("%s : %s" % [Data.PASSIVES[q].name, Data.PASSIVES[q].text])
-	L.append("Zone orange : où il peut aller ce tour.")
-	return "\n".join(L)
+		gear.append("%s %s : il %s. Vole-le, sa carte arrive dans ta main." % [td.glyph, td.name, td.get("foe_ai", "s'en servira")])
+	if gear.size() > 0:
+		L.append("## Il porte")
+		L.append_array(gear)
+	if Data.FOE_TIPS.get(u.key, "") != "":
+		L.append("## Conseil")
+		L.append(Data.FOE_TIPS[u.key])
+	L.append("~ Zone orange : où il peut aller ce tour.")
+	return "
+".join(L)
 
 
 func _intent_text(f: Unit) -> String:
@@ -4906,6 +4920,7 @@ func _steal(h: Unit, f: Unit) -> bool:
 			var gid: String = f.equip[sl]
 			f.equip[sl] = ""
 			main.bag.append(gid)
+			main.fight_loot.append(Data.ITEMS[gid].name)
 			stolen_turn += 1
 			_fourgue(h, true)
 			Fx.number(main, f.position + Vector3(0, 1.2, 0), "Volé : %s (au sac)" % Data.ITEMS[gid].name, GOLD_FX, true)

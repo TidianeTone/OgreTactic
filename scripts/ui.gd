@@ -589,7 +589,25 @@ func set_sheet(u: Unit) -> void:
 	txt = rx.sub(txt, ic.call("pv"), true)
 	rx = RegEx.create_from_string("(?m)^Déplacement ")
 	txt = rx.sub(txt, ic.call("deplacement"), true).replace("🛡 ", ic.call("armure"))
-	sheet_body.text = txt
+	# sections : titres dorés et espacés, noms de capacités en gras, notes en petit
+	var out: Array = []
+	var named := RegEx.create_from_string("^([^:]{2,34}) : (.*)$")
+	for line: String in txt.split("
+"):
+		if line.begins_with("## "):
+			out.append("[font_size=6] [/font_size]")
+			out.append("[font_size=12][color=#e3b45c]%s[/color][/font_size]" % line.substr(3).to_upper())
+		elif line.begins_with("~ "):
+			out.append("[font_size=6] [/font_size]")
+			out.append("[font_size=11][color=#a79d8b]%s[/color][/font_size]" % line.substr(2))
+		else:
+			var m := named.search(line)
+			if m and not line.begins_with("[img"):
+				out.append("[b][color=#ffe3a3]%s[/color][/b] : %s" % [m.get_string(1), m.get_string(2)])
+			else:
+				out.append(line)
+	sheet_body.text = "
+".join(out)
 	sheet_plate.reset_size()
 
 
@@ -640,7 +658,7 @@ func toggle_menu() -> void:
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(t)
 	var first: Button
-	for e in [["Reprendre", func(): toggle_menu()], ["Bibliothèque", func(): library_screen()], ["Mode portable : %s" % ("oui" if big else "non"), func(): main.set_mobile(not big)], ["Abandonner la run", func(): main.abandon()], ["Quitter le jeu", func(): get_tree().quit()]]:
+	for e in [["Reprendre", func(): toggle_menu()], ["Bibliothèque", func(): library_screen()], ["Mode portable : %s" % ("oui" if big else "non"), func(): main.set_mobile(not big)], ["Vue tactique : %s" % ("oui" if main.tactic else "non"), func(): main.set_tactic(not main.tactic)], ["Abandonner la run", func(): main.abandon()], ["Quitter le jeu", func(): get_tree().quit()]]:
 		var b := Button.new()
 		b.text = e[0]
 		b.add_theme_font_override("font", title_f)
@@ -1154,7 +1172,8 @@ func make_card(ci: Dictionary) -> Control:
 	live.size = CARD + Vector2(6, 6)
 	live.visible = false
 	card.set_meta("live", live)
-	card.tooltip_text = Data.keyword_tip(c)
+	card.tooltip_text = ""
+	card.set_meta("kwcard", ci)
 	var gem := _shadowed(_label("✦" if legend else "◆", 19 if rar >= 3 else 15, Data.RARITY_COL[rar], title_f), 4)
 	gem.position = Vector2(CARD.x * 0.83, CARD.y * 0.05)
 	card.add_child(gem)
@@ -1324,7 +1343,103 @@ func _art(col: Color, kind: String) -> Texture2D:
 	return t
 
 
+var kw_panel: VBoxContainer
+var _kw_for: Control
+var kw_force: Control         # tests : une carte « survolée » sans souris
+
+
+func _kw_update() -> void:
+	## Au survol d'une carte (au doigt : la carte choisie), ses mots-clés en encarts à pictogramme, à côté d'elle.
+	var hov: Control = get_viewport().gui_get_hovered_control()
+	var tgt: Control = null
+	var n: Control = hov
+	for k in 5:
+		if n == null:
+			break
+		if n.has_meta("kwcard"):
+			tgt = n
+			break
+		for ch in n.get_children():
+			if ch is Control and ch.has_meta("kwcard"):
+				tgt = ch
+				break
+		if tgt:
+			break
+		n = n.get_parent() as Control
+	if tgt == null and kw_force and is_instance_valid(kw_force):
+		tgt = kw_force
+	if tgt == null and big and battle and battle.card_sel >= 0 and battle.card_sel < _cards.size():
+		tgt = _cards[battle.card_sel]
+	if tgt == _kw_for:
+		if tgt and is_instance_valid(tgt):
+			_kw_place(tgt)
+		return
+	_kw_for = tgt
+	if kw_panel == null:
+		kw_panel = VBoxContainer.new()
+		kw_panel.z_index = 130
+		kw_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		kw_panel.add_theme_constant_override("separation", 6)
+		root.add_child(kw_panel)
+	for ch in kw_panel.get_children():
+		ch.queue_free()
+	kw_panel.visible = false
+	if tgt == null:
+		return
+	var list := Data.keyword_list(Data.card(tgt.get_meta("kwcard")))
+	if list.is_empty():
+		return
+	for e in list:
+		var p := PanelContainer.new()
+		var st := sb(Color(0.05, 0.045, 0.05, 0.95), Color(1, 1, 1, 0.08), 10, 1, 8)
+		st.content_margin_left = 10
+		st.content_margin_right = 12
+		st.content_margin_top = 8
+		st.content_margin_bottom = 8
+		p.add_theme_stylebox_override("panel", st)
+		p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 10)
+		hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		p.add_child(hb)
+		var im := TextureRect.new()
+		var ip := "res://assets/ui/kw_%s.png" % e.icon
+		if ResourceLoader.exists(ip):
+			im.texture = load(ip)
+		im.custom_minimum_size = Vector2(34, 34)
+		im.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		im.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		im.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		im.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hb.add_child(im)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 2)
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hb.add_child(v)
+		v.add_child(_label(e.title, 17, Color("#ffe3a3"), title_f))
+		var t := _label(e.text, 13, INK)
+		t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		t.custom_minimum_size = Vector2(230, 0)
+		v.add_child(t)
+		kw_panel.add_child(p)
+	kw_panel.visible = true
+	kw_panel.reset_size()
+	_kw_place(tgt)
+
+
+func _kw_place(tgt: Control) -> void:
+	if not kw_panel or not kw_panel.visible:
+		return
+	var r := tgt.get_global_rect()
+	var vs := root.size
+	var w := kw_panel.get_combined_minimum_size().x
+	var x := r.end.x + 10 if r.end.x + 10 + w < vs.x else r.position.x - w - 10
+	var h := kw_panel.get_combined_minimum_size().y
+	kw_panel.position = Vector2(clampf(x, 4, vs.x - w - 4), clampf(r.position.y, 4, vs.y - h - 4))
+
+
 func _process(dt: float) -> void:
+	_kw_update()
 	if big:
 		_fit_screen(overlay)
 		_fit_screen(sheet_layer)
@@ -1532,7 +1647,7 @@ func _place_tags() -> void:
 # ------------------------------------------------------------------ écrans de choix
 
 var last_n := 0            # nombre d'options du dernier choix (pilote de test)
-func choose(title: String, subtitle: String, options: Array, allow_skip := false, skip_text := "Passer", portrait := "") -> int:
+func choose(title: String, subtitle: String, options: Array, allow_skip := false, skip_text := "Passer", portrait := "", top_card := {}) -> int:
 	_close_overlay()
 	last_n = options.size()
 	overlay = Control.new()
@@ -1577,6 +1692,25 @@ func choose(title: String, subtitle: String, options: Array, allow_skip := false
 	var sl := _shadowed(_label(subtitle, 16, GOLD), 6)
 	sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(sl)
+	if not top_card.is_empty():
+		# la carte trouvée en grand, puis une flèche vers les héros à qui la donner
+		var tk := 0.95 if not big else 0.8
+		var tc := make_card(top_card)
+		var th := Control.new()
+		th.custom_minimum_size = CARD * tk
+		th.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tc.scale = Vector2.ONE * tk
+		tc.pivot_offset = Vector2.ZERO
+		_passthrough(tc)
+		th.add_child(tc)
+		th.set_meta("kwcard", top_card)
+		var cc := CenterContainer.new()
+		cc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cc.add_child(th)
+		box.add_child(cc)
+		var ar := _shadowed(_label("▼  à qui la donner ?  ▼", 20, GOLD, title_f), 6)
+		ar.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		box.add_child(ar)
 	# cartes et objets mêlés (le marchand) : les cartes en haut, le reste en dessous
 	var split: bool = options.size() > 7 and options.any(func(o): return o.has("card")) and options.any(func(o): return not o.has("card"))
 	var many: bool = not split and options.size() > 7 and options[0].has("card")
@@ -1954,7 +2088,7 @@ func _option(o: Dictionary, w := 250) -> Control:
 	var col: Color = o.get("color", GOLD)
 	var small := w < 170  # version compacte, sous l'étal du marchand
 	var p := PanelContainer.new()
-	p.custom_minimum_size = Vector2(w, 190 if small else 300)
+	p.custom_minimum_size = Vector2(w, o.get("h", 190 if small else 300))
 	var s := sb(Color(0.08, 0.07, 0.075, 0.92), col, 14, 2, 14)
 	s.content_margin_left = 12 if small else 20
 	s.content_margin_right = 12 if small else 20
@@ -2019,6 +2153,101 @@ func _fit_screen(layer: Control) -> void:
 			var s := minf(1.0, vs.y / maxf(c.get_combined_minimum_size().y, 1.0))
 			c.pivot_offset = Vector2(vs.x / 2.0, 0)
 			c.scale = Vector2(s, s)
+
+
+func fight_summary(title: String, rows: Array, loot: Array, can_equip: bool) -> int:
+	## Fin de combat : l'expérience de chaque héros (jauge vers la maîtrise suivante), tout le butin, puis s'équiper ou repartir.
+	## rows : {nm, key, pj0, pj1, lo, hi, m}. Rend 1 pour « S'équiper », 0 pour continuer.
+	_close_overlay()
+	overlay = Control.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 100
+	root.add_child(overlay)
+	var dim := ColorRect.new()
+	dim.color = Color(0.03, 0.03, 0.04, dim_alpha)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(dim)
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 16)
+	overlay.add_child(box)
+	var tl := _shadowed(_label(title, 44, INK, wide_f), 10)
+	tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(tl)
+	var hr := HBoxContainer.new()
+	hr.alignment = BoxContainer.ALIGNMENT_CENTER
+	hr.add_theme_constant_override("separation", 22)
+	box.add_child(hr)
+	for r in rows:
+		var col: Color = Data.CLASS_COLOR[r.key]
+		var p := PanelContainer.new()
+		var st := sb(Color(0.08, 0.07, 0.075, 0.92), col, 14, 2, 10)
+		st.content_margin_left = 16
+		st.content_margin_right = 16
+		st.content_margin_top = 14
+		st.content_margin_bottom = 14
+		p.add_theme_stylebox_override("panel", st)
+		p.custom_minimum_size = Vector2(250, 0)
+		hr.add_child(p)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 8)
+		p.add_child(v)
+		var im := TextureRect.new()
+		im.texture = load("res://assets/art/portrait_%s.png" % r.key)
+		im.custom_minimum_size = Vector2(90, 90)
+		im.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		im.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		v.add_child(im)
+		var nm := _label(r.nm, 22, INK, title_f)
+		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(nm)
+		var ml := _label(("Maîtrise %s" % Data.MASTERY_NAME[r.m]) + ("  ·  +%d XP" % (r.pj1 - r.pj0) if r.pj1 > r.pj0 else ""), 15, col.lightened(0.4))
+		ml.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(ml)
+		var bar := ProgressBar.new()
+		bar.show_percentage = false
+		bar.custom_minimum_size = Vector2(210, 14)
+		bar.add_theme_stylebox_override("background", sb(Color(0, 0, 0, 0.6), Color(1, 1, 1, 0.15), 6, 1))
+		bar.add_theme_stylebox_override("fill", sb(col.lightened(0.15), Color(0, 0, 0, 0), 6))
+		bar.min_value = r.lo
+		bar.max_value = maxf(r.hi, r.lo + 1)
+		bar.value = clampf(r.pj0, r.lo, r.hi)
+		v.add_child(bar)
+		create_tween().tween_property(bar, "value", clampf(r.pj1, r.lo, r.hi), 0.9).set_delay(0.3).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		var nx := _label("%d / %d vers la suivante" % [r.pj1, r.hi] if r.m < 4 else "Maîtrise complète", 13, DIM)
+		nx.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(nx)
+	var lp := _plate(box)
+	lp.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var lv := VBoxContainer.new()
+	lv.add_theme_constant_override("separation", 4)
+	lp.add_child(lv)
+	lv.add_child(_shadowed(_label("Butin du combat", 18, GOLD, title_f), 4))
+	lv.add_child(_label(" · ".join(loot) if loot.size() > 0 else "Rien de plus que la gloire.", 16, INK))
+	var br := HBoxContainer.new()
+	br.alignment = BoxContainer.ALIGNMENT_CENTER
+	br.add_theme_constant_override("separation", 16)
+	box.add_child(br)
+	var res := [0]
+	for e in ([["S'équiper", 1]] if can_equip else []) + [["Continuer", 0]]:
+		var b := Button.new()
+		b.text = e[0]
+		b.custom_minimum_size = Vector2(240, 54)
+		b.add_theme_font_override("font", title_f)
+		b.add_theme_font_size_override("font_size", 22)
+		b.add_theme_color_override("font_color", INK)
+		b.add_theme_stylebox_override("normal", sb(Color(0.1, 0.09, 0.1, 0.94), GOLD.darkened(0.2), 10, 2, 8))
+		b.add_theme_stylebox_override("hover", sb(Color(0.2, 0.16, 0.1, 0.96), GOLD, 10, 2, 8))
+		var k: int = e[1]
+		b.pressed.connect(func(): picked.emit(k))
+		br.add_child(b)
+	last_n = 1  # pilote de test : « Continuer » (0), sinon il bouclerait sur l'équipement
+	overlay.modulate.a = 0
+	create_tween().tween_property(overlay, "modulate:a", 1.0, 0.25)
+	var i: int = await picked
+	_close_overlay()
+	return i
 
 
 func _close_overlay() -> void:
@@ -2276,7 +2505,7 @@ func library_screen() -> void:
 	var tl := _shadowed(_label("BIBLIOTHÈQUE", 44, INK, wide_f), 10)
 	tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(tl)
-	var sl := _shadowed(_label("%d / %d cartes découvertes · une carte croisée en jeu s'y inscrit pour toujours" % [main.library.size(), total], 16, GOLD), 6)
+	var sl := _shadowed(_label("%d / %d cartes découvertes · clic sur une carte : ses trois niveaux" % [main.library.size(), total], 16, GOLD), 6)
 	sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(sl)
 	var tabs := HBoxContainer.new()
@@ -2330,8 +2559,7 @@ func library_screen() -> void:
 					var w := make_card({"id": id, "lvl": 1})
 					w.scale = Vector2.ONE * 0.8
 					w.pivot_offset = Vector2.ZERO
-					holder.tooltip_text = w.tooltip_text + "
-(clic : ses trois niveaux)"
+					holder.tooltip_text = ""  # les encarts de mots-clés s'affichent au survol ; clic : les trois niveaux
 					_passthrough(w)
 					holder.add_child(w)
 					holder.mouse_filter = Control.MOUSE_FILTER_STOP
