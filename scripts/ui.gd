@@ -2425,7 +2425,7 @@ func title_screen(resume := "") -> int:
 		entries.append([2, "Reprendre", "reprendre", "La partie en cours : " + resume])
 	entries.append([0, "Nouvelle descente", "descente", "Choisir le mode, la difficulté, l'escouade et ses pactes, puis descendre."])
 	entries.append([3, "Initiation", "initiation", "Une run éclair de trois combats : de quoi voir naître un multiclasse en un quart d'heure."])
-	entries.append([1, "Bibliothèque  %d / %d" % [main.library.size(), Data.all_ids().size()], "bibliotheque", "Toutes les cartes déjà croisées, par classe et par guilde."])
+	entries.append([1, "Bibliothèque  %d / %d" % [main.cards_known(), Data.all_ids().size()], "bibliotheque", "Toutes les cartes déjà croisées, par classe et par guilde."])
 	if OS.has_feature("web") or main.args.has("portable"):
 		entries.append([4, "Mode portable : %s" % ("oui" if big else "non"), "portable", "Interface agrandie, gestes tactiles (deux doigts : zoom et rotation ; toucher = viser, retoucher = valider), rendu allégé."])
 	entries.append([5, "Langue : Français" if not Lang.on else "Language: English", "langue", "Français / English : les textes changent tout de suite, la partie en cours reste."])
@@ -2508,7 +2508,7 @@ func title_screen(resume := "") -> int:
 		overlay.visible = false
 		await library_screen()
 		overlay.visible = true
-		lib_btn.text = "  Bibliothèque  %d / %d" % [main.library.size(), Data.all_ids().size()]
+		lib_btn.text = "  Bibliothèque  %d / %d" % [main.cards_known(), Data.all_ids().size()]
 	var tw := create_tween()
 	tw.tween_property(overlay, "modulate:a", 0.0, 0.4)
 	await tw.finished
@@ -2524,15 +2524,82 @@ func game_over(victory: bool, summary: String) -> void:
 # ------------------------------------------------------------------ vocation : l'explication
 
 func card_back(holder: Control, rar: int) -> void:
-	## Dos de carte : une carte pas encore découverte, seule sa rareté se devine.
-	var back := _panel(holder, sb(Color("#141216"), Data.RARITY_COL[rar].darkened(0.45), 10, 2, 6))
+	## Dos de carte peint : une carte pas encore découverte, seule sa rareté se devine (liseré et gemme).
+	var back := _panel(holder, sb(Color("#141216"), Data.RARITY_COL[rar].darkened(0.2 if rar > 1 else 0.45), 10, 2, 6))
 	back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if ResourceLoader.exists("res://assets/ui/dos_carte.png"):
+		var tr := TextureRect.new()
+		tr.texture = load("res://assets/ui/dos_carte.png")
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_SCALE
+		tr.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		tr.offset_left = 3
+		tr.offset_top = 3
+		tr.offset_right = -3
+		tr.offset_bottom = -3
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		back.add_child(tr)
+		var gem := _shadowed(_label("✦" if rar >= 4 else "◆", 18, Data.RARITY_COL[rar], title_f), 4)
+		gem.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+		gem.position.y -= 30
+		back.add_child(gem)
+		return
 	var q := _label("?", 48, Data.RARITY_COL[rar].darkened(0.3), title_f)
 	q.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	back.add_child(q)
+
+
+func _fill_gear(list: VBoxContainer) -> void:
+	## Bibliothèque : l'équipement par emplacement. Une pièce jamais obtenue ni vue reste une silhouette.
+	for slot in Data.SLOTS:
+		var ids: Array = Data.ITEMS.keys().filter(func(id): return Data.ITEMS[id].slot == slot)
+		ids.sort_custom(func(a, b): return Data.ITEMS[a].rarity < Data.ITEMS[b].rarity)
+		var known: int = ids.filter(func(id): return main.library.has("item:" + id)).size()
+		var hd := _label("%s   %d / %d" % [Data.SLOT_NAME[slot], known, ids.size()], 22, GOLD.lightened(0.2), title_f)
+		hd.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		list.add_child(hd)
+		var flow := HFlowContainer.new()
+		flow.alignment = FlowContainer.ALIGNMENT_CENTER
+		flow.add_theme_constant_override("h_separation", 10)
+		flow.add_theme_constant_override("v_separation", 10)
+		flow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		list.add_child(flow)
+		for id in ids:
+			var it: Dictionary = Data.ITEMS[id]
+			var seen: bool = main.library.has("item:" + id)
+			var col: Color = ITEM_COL[it.rarity]
+			var tile := PanelContainer.new()
+			var st := sb(Color(0.07, 0.06, 0.07, 0.95), col.darkened(0.15) if seen else DIM.darkened(0.5), 10, 2, 6)
+			st.set_content_margin_all(8)
+			tile.add_theme_stylebox_override("panel", st)
+			tile.custom_minimum_size = Vector2(150, 176)
+			var v := VBoxContainer.new()
+			v.alignment = BoxContainer.ALIGNMENT_CENTER
+			v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			tile.add_child(v)
+			var ic := TextureRect.new()
+			ic.texture = load(Data.item_icon(id))
+			ic.custom_minimum_size = Vector2(112, 112)
+			ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			ic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			if not seen:
+				ic.modulate = Color(0, 0, 0, 0.7)  # la silhouette : on devine la forme, pas la pièce
+			v.add_child(ic)
+			var nl := _label(it.name if seen else "???", 13, col.lightened(0.3) if seen else DIM, title_f)
+			nl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			nl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			nl.custom_minimum_size.x = 134
+			v.add_child(nl)
+			var rk := _label(("Mythique" if it.rarity == 4 else Data.RARITY_NAME[it.rarity]) if seen else "à découvrir", 11, DIM)
+			rk.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			v.add_child(rk)
+			tile.tooltip_text = Data.item_text(id) if seen else "Pas encore trouvée."
+			flow.add_child(tile)
 
 
 func vocation_intro(h: Unit) -> void:
@@ -2806,7 +2873,7 @@ func library_screen() -> void:
 	var tl := _shadowed(_label("BIBLIOTHÈQUE", 44, INK, wide_f), 10)
 	tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(tl)
-	var sl := _shadowed(_label("%d / %d cartes découvertes · clic sur une carte : ses trois niveaux" % [main.library.size(), total], 16, GOLD), 6)
+	var sl := _shadowed(_label("%d / %d cartes découvertes · clic sur une carte : ses trois niveaux" % [main.cards_known(), total], 16, GOLD), 6)
 	sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(sl)
 	var tabs := HBoxContainer.new()
@@ -2827,6 +2894,9 @@ func library_screen() -> void:
 		var sections: Array = []
 		if which == "bestiaire":
 			_fill_bestiary(list)
+			return
+		if which == "equipement":
+			_fill_gear(list)
 			return
 		if which == "classes":
 			for k in Data.HEROES:
@@ -2874,7 +2944,7 @@ func library_screen() -> void:
 					card_back(holder, rar)
 					holder.tooltip_text = "%s à découvrir" % Data.RARITY_NAME[rar]
 				flow.add_child(holder)
-	for t in [["Classes", "classes"], ["Guildes", "guildes"], ["Bestiaire", "bestiaire"]]:
+	for t in [["Classes", "classes"], ["Guildes", "guildes"], ["Équipement", "equipement"], ["Bestiaire", "bestiaire"]]:
 		var tb := Button.new()
 		tb.text = t[0]
 		tb.add_theme_font_override("font", title_f)
@@ -3037,7 +3107,7 @@ func _gear_tile(id: String, sz: int, col: Color) -> PanelContainer:
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if id != "":
-		ic.texture = load("res://assets/ui/gear_%s.png" % Data.ITEM_ICON.get(id, "anneau"))
+		ic.texture = load(Data.item_icon(id))
 	t.add_child(ic)
 	t.pivot_offset = Vector2(sz, sz) / 2
 	t.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -3123,7 +3193,7 @@ func equipment_screen(heroes: Array, bag: Array) -> Dictionary:
 			c_fx.text = ""
 			return
 		var it: Dictionary = Data.ITEMS[id]
-		c_icon.texture = load("res://assets/ui/gear_%s.png" % Data.ITEM_ICON.get(id, "anneau"))
+		c_icon.texture = load(Data.item_icon(id))
 		c_name.text = it.name
 		c_name.add_theme_color_override("font_color", ITEM_COL[it.rarity].lightened(0.25))
 		var lines: PackedStringArray = Data.item_text(id).split("\n")

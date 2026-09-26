@@ -852,6 +852,12 @@ const PROPS := {
 }
 
 
+static func item_icon(id: String) -> String:
+	## L'icône peinte de la pièce (KIE, pixel art : blender/kie_ui/gen_items.py), sinon l'idéogramme de son type.
+	var p := "res://assets/ui/item_%s.png" % id
+	return p if ResourceLoader.exists(p) else "res://assets/ui/gear_%s.png" % ITEM_ICON.get(id, "anneau")
+
+
 static func item_text(id: String) -> String:
 	var it: Dictionary = ITEMS[id]
 	var parts: Array = []
@@ -1037,14 +1043,9 @@ static func level(ci: Dictionary) -> int:
 
 
 static func lvl_cap(ci: Dictionary) -> int:
-	## Niveau atteignable. Une carte-objet plafonne au niveau 2 tant qu'elle n'a pas assez servi (secret :
-	## le légendaire se mérite à l'usage, pas en empilant des objets ni par un raccourci).
-	if not def(ci.id).has("tool"):
-		return MAX_LVL
-	return MAX_LVL if int(ci.get("worn", 0)) >= OBJ_WORN else 2
-
-
-const OBJ_WORN := 5  # utilisations d'une carte-objet (jouée, démontée, lancée) avant que la forge l'accepte au niveau 3
+	## Niveau atteignable par un raccourci (Œuvre, Geste, dés, glyphes, bienfaits) : une carte-objet s'y arrête
+	## au niveau 2. Seule la forge ouvre son niveau 3 (secret).
+	return 2 if def(ci.id).has("tool") else MAX_LVL
 
 
 # Cartes créées en combat seulement : jamais au butin, ni en bibliothèque.

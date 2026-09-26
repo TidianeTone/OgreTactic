@@ -4695,7 +4695,6 @@ func _spend_obj(ci: Dictionary) -> void:
 	var c := Data.card(ci)
 	if c.get("eph", false):
 		return
-	ci["worn"] = int(ci.get("worn", 0)) + 1  # l'usure (secret) : ce qui ouvre le niveau 3 à la forge
 	if c.get("legend", false):
 		exhausted.append(ci)
 		return

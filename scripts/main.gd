@@ -1402,6 +1402,7 @@ func _roll_item(min_rarity := 1) -> String:
 func _gain_item(id: String, h: Unit = null) -> void:
 	## Au sac, ou équipé d'office si l'emplacement du héros qui l'a trouvé est libre.
 	var it: Dictionary = Data.ITEMS[id]
+	library_see("item:" + id)
 	var who: Array = [h] if h else heroes
 	for u in who:
 		if (it.owner == "any" or it.owner == u.key) and u.equip[it.slot] == "":
@@ -1447,7 +1448,7 @@ func open_chest(h: Unit) -> void:
 	if rng.randf() < (0.4 if floor_i == 1 else 0.6):  # acte 1 : moins de pièces, le sac se remplit trop vite
 		var it := _roll_item()
 		_gain_item(it, h)
-		gains.append({"title": Data.ITEMS[it].name, "image": "res://assets/ui/gear_%s.png" % Data.ITEM_ICON.get(it, "anneau"), "text": "%s · %s\n(au sac : s'équiper après le combat)" % [Data.SLOT_NAME[Data.ITEMS[it].slot], Data.item_text(it)], "color": UI.ITEM_COL[Data.ITEMS[it].rarity], "w": 250})
+		gains.append({"title": Data.ITEMS[it].name, "image": Data.item_icon(it), "text": "%s · %s\n(au sac : s'équiper après le combat)" % [Data.SLOT_NAME[Data.ITEMS[it].slot], Data.item_text(it)], "color": UI.ITEM_COL[Data.ITEMS[it].rarity], "w": 250})
 		fight_loot.append(Data.ITEMS[it].name)
 	else:
 		g += rng.randi_range(30, 55)
@@ -1713,6 +1714,11 @@ func bestiary_see(id: String) -> void:
 		_save_library.call_deferred()
 
 
+func cards_known() -> int:
+	## Cartes découvertes (sans les niveaux 3 secrets ni l'équipement, rangés dans la même bibliothèque).
+	return library.keys().filter(func(k): return not ("#" in k or k.begins_with("item:"))).size()
+
+
 func library_see(id: String) -> void:
 	if library.has(id):
 		return
@@ -1841,8 +1847,9 @@ func _card_roll(min_rar := 1) -> String:
 
 func _item_opt(id: String, price := 0) -> Dictionary:
 	var it: Dictionary = Data.ITEMS[id]
+	library_see("item:" + id)
 	var title: String = it.name + ("  ·  %d or" % price if price > 0 else "")
-	return {"title": title, "image": "res://assets/ui/gear_%s.png" % Data.ITEM_ICON.get(id, "anneau"), "text": Data.item_text(id),
+	return {"title": title, "image": Data.item_icon(id), "text": Data.item_text(id),
 		"color": UI.ITEM_COL[it.rarity]}
 
 
@@ -2262,7 +2269,7 @@ func _forge(title: String, subtitle: String, budget := -1) -> bool:
 	## budget : l'or disponible à une forge payante ; -1 = forge gratuite (événement, bienfait).
 	var idx: Array = []
 	for k in deck.size():
-		if Data.level(deck[k]) < Data.lvl_cap(deck[k]):
+		if Data.level(deck[k]) < Data.MAX_LVL:  # la forge passe outre le plafond des cartes-objets
 			if Data.def(deck[k].id).get("forge2", false) and Data.level(deck[k]) == 2 and budget < 70:
 				continue
 			idx.append(k)
@@ -2291,7 +2298,7 @@ func _confirm_upgrade(before: Dictionary, after: Dictionary) -> bool:
 
 func _level_up(k: int) -> void:
 	var nc: Dictionary = deck[k].duplicate()
-	nc["lvl"] = mini(Data.level(deck[k]) + 1, Data.lvl_cap(deck[k]))
+	nc["lvl"] = mini(Data.level(deck[k]) + 1, Data.MAX_LVL)
 	nc.erase("up")
 	if Data.def(nc.id).has("tool"):
 		if nc.lvl == 2:
@@ -2680,6 +2687,15 @@ func _voctest() -> void:
 			b.pressed.emit()
 	await _frames(40)
 	_shot(dir, "6_bibliotheque_guildes")
+	for id in Data.ITEMS.keys().slice(0, 30):
+		library.erase("item:" + id)  # la capture montre des pièces vues et des silhouettes, sans rien écrire
+	for id in Data.ITEMS.keys().slice(0, 20):
+		library["item:" + id] = true
+	for b in ui.lib_layer.find_children("*", "Button", true, false):
+		if b.text == "Équipement":
+			b.pressed.emit()
+	await _frames(40)
+	_shot(dir, "6b_bibliotheque_equipement")
 	ui.lib_closed.emit()
 	await _frames(10)
 	gold = 240

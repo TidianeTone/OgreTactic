@@ -1,0 +1,111 @@
+# Équipement en pixel art (26/09) : une icône par pièce, dans le style des références de Tidiane (refs_items/),
+# planches 4×4 sur vert #00FF00, puis découpe, détourage et vraie grille de pixels (cut_items.py).
+# Aussi le dos de carte (cartes inconnues de la bibliothèque).
+# python gen_items.py [dos]
+import os, sys, json
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from gen_ui import still, GREEN, HERE
+
+REFS = [os.path.join(HERE, "refs_items", f) for f in ("9.png", "13.png", "14.png", "17.png")]
+OUT = os.path.join(HERE, "items")
+
+ITEMS = {
+	"epee_ecluse": "a sturdy knight's longsword with a blue enamel crossguard shaped like a canal lock gate",
+	"masse_os": "a heavy iron flanged mace wrapped with bone plates",
+	"hallebarde": "a halberd whose axe blade is shaped like a heron's head and beak",
+	"dague_ombre": "a slim black dagger with a crimson grip and a small arch-shaped guard",
+	"kriss": "a pair of twin wavy kris daggers crossed, red and black handles",
+	"lame_soif": "a curved dagger dripping green poison, blood-red gem on the pommel",
+	"baton_braise": "a gnarled wooden staff topped with a glowing orange ember in a claw",
+	"sceptre_maree": "a silver scepter with a swirling blue water orb and wave-shaped crest",
+	"baton_lotus": "a slender staff topped with a pink lotus flower in bloom",
+	"cle_meca": "a huge brass lock-keeper's wrench key with gears",
+	"canon_main": "a stubby flared blunderbuss hand cannon with brass bands and a teal fuse",
+	"marteau_forge": "a shipwright's forge hammer with a riveted copper head",
+	"bandes_jade": "rolled hand wraps of rope with jade beads",
+	"chapelet": "a prayer bead chain with a wave-shaped jade pendant",
+	"gantelets_ressac": "a pair of bronze knuckle gauntlets shaped like ship prows",
+	"arc_frene": "a simple ash wood longbow with a green string",
+	"arc_os": "a bow carved from pale catfish bone with fish-scale grip",
+	"arbalete_silure": "a heavy crossbow loaded with a barbed harpoon and rope",
+	"pinceau": "a master painter's paintbrush dripping magenta paint, golden ferrule",
+	"palette": "a painter's palette with blue, red and black paint blobs and a small knife",
+	"stylet": "a digital drawing stylus pen glowing cyan, elegant",
+	"pied_biche": "a rusty iron crowbar",
+	"crochets": "a ring of lockpicks and small keys",
+	"gants_velours": "a pair of dark purple velvet thief gloves with silver studs",
+	"anneau_bouclier": "a breastplate made from a riveted sluice gate plate, blue iron",
+	"oeil_vigilant": "a leather back plate with a painted watchful eye",
+	"bracelet_fleches": "woven reed bracers with arrow-deflecting slats",
+	"coeur_pierre": "a rusty chainmail shirt",
+	"cuirasse_compagnie": "a dented steel cuirass with a faded company emblem",
+	"cotte_vase": "a mud-caked padded armor dripping with silt",
+	"cire_passeur": "a yellow oilskin boatman's raincoat",
+	"carapace_ecrevisse": "an armor made of red crayfish shell plates",
+	"mantelet_feuilles": "a short cloak made of orange autumn leaves",
+	"brigandine_noyee": "a heavy waterlogged brigandine with barnacles and seaweed",
+	"heaume_noye": "a drowned knight's great helm covered in barnacles, water dripping",
+	"bottes_heron": "tall slender grey boots with heron feather tufts",
+	"sandales_saut": "springy green sandals with toad-skin soles",
+	"ecaille_eau": "light cork-soled boots that float",
+	"echasses_roseau": "a pair of reed stilts tied with twine",
+	"sabots_halage": "wooden towpath clogs with iron studs",
+	"guetres_eclusier": "sturdy leather gaiters with brass buckles",
+	"bottes_vase": "heavy mud boots with lead soles, dark brown",
+	"bottes_fuyard": "worn quick running boots with wing-like flaps",
+	"pas_passeur": "ghostly ferryman's boots glowing teal, walking on water ripples",
+	"amulette_regen": "an amulet of living green moss around a stone",
+	"plume_elan": "a pearl pendant with a swirl of breath inside",
+	"gantelet": "a heavy weighted signet ring of iron and gold",
+	"miroir": "a round copper hand mirror",
+	"bourse": "a shipwrecker's coin purse spilling gold coins",
+	"dent_silure": "a big catfish tooth on a leather cord",
+	"medaille_rouillee": "a rusty military insignia medal on a ribbon",
+	"bague_charognard": "a ring shaped like a vulture skull",
+	"lanterne_brume": "a small hanging lantern filled with swirling mist",
+	"croc_brochet": "a pike fang pendant dripping green venom",
+	"signet_algue": "a seaweed-green signet ring with a wax seal",
+	"masse_digue": "a legendary giant mace shaped like a stone dike tower, blue enamel, gold trim, glowing",
+	"derniere_arche": "a legendary black dagger with a crescent arch guard and crimson glowing edge",
+	"sceptre_vive": "a legendary scepter crowned with a roaring living flame, violet and gold",
+	"canon_mere": "a legendary ornate brass cannon with a valve wheel and glowing teal barrel",
+	"poings_crue": "legendary gauntlets made of crashing flood waves and jade",
+	"arc_chevrier": "a legendary bow with curled goat horn limbs and gold inlay",
+	"geste_parfait": "a legendary painter's brush trailing rainbow paint, masked porcelain handle",
+	"passe_partout": "a legendary ornate skeleton key glowing silver, with tiny gears",
+	"cuirasse_gardien": "a legendary massive stone and gold cuirass of an ancient guardian, glowing runes",
+	"voile_dame": "a legendary flowing teal veil robe dripping luminous water drops",
+	"manteau_cendre": "a legendary cloak of smoldering ash with glowing embers at the hem",
+	"bottes_chevrier": "legendary goatherd boots with small curled horns and fur",
+	"grandes_eaux": "legendary boots made of swirling water with golden anchors",
+	"coeur_ecluse": "a legendary glowing blue heart-shaped gem set in a lock gear",
+	"oeil_paupiere": "a legendary lidless eye amulet staring, violet iris, gold frame",
+	"sceau_compagnie": "a legendary golden seal medallion of the drowned company, red ribbon",
+}
+
+
+def planches():
+	os.makedirs(OUT, exist_ok=True)
+	ids = list(ITEMS)
+	batches = [ids[i:i + 16] for i in range(0, len(ids), 16)]
+	json.dump(batches, open(os.path.join(OUT, "batches.json"), "w"), indent=0)
+	for k, b in enumerate(batches):
+		parts = ["Cell %d (row %d, column %d): %s." % (i + 1, i // 4 + 1, i % 4 + 1, ITEMS[x]) for i, x in enumerate(b)]
+		for i in range(len(b), 16):
+			parts.append("Cell %d: empty." % (i + 1))
+		still("A 4x4 grid of sixteen separate video game item icons in crisp pixel art, exactly the style of the reference images: "
+			"chunky readable pixels, a dark 1-pixel outline, rich hand-placed shading with 4 to 6 tones per material, warm highlights, "
+			"each item centered in its own cell, drawn at a slight three-quarter angle, same scale, lots of empty space between cells, "
+			"no text, no numbers, no frame, no shadow on the ground. " + " ".join(parts) + " " + GREEN.replace("frames", "items").replace("inside of each frame", "space around each item"),
+			os.path.join(OUT, "sheet_%02d.png" % k), "1:1", REFS)
+
+
+def dos():
+	still("The back of a trading card for a dark fantasy tactics card game about a drowned lock city: portrait card, ornate dark iron and brass "
+		"frame with teal enamel, a central emblem of a stylized canal lock gate crossed by a key and a sword over a deep blue-black background "
+		"with subtle wave patterns and faint gold filigree, symmetrical, mysterious, hand-painted game UI asset, front view, fills the whole image, "
+		"no text, no letters.", os.path.join(HERE, "dos_carte.png"), "3:4", [os.path.join(HERE, "cadres_classes.png")])
+
+
+if __name__ == "__main__":
+	dos() if sys.argv[1:] == ["dos"] else planches()
