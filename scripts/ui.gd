@@ -2564,9 +2564,17 @@ func equipment_screen(heroes: Array, bag: Array) -> Dictionary:
 	done.add_theme_stylebox_override("hover", sb(Color(0.2, 0.16, 0.1, 0.96), GOLD, 10, 2, 8))
 	done.custom_minimum_size = Vector2(260, 50)
 	done.pressed.connect(func(): act.call({}))
-	var dc := CenterContainer.new()
-	dc.add_child(done)
-	box.add_child(dc)
+	if big:  # en portable l'écran déborde en hauteur : le bouton du bas serait hors champ
+		done.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		done.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		done.offset_left = -284
+		done.offset_right = -24
+		done.offset_top = 24
+		overlay.add_child(done)
+	else:
+		var dc := CenterContainer.new()
+		dc.add_child(done)
+		box.add_child(dc)
 	overlay.modulate.a = 0
 	create_tween().tween_property(overlay, "modulate:a", 1.0, 0.2)
 	await picked
