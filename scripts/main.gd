@@ -114,6 +114,9 @@ func _ready() -> void:
 		# base plus petite : tout grossit d'un quart sur un téléphone en paysage (20:9 -> 1600 x 720)
 		get_window().content_scale_size = Vector2i(1440, 720)
 		quality = 0
+	Fx.lite = mobile  # tablette et téléphone : ni particules, ni vent, ni bloom, ombres légères
+	if mobile:
+		RenderingServer.directional_shadow_atlas_set_size(1024, true)
 	_setup_world()
 	board = Board.new()
 	add_child(board)
@@ -182,7 +185,7 @@ func _setup_world() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
-	env.glow_enabled = true
+	env.glow_enabled = not mobile
 	env.glow_intensity = 0.8
 	env.glow_bloom = 0.05
 	env.glow_hdr_threshold = 1.0
@@ -1323,7 +1326,7 @@ func _fight(type: String, ids_override: Array = []) -> bool:
 			mods.append(pk[1])
 	battle.mods = mods
 	Battle.foe_bonus = 2 if mods.has("enrages") else 0
-	battle.hand_size = 2 if pacts.has("main") else 3
+	battle.hand_size = 3 if pacts.has("main") else 4
 	battle.tool_rate = 0.0 if tuto else 0.3 + 0.1 * (floor_i - 1)
 	if pacts.has("champion"):
 		battle.champions += 1
@@ -1566,14 +1569,7 @@ func _choose_vocation(h: Unit, second := false) -> void:
 		others[i] = others[j]
 		others[j] = t
 	var picks: Array = others.slice(0, 3)
-	var opts: Array = []
-	for k in picks:
-		var g := Guildes.index(h.key, k)
-		var gl: Array = Guildes.LIST[g]
-		var leg: String = Guildes.CARDS[Guildes.cards_of(g, [4])[0]].name
-		opts.append({"title": Data.HEROES[k].name, "image": "res://assets/art/portrait_%s.png" % k, "color": Data.CLASS_COLOR[k],
-			"text": "%s\n%s" % [Data.HEROES[k].title, Data.HEROES[k].role]})
-	var i := await ui.choose("VOCATION · %s" % h.nm.to_upper(), "%s apprend une deuxième classe. Trois voies se présentent cette fois." % h.nm, opts)
+	var i: int = await ui.vocation_screen(h, picks) if not _testing() or args.has("voctest") else 0
 	var k: String = picks[maxi(i, 0)]
 	if second:
 		h.voc2 = k
@@ -2266,7 +2262,7 @@ func _forge(title: String, subtitle: String, budget := -1) -> bool:
 	## budget : l'or disponible à une forge payante ; -1 = forge gratuite (événement, bienfait).
 	var idx: Array = []
 	for k in deck.size():
-		if Data.level(deck[k]) < Data.MAX_LVL:
+		if Data.level(deck[k]) < Data.lvl_cap(deck[k]):
 			if Data.def(deck[k].id).get("forge2", false) and Data.level(deck[k]) == 2 and budget < 70:
 				continue
 			idx.append(k)
@@ -2295,7 +2291,7 @@ func _confirm_upgrade(before: Dictionary, after: Dictionary) -> bool:
 
 func _level_up(k: int) -> void:
 	var nc: Dictionary = deck[k].duplicate()
-	nc["lvl"] = Data.level(deck[k]) + 1
+	nc["lvl"] = mini(Data.level(deck[k]) + 1, Data.lvl_cap(deck[k]))
 	nc.erase("up")
 	if Data.def(nc.id).has("tool"):
 		if nc.lvl == 2:
@@ -2317,7 +2313,7 @@ func _fuse() -> bool:
 		if deck[k].get("st", false) or Data.def(deck[k].id).has("tool"):
 			continue  # les cartes-objets ne fusionnent pas (leurs charges se perdraient)
 		var key := "%s|%d" % [deck[k].id, Data.level(deck[k])]
-		if seen.has(key) and Data.level(deck[k]) < Data.MAX_LVL:
+		if seen.has(key) and Data.level(deck[k]) < Data.lvl_cap(deck[k]):
 			pairs.append([seen[key], k])
 			seen.erase(key)
 		else:
@@ -2658,7 +2654,7 @@ func _voctest() -> void:
 	voc_intro_done = true
 	var f2 := func(): await _choose_vocation(h)
 	f2.call()
-	await _frames(40)
+	await _frames(90)
 	_shot(dir, "2_choix")
 	ui.picked.emit(0)
 	await _frames(40)
@@ -3796,7 +3792,7 @@ func _boon(k: String) -> void:
 			for h in heroes:
 				h.hp = h.max_hp
 		"forge2":
-			var idx: Array = range(deck.size()).filter(func(q): return Data.level(deck[q]) < Data.MAX_LVL)
+			var idx: Array = range(deck.size()).filter(func(q): return Data.level(deck[q]) < Data.lvl_cap(deck[q]))
 			var names: Array = []
 			for n in mini(2, idx.size()):
 				var q: int = idx.pop_at(rng.randi_range(0, idx.size() - 1))
@@ -3807,13 +3803,13 @@ func _boon(k: String) -> void:
 			var hopts: Array = heroes.map(func(h): return {"title": h.nm, "image": "res://assets/art/portrait_%s.png" % h.key, "text": "Ses cartes de départ gagnent un niveau.", "color": Data.CLASS_COLOR[h.key]})
 			var j := await ui.choose("RACINES", "Quel héros ?", hopts)
 			for q in deck.size():
-				if deck[q].get("st", false) and Data.holder(deck[q]) == heroes[j].key and Data.level(deck[q]) < Data.MAX_LVL:
+				if deck[q].get("st", false) and Data.holder(deck[q]) == heroes[j].key and Data.level(deck[q]) < Data.lvl_cap(deck[q]):
 					_level_up(q)
 		"besace":
 			for n in 3:
 				await _gain_obj_ui(_obj_roll(2), 1, "TROIS BABIOLES")
 		"place":
-			var idx: Array = range(deck.size()).filter(func(q): return Data.def(deck[q].id).has("tool") and Data.level(deck[q]) < Data.MAX_LVL)
+			var idx: Array = range(deck.size()).filter(func(q): return Data.def(deck[q].id).has("tool") and Data.level(deck[q]) < Data.lvl_cap(deck[q]))
 			if idx.size() > 0:
 				var j := await ui.choose("POCHES COUSUES", "Quelle carte-objet gagne un niveau ?", idx.map(func(q): return {"card": deck[q]}), true)
 				if j >= 0:
@@ -4001,10 +3997,10 @@ func _event_new(ev: String, r: Dictionary) -> bool:
 					else:
 						ui.banner("Perdu", "Les dés roulent dans l'eau")
 			elif i == 1:
-				var q := await _deck_pick("TOUT OU RIEN", "Quelle carte jouer aux dés ?", func(ci): return Data.level(ci) < Data.MAX_LVL)
+				var q := await _deck_pick("TOUT OU RIEN", "Quelle carte jouer aux dés ?", func(ci): return Data.level(ci) < Data.lvl_cap(ci))
 				if q >= 0:
 					if rng.randf() < 0.5:
-						deck[q]["lvl"] = mini(Data.MAX_LVL, Data.level(deck[q]) + 2)
+						deck[q]["lvl"] = mini(Data.lvl_cap(deck[q]), Data.level(deck[q]) + 2)
 						ui.banner("Double six", "%s passe au niveau %d" % [Data.def(deck[q].id).name, deck[q].lvl])
 					else:
 						ui.banner("Perdu", "%s file avec le courant" % Data.def(deck[q].id).name)
@@ -4078,9 +4074,9 @@ func _event_new(ev: String, r: Dictionary) -> bool:
 				var q := await _deck_pick("SACRIFICE", "Quelle carte offrir au premier glyphe ?")
 				if q >= 0:
 					deck.remove_at(q)
-					var u := await _deck_pick("OFFRANDE", "Quelle carte reçoit deux niveaux ?", func(ci): return Data.level(ci) < Data.MAX_LVL)
+					var u := await _deck_pick("OFFRANDE", "Quelle carte reçoit deux niveaux ?", func(ci): return Data.level(ci) < Data.lvl_cap(ci))
 					if u >= 0:
-						deck[u]["lvl"] = mini(Data.MAX_LVL, Data.level(deck[u]) + 2)
+						deck[u]["lvl"] = mini(Data.lvl_cap(deck[u]), Data.level(deck[u]) + 2)
 		"rave":
 			var i := await ui.choose("RAVE ENGLOUTIE", "Sous une voûte, une enceinte de pierre bat à 174 BPM. Des lucioles tiennent le rythme.", [
 				{"title": "Danser jusqu'à l'aube", "glyph": "♫", "text": "Chaque héros récupère 25 % de ses PV max.", "color": green},
@@ -4318,7 +4314,8 @@ func _read_mobile() -> bool:
 	var cf := ConfigFile.new()
 	if cf.load("user://reglages.cfg") == OK and cf.has_section_key("ecran", "portable"):
 		return bool(cf.get_value("ecran", "portable"))
-	return OS.has_feature("web_android") or OS.has_feature("web_ios")
+	# une tablette dans un navigateur ne se déclare pas toujours « mobile » (iPad = Safari de bureau) : l'écran tactile suffit
+	return OS.has_feature("web_android") or OS.has_feature("web_ios") or (OS.has_feature("web") and DisplayServer.is_touchscreen_available())
 
 
 func set_mobile(on: bool) -> void:

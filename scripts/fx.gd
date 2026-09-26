@@ -130,7 +130,12 @@ static func _fade_ramp() -> Gradient:
 	return g
 
 
+static var lite := false  # mode portable : ni particules, ni lumières éphémères (ça ramait sur tablette)
+
+
 static func glow_puff(parent: Node, pos: Vector3, col: Color, n := 8, size := 0.55, life := 0.45, speed := 0.8) -> void:
+	if lite:
+		return
 	var p := CPUParticles3D.new()
 	p.one_shot = true
 	p.explosiveness = 0.9
@@ -160,6 +165,8 @@ static func glow_puff(parent: Node, pos: Vector3, col: Color, n := 8, size := 0.
 
 static func flash(parent: Node, pos: Vector3, col: Color, energy := 3.0, rng := 3.5) -> void:
 	## Éclair de lumière bref : l'explosion éclaire les pierres autour.
+	if lite:
+		return
 	var l := OmniLight3D.new()
 	l.light_color = col
 	l.light_energy = energy
@@ -173,6 +180,8 @@ static func flash(parent: Node, pos: Vector3, col: Color, energy := 3.0, rng := 
 
 
 static func ring(parent: Node, pos: Vector3, col: Color, radius := 1.6) -> void:
+	if lite:
+		return
 	## Onde de choc au sol.
 	if _ring == null:
 		_ring = _radial([0.0, 0.62, 0.78, 0.9, 1.0], [0.0, 0.0, 1.0, 0.0, 0.0])
@@ -198,7 +207,7 @@ static func ring(parent: Node, pos: Vector3, col: Color, radius := 1.6) -> void:
 static func smoke_cloud(parent: Node, pos: Vector3) -> Node3D:
 	## Fumée qui roule sur la case tant qu'elle dure.
 	var p := CPUParticles3D.new()
-	p.amount = 14
+	p.amount = 14 if not lite else 4  # la fumée reste : c'est une règle de jeu
 	p.lifetime = 2.2
 	p.preprocess = 2.2
 	var q := QuadMesh.new()
@@ -227,6 +236,8 @@ static func smoke_cloud(parent: Node, pos: Vector3) -> Node3D:
 
 
 static func burst(parent: Node, pos: Vector3, col: Color, amount := 26, speed := 3.2, up := 0.0) -> void:
+	if lite:
+		return
 	# un halo doux derrière les éclats ; les grosses gerbes éclairent et font une onde au sol
 	glow_puff(parent, pos, col, amount / 6, 0.45 + amount * 0.004, 0.4 + amount * 0.002, speed * 0.3)
 	if amount >= 60:
@@ -281,6 +292,7 @@ static func bolt(parent: Node, from: Vector3, to: Vector3, col: Color) -> void:
 	light.omni_range = 2.5
 	m.add_child(light)
 	var trail := CPUParticles3D.new()
+	trail.emitting = not lite
 	trail.amount = 48
 	trail.lifetime = 0.3
 	trail.local_coords = false
@@ -304,6 +316,8 @@ static func bolt(parent: Node, from: Vector3, to: Vector3, col: Color) -> void:
 
 
 static func ambient(parent: Node, biome: Dictionary, center: Vector3) -> void:
+	if lite:
+		return
 	if biome.leaves:
 		var p := GPUParticles3D.new()
 		p.amount = 70

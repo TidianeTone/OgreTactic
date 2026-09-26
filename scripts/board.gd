@@ -825,6 +825,8 @@ static func mesh_of(key: String) -> Dictionary:
 
 static func material(kind_: String) -> Material:
 	if _mats.has(kind_):
+		if kind_ == "foliage":
+			(_mats[kind_] as ShaderMaterial).set_shader_parameter("sway", 0.0 if Fx.lite else 1.0)
 		return _mats[kind_]
 	var m := ShaderMaterial.new()
 	if kind_ == "glow" or kind_ == "glow_unit":
@@ -836,7 +838,7 @@ static func material(kind_: String) -> Material:
 	else:
 		m.shader = load("res://shaders/voxel.gdshader")
 		if kind_ == "foliage":
-			m.set_shader_parameter("sway", 1.0)
+			m.set_shader_parameter("sway", 0.0 if Fx.lite else 1.0)  # pas de vent en mode portable
 			m.set_shader_parameter("backlight", 0.55)
 		elif kind_ == "flat":
 			m.set_shader_parameter("backlight", 0.2)

@@ -8,11 +8,14 @@ GREEN = ("Every empty area — the whole background outside the frames AND the w
          "no gradient, no texture, no shadow on the green. The frames themselves contain no green at all.")
 
 
-def still(prompt, out, ar):
+def still(prompt, out, ar, refs=()):
 	if os.path.exists(out):
 		print("déjà là", out)
 		return
-	r = subprocess.run(["node", K, "still", prompt, out, "--ar", ar], capture_output=True, text=True, cwd=r"G:\Mes APP\scrollcraft")
+	cmd = ["node", K, "still", prompt, out, "--ar", ar]
+	for ref in refs:
+		cmd += ["--ref", ref]
+	r = subprocess.run(cmd, capture_output=True, text=True, cwd=r"G:\Mes APP\scrollcraft")
 	print(os.path.basename(out), "ok" if os.path.exists(out) else r.stderr[-400:], flush=True)
 
 
@@ -33,6 +36,33 @@ ORBES = [
 	("tidiane", "porcelain-white ring with a small cracked porcelain mask on top and three gems blue black red, magenta accents"),
 	("receleur", "tarnished silver ring hung with little keys, lockpicks and coins, slate grey enamel"),
 ]
+
+
+# Un cadre par classe (26/09) : le style de la classe, la mise en page des cadres d'origine (planche cadres.png en référence).
+CLASSES = [
+	("garde", "a fortress rampart: heavy royal-blue enamelled iron plates, round shield bosses along the sides, a small helmet crest at the top, tower battlements in the corners"),
+	("lame", "an assassin's frame: thin blackened steel with crimson lacquer, crossed curved daggers at the top, crescent moons and smoke wisps in the corners, sharp and elegant"),
+	("oracle", "a seer's frame: dark bronze with violet enamel, stylized ember flames licking the border, a small open eye at the top, starry filigree"),
+	("artificier", "an engineer's frame: riveted copper and brass pipes, gears and cogs in the corners, a small powder keg with a lit fuse at the top, teal enamel gauges"),
+	("moine", "a monk's frame: carved light wood and jade, prayer beads along the border, rolling wave crests in the corners, green silk ribbon, serene"),
+	("trappeur", "a hunter's frame: knotted rope and bone, small antlers at the top, arrowheads and snare loops in the corners, ochre leather straps"),
+	("tidiane", "a chaotic painter's frame: gilded wood covered in bold brush strokes and splatters of magenta, blue, red and black paint, paintbrushes and a palette knife crossed at the top, a cracked white porcelain mask on the title, clever little brass mechanisms, deliberately asymmetrical drips yet readable"),
+	("receleur", "a fence's frame: tarnished silver with slate grey enamel, hanging keys, lockpicks and coins along the border, a small padlock at the top, a hidden drawer in the corner"),
+	("objet", "a merchant's item frame: warm polished brass and leather, small pouches and buckles in the corners, a tiny coin at the top"),
+]
+
+
+def classes():
+	parts = []
+	for i, (k, look) in enumerate(CLASSES):
+		parts.append("Panel %d (row %d, column %d): %s." % (i + 1, i // 3 + 1, i % 3 + 1, look))
+	still("A single image divided into a 3x3 grid of nine ornate trading card frames for a fantasy tactics card game, each frame portrait, "
+		"centered in its cell, all the same size and EXACTLY the same layout as the frames of the reference image: a decorated outer border "
+		"about 4 percent of the width thick, a slightly wider title plate band across the top, ornamented corners, a large empty picture window "
+		"in the upper two thirds and an empty text box in the lower third, separated by a thin divider. The picture window and the text box must "
+		"be large, clean rectangles at the same place in every frame. Game UI asset, clean readable silhouette, stylized hand-painted materials, "
+		"front view. No text, no letters, no picture inside. " + " ".join(parts) + " " + GREEN,
+		os.path.join(HERE, "cadres_classes.png"), "3:4", [os.path.join(HERE, "cadres.png")])
 
 
 def cadres():
@@ -88,4 +118,4 @@ def etages(only):
 
 if __name__ == "__main__":
 	what = sys.argv[1]
-	{"cadres": cadres, "orbes": orbes}.get(what, lambda: etages(sys.argv[2:]))()
+	{"cadres": cadres, "orbes": orbes, "classes": classes}.get(what, lambda: etages(sys.argv[2:]))()

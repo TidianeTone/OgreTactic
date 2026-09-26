@@ -27,6 +27,7 @@ var hand_layer: Control
 var header: Label
 var sub: Label
 var energy_lbl: Label
+var bpm_lbl: Label
 var pile_lbl: Label
 var end_btn: Button
 var tip: Label
@@ -273,6 +274,15 @@ func _build_hud() -> void:
 	energy_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	energy_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	orb.add_child(energy_lbl)
+	# BPM de Tidiane (et de ceux qui l'ont en vocation) : à droite de l'anneau de mana
+	bpm_lbl = _shadowed(_label("", 22, Color("#f06fb0"), title_f), 6)
+	bpm_lbl.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	bpm_lbl.position = Vector2(152, -118)
+	bpm_lbl.size = Vector2(150, 30)
+	bpm_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
+	bpm_lbl.tooltip_text = "BPM : chaque carte jouée le monte de 1 (12 au plus). Les cartes Drop le dépensent d'un coup."
+	bpm_lbl.visible = false
+	hud.add_child(bpm_lbl)
 	pile_lbl = _shadowed(_label("", 15, INK), 6)
 	pile_lbl.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	pile_lbl.position = Vector2(24, -24)
@@ -346,7 +356,7 @@ func _build_hud() -> void:
 	grid.add_theme_constant_override("v_separation", 3)
 	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	kv.add_child(grid)
-	for row in [["Clic", "héros, carte, case"], ["Clic ennemi", "épingler / retirer sa fiche"],
+	for row in [["Clic", "héros, carte, case"], ["Clic ennemi", "épingler / retirer sa fiche"], ["Course", "déjà marché ? repartir une fois : 3 mana"],
 			["Survol", "infos de la case ou de l'objet"], ["Clic droit", "annuler · maintenu : caméra"],
 			["ZQSD", "déplacer la caméra (clic droit tenu)"], ["Q / E · molette", "pivoter · zoomer"],
 			["Espace · ← →", "fin du tour, puis orientation"], ["D · L", "zone de danger · journal"], ["Tab · 1 à 9", "recentrer · jouer une carte"],
@@ -576,6 +586,34 @@ func point(to: Callable) -> void:
 		tuto_arrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		root.add_child(tuto_arrow)
 	tuto_arrow.visible = false
+
+
+var turn_arrow: Label
+
+
+func _place_turn_arrow() -> void:
+	## Le héros dont c'est le tour, tant qu'il n'a rien fait : un chevron doré qui rebondit au-dessus de lui.
+	var h: Unit = battle.active if battle else null
+	var show: bool = hud.visible and h != null and battle.player_turn and not battle.busy and not h.moved and battle.played == 0 			and overlay == null and not (tuto_arrow != null and tuto_arrow.visible)
+	var p := Vector3.ZERO
+	if show:
+		p = h.global_position + Vector3(0, h.head + 0.7, 0)
+		show = not main.cam.is_position_behind(p)
+	if turn_arrow == null:
+		if not show:
+			return
+		turn_arrow = _label("▼", 40, Data.CLASS_COLOR.get(h.key, GOLD).lightened(0.3), title_f)
+		turn_arrow.add_theme_color_override("font_outline_color", Color("#1a0e06"))
+		turn_arrow.add_theme_constant_override("outline_size", 12)
+		turn_arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		turn_arrow.size = Vector2(50, 50)
+		turn_arrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		root.add_child(turn_arrow)
+	turn_arrow.visible = show
+	if show:
+		turn_arrow.add_theme_color_override("font_color", Data.CLASS_COLOR.get(h.key, GOLD).lightened(0.3))
+		var bob := absf(sin(Time.get_ticks_msec() * 0.005)) * 10.0
+		turn_arrow.position = main.cam.unproject_position(p) - Vector2(25, 48 + bob)
 
 
 func _place_arrow() -> void:
@@ -961,6 +999,11 @@ func refresh() -> void:
 	_refresh_heroes()
 	_refresh_frieze()
 	energy_lbl.text = str(battle.energy)
+	var ah: Unit = battle.active
+	bpm_lbl.visible = ah != null and "tidiane" in [ah.key, ah.voc, ah.voc2]
+	if bpm_lbl.visible:
+		bpm_lbl.text = "♪ %d BPM" % ah.bpm
+		bpm_lbl.add_theme_color_override("font_color", Color("#9a5ad0").lerp(Color("#ff8a50"), ah.bpm / 12.0))
 	var ak: String = battle.active.key if battle.active else "neutre"
 	var av: String = battle.active.voc if battle.active else ""
 	if ak + av != _orb_key:
@@ -1082,6 +1125,8 @@ func _rebuild_hand() -> void:
 		_cards.append(card)
 
 
+const FRAME_MARGE := 0.2  # toile des cadres de classe : 20 % de débord de chaque côté (blender/kie_ui/cut_classes.py)
+const TYPE_COL := {"atk": Color("#e0584a"), "skill": Color("#5a9be0"), "move": Color("#3fc0a8"), "power": Color("#b07ae0")}
 const FRAME_OF := {"atk": "attaque", "skill": "technique", "move": "mouvement", "power": "pouvoir"}
 # fenêtres des cadres KIE (fractions mesurées par blender/kie_ui/cut_ui.py) : illustration, texte
 const F_ART := Rect2(0.14, 0.175, 0.72, 0.475)
@@ -1151,18 +1196,40 @@ func make_card(ci: Dictionary) -> Control:
 		var lf := _panel(card, sb(Color(0, 0, 0, 0), Color("#ffcf5a") if lvc >= 3 else Color("#d8e0e8"), 3, 2))
 		lf.position = art_r.position
 		lf.size = art_r.size
-	# le cadre peint : un par type de carte
+	# le cadre peint : celui de la classe, ou de la guilde (moitié de chaque classe), ou de l'objet.
+	# Toile plus grande que la carte (cut_classes.py) : les ornements débordent.
 	var fr := TextureRect.new()
-	var fpath := "res://assets/ui/frame_%s.png" % FRAME_OF.get(c.kind, "technique")
-	if ResourceLoader.exists(fpath):
-		fr.texture = load(fpath)
+	var fname := "c_objet" if obj else "c_%s" % c.cls[0]
+	if not obj and c.cls.size() > 1:
+		var gl: Array = Guildes.LIST[c.g] if c.has("g") else [c.cls[0], c.cls[1]]
+		fname = "g_%s_%s" % [gl[0], gl[1]]
+	var fpath := "res://assets/ui/frame_%s.png" % fname
+	if not ResourceLoader.exists(fpath):
+		fpath = "res://assets/ui/frame_%s.png" % FRAME_OF.get(c.kind, "technique")
+		fr.size = CARD
+	else:
+		fr.position = -CARD * FRAME_MARGE
+		fr.size = CARD * (1.0 + 2.0 * FRAME_MARGE)
+	fr.texture = load(fpath)
 	fr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	fr.stretch_mode = TextureRect.STRETCH_SCALE
-	fr.size = CARD
 	fr.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	if obj:
-		fr.modulate = Color(1.0, 0.86, 0.62) if not legend else Color(1.0, 0.72, 0.45)  # cadre laiton des objets
+	if obj and legend:
+		fr.modulate = Color(1.0, 0.85, 0.6)
 	card.add_child(fr)
+	if not obj:
+		# le type de la carte, sur la ligne qui sépare l'illustration du texte
+		var tc: Color = TYPE_COL.get(c.kind, GOLD)
+		var tname: String = {"atk": "Attaque", "skill": "Technique", "move": "Mouvement", "power": "Pouvoir"}.get(c.kind, "Technique")
+		var tp := _panel(card, sb(Color(0.05, 0.04, 0.05, 0.92), tc, 7, 1))
+		var tlab := _label(tname, 10, tc.lightened(0.35), title_f)
+		var tw: float = title_f.get_string_size(tname, HORIZONTAL_ALIGNMENT_LEFT, -1, 10).x + 16
+		tp.size = Vector2(tw, 15)
+		tp.position = Vector2((CARD.x - tw) * 0.5, txt_r.position.y - 9)
+		tlab.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		tlab.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		tlab.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		tp.add_child(tlab)
 	var shown: String = c.name.split(",")[0] if c.name.length() > 18 else c.name  # « Kaede, Vent sans ombre » -> « Kaede »
 	var fs := 17
 	while fs > 9 and title_f.get_string_size(shown, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > CARD.x * 0.62:
@@ -1487,6 +1554,7 @@ func _kw_place(tgt: Control) -> void:
 func _process(dt: float) -> void:
 	_kw_update()
 	_place_arrow()
+	_place_turn_arrow()
 	if big:
 		_fit_screen(overlay)
 		_fit_screen(sheet_layer)
@@ -2530,6 +2598,188 @@ func vocation_intro(h: Unit) -> void:
 	create_tween().tween_property(overlay, "modulate:a", 1.0, 0.35)
 	await picked
 	_close_overlay()
+
+
+func vocation_screen(h: Unit, picks: Array) -> int:
+	## D'abord le héros qui monte, puis ses trois voies. Au survol d'une voie : le modèle hybride qui tourne,
+	## la guilde, sa règle et la philosophie de la classe apprise.
+	_close_overlay()
+	overlay = Control.new()
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.z_index = 100
+	root.add_child(overlay)
+	var opened := Time.get_ticks_msec()
+	var dim := ColorRect.new()
+	dim.color = Color(0.03, 0.03, 0.04, 0.82)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(dim)
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 12)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.add_child(box)
+	var col: Color = Data.CLASS_COLOR[h.key]
+	var tl := _shadowed(_label("VOCATION · %s" % h.nm.to_upper(), 46, INK, wide_f), 10)
+	tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(tl)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 26)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(row)
+	# 1. le héros qui a monté
+	var hp := PanelContainer.new()
+	var hs := sb(Color(0.07, 0.06, 0.07, 0.95), col, 12, 3, 12)
+	hs.set_content_margin_all(16)
+	hp.add_theme_stylebox_override("panel", hs)
+	hp.custom_minimum_size = Vector2(250, 0)
+	row.add_child(hp)
+	var hv := VBoxContainer.new()
+	hv.add_theme_constant_override("separation", 6)
+	hp.add_child(hv)
+	var por := TextureRect.new()
+	por.texture = load("res://assets/art/portrait_%s.png" % h.key)
+	por.custom_minimum_size = Vector2(170, 170)
+	por.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	por.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	hv.add_child(por)
+	for t in [[h.nm, 26, INK, title_f], ["Maîtrise II", 18, GOLD, title_f], [Data.HEROES[h.key].title, 14, col.lightened(0.35), null],
+			["A assez combattu pour apprendre une deuxième classe. Choisis sa voie.", 14, INK, null]]:
+		var l := _label(t[0], t[1], t[2], t[3])
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size.x = 218
+		hv.add_child(l)
+	# 2. les trois voies
+	var paths := VBoxContainer.new()
+	paths.add_theme_constant_override("separation", 10)
+	paths.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(paths)
+	# 3. l'aperçu : modèle hybride et philosophie
+	var pv := PanelContainer.new()
+	var ps := sb(Color(0.06, 0.05, 0.06, 0.95), GOLD.darkened(0.3), 12, 2, 12)
+	ps.set_content_margin_all(14)
+	pv.add_theme_stylebox_override("panel", ps)
+	pv.custom_minimum_size = Vector2(420, 0)
+	row.add_child(pv)
+	var pvv := VBoxContainer.new()
+	pvv.add_theme_constant_override("separation", 6)
+	pv.add_child(pvv)
+	var svc := SubViewportContainer.new()
+	svc.stretch = true
+	svc.custom_minimum_size = Vector2(392, 300)
+	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pvv.add_child(svc)
+	var sv := SubViewport.new()
+	sv.own_world_3d = true
+	sv.transparent_bg = true
+	sv.msaa_3d = Viewport.MSAA_4X
+	svc.add_child(sv)
+	var env := WorldEnvironment.new()
+	env.environment = Environment.new()
+	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.environment.ambient_light_color = Color(0.85, 0.82, 0.9)
+	env.environment.ambient_light_energy = 0.9
+	sv.add_child(env)
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-35, 35, 0)
+	sun.light_energy = 1.6
+	sv.add_child(sun)
+	var cam3 := Camera3D.new()
+	cam3.fov = 30.0
+	sv.add_child(cam3)
+	var pivot := Node3D.new()
+	sv.add_child(pivot)
+	var spin := pivot.create_tween().set_loops()
+	spin.tween_property(pivot, "rotation:y", TAU, 7.0).from(0.0)
+	var info := _rich("", 15, INK)
+	info.custom_minimum_size = Vector2(392, 0)
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	pvv.add_child(info)
+	var show := func(k: String) -> void:
+		for ch in pivot.get_children():
+			ch.queue_free()
+		var path := "res://assets/u_%s__%s.glb" % [h.key, k]
+		if not ResourceLoader.exists(path):
+			path = "res://assets/u_%s.glb" % k
+		var inst: Node3D = load(path).instantiate()
+		pivot.add_child(inst)
+		var box3 := AABB()
+		var first := true
+		for mi in inst.find_children("*", "MeshInstance3D", true, false):
+			mi.material_override = Board.material("glow_unit" if String(mi.name).ends_with("glow") else "unit")
+			var bb: AABB = mi.get_aabb()
+			box3 = bb if first else box3.merge(bb)
+			first = false
+		var ht: float = maxf(box3.size.y, 0.5)
+		inst.position = Vector3(-box3.get_center().x, -box3.position.y, -box3.get_center().z)
+		cam3.position = Vector3(0, ht * 0.6, ht * 2.2)
+		cam3.look_at(Vector3(0, ht * 0.5, 0))
+		var g := Guildes.index(h.key, k)
+		var gl: Array = Guildes.LIST[g]
+		var kc: Color = Data.CLASS_COLOR[k]
+		info.text = "[center][font_size=22][color=#%s]%s + %s[/color][/font_size]\n[color=#e3b45c]Guilde : %s[/color] — %s\n\n[/center]%s" % [
+			kc.lightened(0.3).to_html(false), Data.HEROES[h.key].name, Data.HEROES[k].name, gl[2], gl[3], Data.PHILO.get(k, Data.HEROES[k].role)]
+	var btns: Array = []
+	for n in picks.size():
+		var k: String = picks[n]
+		var kc: Color = Data.CLASS_COLOR[k]
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(330, 108)
+		b.add_theme_stylebox_override("normal", sb(Color(0.07, 0.06, 0.07, 0.95), kc.darkened(0.2), 12, 2, 8))
+		b.add_theme_stylebox_override("hover", sb(kc.darkened(0.55), kc.lightened(0.3), 12, 3, 14))
+		b.add_theme_stylebox_override("focus", sb(kc.darkened(0.55), Color.WHITE, 12, 3, 14))
+		b.add_theme_stylebox_override("pressed", sb(kc.darkened(0.4), Color.WHITE, 12, 3, 6))
+		var hb := HBoxContainer.new()
+		hb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		hb.offset_left = 10
+		hb.add_theme_constant_override("separation", 12)
+		hb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(hb)
+		var pt := TextureRect.new()
+		pt.texture = load("res://assets/art/portrait_%s.png" % k)
+		pt.custom_minimum_size = Vector2(86, 86)
+		pt.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		pt.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		pt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		pt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hb.add_child(pt)
+		var tv := VBoxContainer.new()
+		tv.alignment = BoxContainer.ALIGNMENT_CENTER
+		tv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hb.add_child(tv)
+		tv.add_child(_label(Data.HEROES[k].name, 22, kc.lightened(0.35), title_f))
+		var st := _label(Data.HEROES[k].title, 13, DIM)
+		st.custom_minimum_size.x = 210
+		st.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tv.add_child(st)
+		for c in [pt, tv]:
+			c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var nn := n
+		b.mouse_entered.connect(func(): show.call(k))
+		b.focus_entered.connect(func(): show.call(k))
+		b.pressed.connect(func():
+			if Time.get_ticks_msec() - opened > 1200:
+				picked.emit(nn))
+		b.modulate.a = 0.0
+		paths.add_child(b)
+		btns.append(b)
+	show.call(picks[0])
+	# le héros d'abord, les voies ensuite
+	overlay.modulate.a = 0
+	var tw := create_tween()
+	tw.tween_property(overlay, "modulate:a", 1.0, 0.35)
+	pv.modulate.a = 0.0
+	tw.tween_interval(0.5)
+	for b in btns:
+		tw.tween_property(b, "modulate:a", 1.0, 0.18)
+	tw.tween_property(pv, "modulate:a", 1.0, 0.25)
+	if Input.get_connected_joypads().size() > 0:
+		btns[0].grab_focus.call_deferred()
+	var i: int = await picked
+	_close_overlay()
+	return i
 
 
 # ------------------------------------------------------------------ bibliothèque

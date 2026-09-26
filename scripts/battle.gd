@@ -60,7 +60,7 @@ var _killed := false        # la carte en cours a tué
 static var foe_mult := 1.0  # dégâts ennemis selon l'étage
 static var foe_bonus := 0   # dégâts ennemis en plus (Enragés, Rage)
 var mods: Array = []        # modificateurs de la salle et des pactes
-var hand_size := 3            # cartes piochées par tour de héros
+var hand_size := 4            # cartes piochées par tour de héros
 static var foe_hp := 1.8      # PV des ennemis : chaque héros joue son propre tour
 var active: Unit              # héros dont c'est le tour (null pendant un ennemi)
 var order: Array = []         # ordre du round, par vitesse
@@ -1236,7 +1236,7 @@ func _hero_turn(h: Unit) -> void:
 		+ (1 if tiles.get(h.cell, "") == "autel" else 0))
 	if h.key == "receleur":
 		# Double fond : ses cartes-objets ne lui bouchent pas la main
-		while hand.filter(func(ci): return not Data.def(ci.id).has("tool")).size() < hand_size and hand.size() < 5 and not (draw_pile.is_empty() and discard.is_empty()):
+		while hand.filter(func(ci): return not Data.def(ci.id).has("tool")).size() < hand_size and hand.size() < 6 and not (draw_pile.is_empty() and discard.is_empty()):
 			draw(1)
 	_extra_move.erase(h)
 	_start_draw = false
@@ -1579,6 +1579,8 @@ func click(c: Vector2i) -> void:
 			busy = false
 			changed.emit()
 			coach.emit("moved", mover)
+			if can_sprint(mover) and not main.tuto and not main.seen_mech.has("course"):
+				_first("course", mover.position + Vector3(0, 0.8, 0), "Course", GOLD_FX, "un héros qui a déjà marché peut repartir une fois par tour, pour 3 mana : cliquez une case éclairée.")
 			_after_action()
 			return
 
@@ -1785,7 +1787,7 @@ func play_card(i: int, t: Vector2i) -> void:
 	var ci: Dictionary = hand[i]
 	var c := Data.card(ci)
 	var h := owner_of(c)
-	if h.lvl_next and not c.get("lvl_next", false):
+	if h.lvl_next and not c.get("lvl_next", false) and Data.level(ci) < Data.lvl_cap(ci):
 		# Geste technique : la carte monte d'un niveau jusqu'à la fin du combat
 		h.lvl_next = false
 		ci["bump"] = int(ci.get("bump", 0)) + 1
@@ -1832,7 +1834,14 @@ func play_card(i: int, t: Vector2i) -> void:
 		if h.bpm > 0:
 			Fx.number(main, h.position + Vector3(0, 1.4, 0), "Drop ! ♪ %d" % h.bpm, Color(0.95, 0.5, 0.8), true)
 	_overload = false
-	if c.has("overload") and energy >= int(c.overload) - cost and int(c.overload) > cost:
+	var ov_go: bool = c.has("overload") and energy >= int(c.overload) - cost and int(c.overload) > cost
+	if ov_go and not main._testing():
+		# un choix, pas une taxe : on surcharge si on le veut
+		var k: int = await main.ui.choose("SURCHARGE", "%s : dépenser %d mana de plus pour toucher chaque ennemi ?" % [c.name, int(c.overload) - cost], [
+			{"title": "Surcharger · +%d mana" % (int(c.overload) - cost), "glyph": "⚡", "text": "La carte touche chaque ennemi.", "color": Color(0.5, 0.8, 1.0)},
+			{"title": "Jouer normalement", "glyph": "•", "text": "Une seule cible, rien de plus à payer.", "color": UI.GOLD}])
+		ov_go = k == 0
+	if ov_go:
 		energy -= int(c.overload) - cost
 		_overload = true
 		Fx.number(main, h.position + Vector3(0, 1.2, 0), "Surcharge !", Color(0.5, 0.8, 1.0), true)
@@ -4686,6 +4695,7 @@ func _spend_obj(ci: Dictionary) -> void:
 	var c := Data.card(ci)
 	if c.get("eph", false):
 		return
+	ci["worn"] = int(ci.get("worn", 0)) + 1  # l'usure (secret) : ce qui ouvre le niveau 3 à la forge
 	if c.get("legend", false):
 		exhausted.append(ci)
 		return
@@ -6001,9 +6011,9 @@ func _self_fx(c: Dictionary, h: Unit) -> void:
 		else:
 			draw(1)
 	if c.get("oeuvre", false):
-		var idx: Array = range(deck.size()).filter(func(q): return Data.level(deck[q]) < Data.MAX_LVL)
+		var idx: Array = range(deck.size()).filter(func(q): return Data.level(deck[q]) < Data.lvl_cap(deck[q]))
 		if idx.size() > 0:
 			var j: int = await main.ui.choose("L'ŒUVRE", "Quelle carte passe au niveau 3 pour toute la run ?", idx.map(func(q): return {"card": deck[q]}), true)
 			if j >= 0:
-				deck[idx[j]]["lvl"] = Data.MAX_LVL
+				deck[idx[j]]["lvl"] = Data.lvl_cap(deck[idx[j]])
 				main.ui.banner("L'Œuvre", "%s passe au niveau 3" % Data.def(deck[idx[j]].id).name)

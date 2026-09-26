@@ -25,6 +25,18 @@ const HEROES := {
 	"receleur": {"name": "Receleur", "title": "Main leste des Hauts-Quais", "hp": 30, "speed": 8, "move": 4, "jump": 3, "role": "Vole les objets des ennemis, les fabrique et les recharge. Ses cartes-objets ne lui bouchent pas la main."},
 }
 
+# La philosophie de chaque classe, telle qu'on la lit à l'écran de vocation : comment elle pense, comment elle joue.
+const PHILO := {
+	"garde": "Tenir. Le Garde prend les coups pour que les autres n'aient pas à les prendre : armure, provocation, charges qui renversent. Il gagne les combats longs.",
+	"lame": "Frapper là où ça ne se voit pas. La Lame tourne autour, passe dans le dos, empoisonne et disparaît. Fragile de face, mortelle de dos.",
+	"oracle": "Voir avant d'agir. L'Oracle brûle de loin, soigne, pioche et prépare : ses tours paraissent calmes, ses rounds suivants ne le sont pas.",
+	"artificier": "Tout peut sauter. L'Artificier pose des barils, lance des grenades et fait du terrain une arme ; il joue le placement avant les dégâts.",
+	"moine": "Le geste enchaîné. Le Moine frappe au contact, bondit, tourbillonne : chaque coup du tour nourrit le suivant.",
+	"trappeur": "La proie vient à lui. Le Trappeur pose ses pièges, marque, entrave et harponne : il décide où le combat aura lieu.",
+	"tidiane": "Le peintre masqué : chaotique, ingénieux, jamais deux fois le même tableau. Tidiane mêle Analyse, Émotion et Ambition, paie en PV pour frapper fort et vit au rythme de son BPM.",
+	"receleur": "Tout se prend, tout se revend. Le Receleur vole les objets des ennemis, les fabrique, les recharge et les lance : sa main ne se vide jamais.",
+}
+
 const FOES := {
 	"husk": {"name": "Moussu", "hp": 14, "speed": 4, "move": 3, "jump": 2, "dmg": 6, "range": [1, 1], "ai": "melee"},
 	"guetteur": {"name": "Guetteur", "hp": 11, "speed": 6, "move": 3, "jump": 2, "dmg": 5, "range": [2, 5], "ai": "ranged"},
@@ -458,7 +470,7 @@ const KEYWORDS := {
 	"Égide": "Le prochain coup reçu ne fait aucun dégât.",
 	"Découvre": "Choisis une carte parmi trois ; elle arrive en main et coûte 0 ce tour.",
 	"Braquage": "Regarde 3 cartes d'une classe absente de l'escouade, gardes-en une.",
-	"Surcharge": "Si l'énergie restante suffit, la carte la dépense et touche chaque ennemi.",
+	"Surcharge": "Coût optionnel : au moment de jouer la carte, si l'énergie suffit, tu peux payer la Surcharge ; elle touche alors chaque ennemi.",
 	"Provocation": "Les ennemis visent ce héros en priorité.",
 	"Exposé": "Le prochain coup qu'il reçoit d'un héros compte de dos.",
 	"Choc": "Dégâts en plus quand la cible repoussée heurte un mur, un relief ou une unité.",
@@ -1022,6 +1034,17 @@ const MAX_LVL := 3
 ## Une carte en main = {"id", "lvl"} (niveau 1 à 3). Renvoie la définition au niveau voulu.
 static func level(ci: Dictionary) -> int:
 	return clampi(int(ci.get("lvl", 1 + int(ci.get("up", 0)))) + int(ci.get("bump", 0)), 1, MAX_LVL)
+
+
+static func lvl_cap(ci: Dictionary) -> int:
+	## Niveau atteignable. Une carte-objet plafonne au niveau 2 tant qu'elle n'a pas assez servi (secret :
+	## le légendaire se mérite à l'usage, pas en empilant des objets ni par un raccourci).
+	if not def(ci.id).has("tool"):
+		return MAX_LVL
+	return MAX_LVL if int(ci.get("worn", 0)) >= OBJ_WORN else 2
+
+
+const OBJ_WORN := 5  # utilisations d'une carte-objet (jouée, démontée, lancée) avant que la forge l'accepte au niveau 3
 
 
 # Cartes créées en combat seulement : jamais au butin, ni en bibliothèque.
